@@ -9,6 +9,7 @@ import (
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/diogenes-ai-code/wark/internal/state"
+	"github.com/diogenes-ai-code/wark/internal/tasks"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -323,6 +324,15 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 
 	if autoAccept {
 		activityRepo.LogAction(ticket.ID, models.ActionAccepted, models.ActorTypeSystem, "", "Auto-accepted")
+
+		// Run dependency resolution when ticket is done
+		resolver := tasks.NewDependencyResolver(database.DB)
+		resResult, err := resolver.OnTicketCompleted(ticket.ID, true)
+		if err != nil {
+			VerboseOutput("Warning: dependency resolution failed: %v\n", err)
+		} else {
+			outputDependencyResolution(resResult)
+		}
 	}
 
 	if IsJSON() {
@@ -339,6 +349,35 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 	OutputLine("Status: %s", ticket.Status)
 
 	return nil
+}
+
+// outputDependencyResolution outputs the results of dependency resolution in verbose mode.
+func outputDependencyResolution(result *tasks.ResolutionResult) {
+	if result == nil {
+		return
+	}
+
+	if result.Unblocked > 0 {
+		VerboseOutput("Unblocked %d ticket(s):\n", result.Unblocked)
+		for _, r := range result.UnblockResults {
+			if r.NewStatus != "" {
+				VerboseOutput("  %s: %s\n", r.TicketKey, r.Reason)
+			}
+		}
+	}
+
+	if result.ParentsUpdated > 0 {
+		VerboseOutput("Updated %d parent ticket(s):\n", result.ParentsUpdated)
+		for _, r := range result.ParentResults {
+			if r.NewStatus != "" {
+				if r.AutoAccepted {
+					VerboseOutput("  %s: auto-completed (%d/%d children done)\n", r.TicketKey, r.ChildrenDone, r.ChildrenTotal)
+				} else {
+					VerboseOutput("  %s: moved to review (%d/%d children done)\n", r.TicketKey, r.ChildrenDone, r.ChildrenTotal)
+				}
+			}
+		}
+	}
 }
 
 // ticket flag

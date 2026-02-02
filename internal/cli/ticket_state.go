@@ -8,6 +8,7 @@ import (
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/diogenes-ai-code/wark/internal/state"
+	"github.com/diogenes-ai-code/wark/internal/tasks"
 	"github.com/spf13/cobra"
 )
 
@@ -80,9 +81,13 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 	activityRepo := db.NewActivityRepo(database.DB)
 	activityRepo.LogAction(ticket.ID, models.ActionAccepted, models.ActorTypeHuman, "", "Work accepted")
 
-	// Check if parent ticket can be completed
-	if ticket.ParentTicketID != nil {
-		checkParentCompletion(database, *ticket.ParentTicketID, activityRepo)
+	// Run dependency resolution: unblock dependents and update parent
+	resolver := tasks.NewDependencyResolver(database.DB)
+	resResult, err := resolver.OnTicketCompleted(ticket.ID, false) // false = parents go to review, not auto-done
+	if err != nil {
+		VerboseOutput("Warning: dependency resolution failed: %v\n", err)
+	} else {
+		outputDependencyResolution(resResult)
 	}
 
 	if IsJSON() {
@@ -99,45 +104,6 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 	OutputLine("Status: %s", ticket.Status)
 
 	return nil
-}
-
-// checkParentCompletion checks if all children are done and auto-completes parent
-func checkParentCompletion(database *db.DB, parentID int64, activityRepo *db.ActivityRepo) {
-	ticketRepo := db.NewTicketRepo(database.DB)
-
-	// Get parent ticket
-	parent, err := ticketRepo.GetByID(parentID)
-	if err != nil || parent == nil {
-		return
-	}
-
-	// Only check if parent is blocked or in_progress
-	if parent.Status != models.StatusBlocked && parent.Status != models.StatusInProgress {
-		return
-	}
-
-	// Get all children
-	children, err := ticketRepo.GetChildren(parentID)
-	if err != nil {
-		return
-	}
-
-	// Check if all children are done or cancelled
-	allComplete := true
-	for _, child := range children {
-		if !child.Status.IsTerminal() {
-			allComplete = false
-			break
-		}
-	}
-
-	if allComplete && len(children) > 0 {
-		// Move parent to ready (not auto-done, needs explicit completion)
-		parent.Status = models.StatusReady
-		ticketRepo.Update(parent)
-		activityRepo.LogAction(parentID, models.ActionUnblocked, models.ActorTypeSystem, "",
-			"All child tickets completed")
-	}
 }
 
 // ticket reject

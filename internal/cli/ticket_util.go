@@ -164,11 +164,16 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 	// Generate worker ID if not provided
 	workerID := claimWorkerID
 	if workerID == "" {
-		workerID = uuid.New().String()[:8]
+		// Try config default, then generate UUID
+		workerID = GetDefaultWorkerID()
+		if workerID == "" {
+			workerID = uuid.New().String()[:8]
+		}
 	}
 
-	// Create claim (default 60 minutes)
-	duration := time.Duration(60) * time.Minute
+	// Create claim using config duration
+	durationMins := GetDefaultClaimDuration()
+	duration := time.Duration(durationMins) * time.Minute
 	claim := models.NewClaim(nextTicket.ID, workerID, duration)
 	if err := claimRepo.Create(claim); err != nil {
 		return fmt.Errorf("failed to create claim: %w", err)
@@ -188,7 +193,7 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 		"Claimed via 'ticket next'",
 		map[string]interface{}{
 			"worker_id":     workerID,
-			"duration_mins": 60,
+			"duration_mins": durationMins,
 			"expires_at":    claim.ExpiresAt.Format(time.RFC3339),
 		})
 
@@ -212,7 +217,7 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 	OutputLine("Claimed: %s", nextTicket.TicketKey)
 	OutputLine("Title: %s", nextTicket.Title)
 	OutputLine("Worker: %s", workerID)
-	OutputLine("Expires: %s (60 minutes)", claim.ExpiresAt.Format("2006-01-02 15:04:05"))
+	OutputLine("Expires: %s (%d minutes)", claim.ExpiresAt.Format("2006-01-02 15:04:05"), durationMins)
 	OutputLine("Branch: %s", branchName)
 	OutputLine("")
 	OutputLine("Run: git checkout -b %s", branchName)

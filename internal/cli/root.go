@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/diogenes-ai-code/wark/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +21,11 @@ var (
 	jsonOut bool
 	quiet   bool
 	verbose bool
+	noColor bool
 )
+
+// Global configuration (loaded once at startup)
+var globalConfig *config.Config
 
 // Exit codes as per spec
 const (
@@ -49,10 +54,20 @@ Use "wark --help" to see all available commands.`,
 }
 
 func init() {
+	// Load global configuration at startup
+	var err error
+	globalConfig, err = config.Load()
+	if err != nil {
+		// If config file is invalid, print warning but continue with defaults
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config file: %v\n", err)
+		globalConfig = config.DefaultConfig()
+	}
+
 	rootCmd.PersistentFlags().StringVar(&dbPath, "db", "", "Path to database file (default ~/.wark/wark.db)")
 	rootCmd.PersistentFlags().BoolVarP(&jsonOut, "json", "j", false, "Output in JSON format")
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress non-essential output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 
 	// Add commands
 	rootCmd.AddCommand(versionCmd)
@@ -63,14 +78,16 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
-// GetDBPath returns the database path from flags or default
+// GetDBPath returns the database path from flags, config, or default.
+// Priority: flag > env > config file > default
 func GetDBPath() string {
+	// Command-line flag has highest priority
 	if dbPath != "" {
 		return dbPath
 	}
-	// Check environment variable
-	if envDB := os.Getenv("WARK_DB"); envDB != "" {
-		return envDB
+	// Config already handles env > file > default
+	if globalConfig != nil {
+		return globalConfig.GetDB()
 	}
 	return "" // Will use default in db.Open
 }
@@ -78,6 +95,62 @@ func GetDBPath() string {
 // IsJSON returns whether JSON output is requested
 func IsJSON() bool {
 	return jsonOut
+}
+
+// IsNoColor returns whether colored output should be disabled.
+// Priority: flag > env > config file > default
+func IsNoColor() bool {
+	// Command-line flag has highest priority
+	if noColor {
+		return true
+	}
+	// Config already handles env > file > default
+	if globalConfig != nil {
+		return globalConfig.NoColor
+	}
+	return false
+}
+
+// GetDefaultProject returns the default project from config.
+func GetDefaultProject() string {
+	if globalConfig != nil {
+		return globalConfig.DefaultProject
+	}
+	return ""
+}
+
+// GetDefaultWorkerID returns the default worker ID from config.
+func GetDefaultWorkerID() string {
+	if globalConfig != nil {
+		return globalConfig.DefaultWorkerID
+	}
+	return ""
+}
+
+// GetDefaultClaimDuration returns the default claim duration in minutes from config.
+func GetDefaultClaimDuration() int {
+	if globalConfig != nil && globalConfig.ClaimDuration > 0 {
+		return globalConfig.ClaimDuration
+	}
+	return 60
+}
+
+// GetConfig returns the global configuration.
+// This should only be used when direct access to all config values is needed.
+func GetConfig() *config.Config {
+	if globalConfig != nil {
+		return globalConfig
+	}
+	return config.DefaultConfig()
+}
+
+// GetProjectWithDefault returns the provided project or the default from config.
+// Use this when getting a project value that may come from flag or config.
+func GetProjectWithDefault(flagProject string) string {
+	if flagProject != "" {
+		return flagProject
+	}
+	return GetDefaultProject()
 }
 
 // IsQuiet returns whether quiet mode is enabled

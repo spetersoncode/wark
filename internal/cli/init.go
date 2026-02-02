@@ -3,15 +3,21 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
+	"github.com/diogenes-ai-code/wark/internal/config"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/spf13/cobra"
 )
 
-var initForce bool
+var (
+	initForce      bool
+	initWithConfig bool
+)
 
 func init() {
 	initCmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing database")
+	initCmd.Flags().BoolVar(&initWithConfig, "with-config", false, "Create a sample config file")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -24,15 +30,18 @@ This command:
 - Creates ~/.wark/ directory if it doesn't exist
 - Creates wark.db with the database schema
 - Runs any pending migrations
+- Optionally creates a sample config file (--with-config)
 
-Use --force to overwrite an existing database.`,
+Use --force to overwrite an existing database.
+Use --with-config to create a sample config file at ~/.wark/config.toml.`,
 	RunE: runInit,
 }
 
 type initResult struct {
-	Database string `json:"database"`
-	Created  bool   `json:"created"`
-	Schema   int64  `json:"schema_version"`
+	Database   string `json:"database"`
+	Created    bool   `json:"created"`
+	Schema     int64  `json:"schema_version"`
+	ConfigFile string `json:"config_file,omitempty"`
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -89,11 +98,27 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	displayPath := database.Path()
 
+	// Optionally create sample config file
+	var configPath string
+	if initWithConfig {
+		configPath = config.DefaultConfigPath()
+		if _, err := os.Stat(configPath); err == nil && !initForce {
+			VerboseOutput("Config file already exists at %s, skipping...\n", configPath)
+			configPath = "" // Don't report it as created
+		} else {
+			VerboseOutput("Creating sample config file...\n")
+			if err := config.WriteConfigFile(configPath); err != nil {
+				return fmt.Errorf("failed to create config file: %w", err)
+			}
+		}
+	}
+
 	if IsJSON() {
 		result := initResult{
-			Database: displayPath,
-			Created:  true,
-			Schema:   version,
+			Database:   displayPath,
+			Created:    true,
+			Schema:     version,
+			ConfigFile: configPath,
 		}
 		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
@@ -102,6 +127,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	OutputLine("Initialized wark database at %s", displayPath)
 	OutputLine("Schema version: %d", version)
+	if configPath != "" {
+		OutputLine("Created sample config at %s", configPath)
+	}
 
 	return nil
 }

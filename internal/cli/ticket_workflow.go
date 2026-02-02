@@ -118,11 +118,18 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	// Generate worker ID if not provided
 	workerID := claimWorkerID
 	if workerID == "" {
-		workerID = uuid.New().String()[:8]
+		// Try config default, then generate UUID
+		workerID = GetDefaultWorkerID()
+		if workerID == "" {
+			workerID = uuid.New().String()[:8]
+		}
 	}
 
-	// Create claim
+	// Get duration - use flag if changed from default, otherwise check config
 	duration := time.Duration(claimDuration) * time.Minute
+	if !cmd.Flags().Changed("duration") {
+		duration = time.Duration(GetDefaultClaimDuration()) * time.Minute
+	}
 	claim := models.NewClaim(ticket.ID, workerID, duration)
 	if err := claimRepo.Create(claim); err != nil {
 		return ErrDatabase(err, "failed to create claim")

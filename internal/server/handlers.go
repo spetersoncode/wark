@@ -26,7 +26,7 @@ type ProjectResponse struct {
 // TicketResponse represents a ticket in API responses.
 type TicketResponse struct {
 	ID              int64    `json:"id"`
-	Key             string   `json:"key"`
+	Key             string   `json:"ticket_key"`
 	ProjectKey      string   `json:"project_key"`
 	Number          int      `json:"number"`
 	Title           string   `json:"title"`

@@ -10,84 +10,69 @@
 
 ---
 
-## Phase 1: Project Foundation
+## Phase 1: Project Foundation ✅
 
 ### 1.1 Project Setup
-- [ ] Create repository `~/repos/wark`
-- [ ] Initialize Go module (`go mod init github.com/diogenes-ai-code/wark`)
-- [ ] Set up directory structure:
-  ```
-  wark/
-  ├── cmd/
-  │   └── wark/
-  │       └── main.go
-  ├── internal/
-  │   ├── db/
-  │   ├── models/
-  │   ├── state/
-  │   ├── cli/
-  │   └── tui/
-  ├── migrations/
-  ├── docs/
-  └── README.md
-  ```
-- [ ] Add `.gitignore` for Go
-- [ ] Initial commit and push to GitHub
+- [x] Create repository `~/repos/wark`
+- [x] Initialize Go module (`go mod init github.com/diogenes-ai-code/wark`)
+- [x] Set up directory structure
+- [x] Add `.gitignore` for Go
+- [x] Initial commit and push to GitHub
 
 ### 1.2 Core Dependencies
-- [ ] Add Cobra (`github.com/spf13/cobra`)
-- [ ] Add SQLite driver (`modernc.org/sqlite` - pure Go, no CGO)
-- [ ] Add Goose (`github.com/pressly/goose/v3`)
-- [ ] Add Bubble Tea (`github.com/charmbracelet/bubbletea`)
-- [ ] Add Lip Gloss (`github.com/charmbracelet/lipgloss`)
-- [ ] Add Bubbles (`github.com/charmbracelet/bubbles`)
+- [x] Add Cobra (`github.com/spf13/cobra`)
+- [x] Add SQLite driver (`modernc.org/sqlite` - pure Go, no CGO)
+- [x] Add Goose (`github.com/pressly/goose/v3`)
+- [ ] Add Bubble Tea (`github.com/charmbracelet/bubbletea`) - *deferred to TUI phase*
+- [ ] Add Lip Gloss (`github.com/charmbracelet/lipgloss`) - *deferred to TUI phase*
+- [ ] Add Bubbles (`github.com/charmbracelet/bubbles`) - *deferred to TUI phase*
 
 ---
 
-## Phase 2: Database Layer
+## Phase 2: Database Layer ✅
 
 ### 2.1 Goose Migration Setup
-- [ ] Create `migrations/` directory
-- [ ] Configure goose for SQLite (embed migrations in binary)
-- [ ] Implement migration runner in `internal/db/migrate.go`
+- [x] Create `migrations/` directory (embedded in `internal/db/migrations/`)
+- [x] Configure goose for SQLite (embed migrations in binary)
+- [x] Implement migration runner in `internal/db/migrate.go`
 
 ### 2.2 Schema Migrations
-- [ ] `001_create_projects.sql` - projects table
-- [ ] `002_create_tickets.sql` - tickets table with all fields
-- [ ] `003_create_ticket_dependencies.sql` - dependency junction table
-- [ ] `004_create_claims.sql` - claims table
-- [ ] `005_create_inbox_messages.sql` - human inbox
-- [ ] `006_create_activity_log.sql` - activity log table
-- [ ] `007_create_indexes.sql` - all indexes
-- [ ] `008_create_views.sql` - workable_tickets, pending_human_input, active_claims views
-- [ ] `009_create_triggers.sql` - auto-update timestamps, ticket number generation, activity logging
+- [x] `001_create_projects.sql` - projects table
+- [x] `002_create_tickets.sql` - tickets table with all fields
+- [x] `003_create_ticket_dependencies.sql` - dependency junction table
+- [x] `004_create_claims.sql` - claims table
+- [x] `005_create_inbox_messages.sql` - human inbox
+- [x] `006_create_activity_log.sql` - activity log table
+- [x] `007_create_indexes.sql` - all indexes
+- [x] `008_create_views.sql` - workable_tickets, pending_human_input, active_claims views
+- [x] `009_create_triggers.sql` - auto-update timestamps, ticket number generation, activity logging
 
 ### 2.3 Database Connection
-- [ ] Implement connection manager in `internal/db/db.go`
-- [ ] Handle `~/.wark/wark.db` path resolution
-- [ ] Auto-create directory if missing
-- [ ] Connection pooling configuration
+- [x] Implement connection manager in `internal/db/db.go`
+- [x] Handle `~/.wark/wark.db` path resolution
+- [x] Auto-create directory if missing
+- [x] SQLite configuration (WAL mode, foreign keys)
 - [ ] Write tests for connection handling
 
 ---
 
-## Phase 3: Domain Models
+## Phase 3: Domain Models ✅
 
 ### 3.1 Core Models (`internal/models/`)
-- [ ] `project.go` - Project struct and methods
-- [ ] `ticket.go` - Ticket struct with all fields
-- [ ] `claim.go` - Claim struct
-- [ ] `inbox.go` - InboxMessage struct
-- [ ] `activity.go` - ActivityLog struct
-- [ ] `enums.go` - Status, Priority, Complexity, ClaimStatus, MessageType enums
+- [x] `project.go` - Project struct and methods
+- [x] `ticket.go` - Ticket struct with all fields
+- [x] `claim.go` - Claim struct
+- [x] `inbox.go` - InboxMessage struct
+- [x] `activity.go` - ActivityLog struct
+- [x] `enums.go` - Status, Priority, Complexity, ClaimStatus, MessageType enums
 
 ### 3.2 Repository Layer (`internal/db/`)
-- [ ] `project_repo.go` - CRUD for projects
-- [ ] `ticket_repo.go` - CRUD + queries for tickets
-- [ ] `claim_repo.go` - claim management
-- [ ] `inbox_repo.go` - inbox message management
-- [ ] `activity_repo.go` - activity log queries
-- [ ] `dependency_repo.go` - dependency graph operations
+- [x] `project_repo.go` - CRUD for projects
+- [x] `ticket_repo.go` - CRUD + queries for tickets
+- [x] `claim_repo.go` - claim management
+- [x] `inbox_repo.go` - inbox message management
+- [x] `activity_repo.go` - activity log queries
+- [x] `dependency_repo.go` - dependency graph operations (with cycle detection)
 - [ ] Write tests for each repository
 
 ---
@@ -101,13 +86,13 @@
 - [ ] Implement precondition checks
 
 ### 4.2 State Transitions
-- [ ] `created → ready` (vet)
+- [ ] `created → ready` (auto, on successful validation)
 - [ ] `ready → blocked` (auto, on dependency check)
 - [ ] `blocked → ready` (auto, on dependency resolution)
 - [ ] `ready → in_progress` (claim)
 - [ ] `in_progress → ready` (release/expire)
 - [ ] `in_progress → review` (complete)
-- [ ] `in_progress → blocked` (decompose)
+- [ ] `in_progress → blocked` (add dependency)
 - [ ] `* → needs_human` (flag from any active state)
 - [ ] `needs_human → ready/in_progress` (human respond)
 - [ ] `review → done` (accept)
@@ -120,7 +105,7 @@
 - [ ] Implement retry counting and max retry escalation
 - [ ] Implement dependency resolution checker
 - [ ] Implement parent auto-completion on child completion
-- [ ] Implement circular dependency detection
+- [ ] Circular dependency detection (already in DependencyRepo)
 - [ ] Write comprehensive state machine tests
 
 ---
@@ -128,7 +113,8 @@
 ## Phase 5: CLI Commands
 
 ### 5.1 Root Command (`internal/cli/`)
-- [ ] `root.go` - Base command with global flags (`--db`, `--json`, `--quiet`, `--verbose`)
+- [x] `root.go` - Base command skeleton
+- [ ] Global flags (`--db`, `--json`, `--quiet`, `--verbose`)
 - [ ] Version command
 - [ ] Help customization
 
@@ -145,13 +131,11 @@
 ### 5.4 Ticket Commands
 - [ ] `wark ticket create <PROJECT> --title --description --priority --complexity --depends-on --parent`
 - [ ] `wark ticket list [--project] [--status] [--priority] [--workable] [--limit]`
-- [ ] `wark ticket show <TICKET>`
-- [ ] `wark ticket edit <TICKET> [--title] [--description] [--priority] [--complexity]`
-- [ ] `wark ticket vet <TICKET>`
+- [ ] `wark ticket show <TICKET>` (includes dependencies)
+- [ ] `wark ticket edit <TICKET> [--title] [--description] [--priority] [--complexity] [--add-dep] [--remove-dep]`
 - [ ] `wark ticket claim <TICKET> [--worker-id] [--duration]`
 - [ ] `wark ticket release <TICKET> [--reason]`
 - [ ] `wark ticket complete <TICKET> [--summary] [--auto-accept]`
-- [ ] `wark ticket decompose <TICKET> --child... [--file]`
 - [ ] `wark ticket flag <TICKET> --reason "<message>"`
 - [ ] `wark ticket accept <TICKET>`
 - [ ] `wark ticket reject <TICKET> --reason`
@@ -159,7 +143,6 @@
 - [ ] `wark ticket reopen <TICKET>`
 - [ ] `wark ticket next [--project] [--worker-id] [--dry-run] [--complexity]`
 - [ ] `wark ticket branch <TICKET> [--set]`
-- [ ] `wark ticket depend <TICKET> --on/--remove/--list`
 - [ ] `wark ticket log <TICKET> [--limit] [--action] [--actor] [--since] [--full]`
 
 ### 5.5 Inbox Commands
@@ -174,7 +157,7 @@
 - [ ] `wark claim expire [--all] [--ticket]`
 
 ### 5.7 Status Command
-- [ ] `wark status [--project]` - Quick overview
+- [ ] `wark status [--project]` - Quick overview dashboard
 
 ### 5.8 JSON Output
 - [ ] Implement `--json` flag for all commands
@@ -200,7 +183,9 @@
 
 ---
 
-## Phase 7: TUI
+## Phase 7: TUI (Deferred)
+
+*Lower priority — CLI + agent skill is the MVP*
 
 ### 7.1 TUI Framework (`internal/tui/`)
 - [ ] `app.go` - Main TUI application
@@ -215,20 +200,9 @@
 - [ ] `graph.go` - Dependency graph view (ASCII)
 
 ### 7.3 Components
-- [ ] `header.go` - Header bar component
-- [ ] `tabs.go` - Tab bar component
-- [ ] `ticket_card.go` - Ticket card for board view
-- [ ] `ticket_detail.go` - Ticket detail modal
-- [ ] `filter.go` - Filter input component
-- [ ] `response_modal.go` - Inbox response modal
-- [ ] `toast.go` - Toast notification component
-- [ ] `command_palette.go` - Vim-style command palette
+- [ ] Header, tabs, ticket cards, modals, etc.
 
-### 7.4 TUI State
-- [ ] `state.go` - TUI state persistence (`~/.wark/tui_state.json`)
-- [ ] Remember last view, filters, sort preferences
-
-### 7.5 TUI Command
+### 7.4 TUI Command
 - [ ] `wark tui` - Launch TUI
 
 ---
@@ -247,7 +221,6 @@
 ### 8.3 Documentation
 - [ ] README.md with quickstart
 - [ ] `docs/` folder with full documentation
-- [ ] Man page generation (optional)
 
 ### 8.4 Build & Release
 - [ ] Makefile with build, test, install targets
@@ -273,27 +246,25 @@
 
 **Recommended sequence:**
 
-1. **Phase 1** → Foundation (day 1)
-2. **Phase 2** → Database (day 1-2)
-3. **Phase 3** → Models (day 2)
-4. **Phase 4** → State machine (day 2-3)
-5. **Phase 5.1-5.4** → Core CLI commands (day 3-4)
-6. **Phase 5.5-5.8** → Remaining CLI commands (day 4-5)
-7. **Phase 6** → Background tasks (day 5)
-8. **Phase 5.9** → CLI tests (day 5-6)
-9. **Phase 8** → Polish (day 6)
-10. **Phase 9** → Agent skill (day 6-7)
-11. **Phase 7** → TUI (day 7-10) *[lower priority, can be deferred]*
+1. ~~**Phase 1** → Foundation~~ ✅
+2. ~~**Phase 2** → Database~~ ✅
+3. ~~**Phase 3** → Models~~ ✅
+4. **Phase 4** → State machine
+5. **Phase 5.1-5.4** → Core CLI commands (init, project, ticket)
+6. **Phase 5.5-5.7** → Remaining CLI commands (inbox, claim, status)
+7. **Phase 6** → Background tasks
+8. **Phase 5.8-5.9** → JSON output + CLI tests
+9. **Phase 8** → Polish
+10. **Phase 9** → Agent skill
+11. **Phase 7** → TUI *[deferred, nice-to-have]*
 
 ---
 
-## Notes
+## Design Decisions
 
-- TUI is valuable but not critical for MVP—CLI + agent skill is the priority
-- Tests should be written alongside implementation, not after
-- Use `goose` for migrations (per Steven's request), not golang-migrate
-- Pure Go SQLite driver (`modernc.org/sqlite`) avoids CGO complications
-- Consider using `sqlc` for type-safe SQL (optional enhancement)
+- **No `wark vet` command** — Validation happens automatically at ticket creation/edit time via DB constraints and repo logic
+- **No `wark decompose` command** — Decomposition is an AI agent behavior, not a CLI operation. Agents use `wark ticket create --parent` to break down work
+- **Dependencies via ticket commands** — Use `--depends-on` on create, `--add-dep`/`--remove-dep` on edit, view in `ticket show`
 
 ---
 

@@ -103,9 +103,9 @@ func (r *DependencyRepo) GetDependents(ticketID int64) ([]*models.Ticket, error)
 	return r.scanTickets(rows)
 }
 
-// GetUnresolvedDependencies retrieves all unresolved (not closed) dependencies for a ticket.
+// GetUnresolvedDependencies retrieves all unresolved dependencies for a ticket.
+// A dependency is only resolved if its ticket is closed with 'completed' resolution.
 func (r *DependencyRepo) GetUnresolvedDependencies(ticketID int64) ([]*models.Ticket, error) {
-	// A dependency is resolved if its ticket is closed (any resolution)
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
 			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
@@ -115,7 +115,7 @@ func (r *DependencyRepo) GetUnresolvedDependencies(ticketID int64) ([]*models.Ti
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
 		JOIN ticket_dependencies td ON t.id = td.depends_on_id
-		WHERE td.ticket_id = ? AND t.status != 'closed'
+		WHERE td.ticket_id = ? AND NOT (t.status = 'closed' AND t.resolution = 'completed')
 		ORDER BY t.created_at
 	`
 	rows, err := r.db.Query(query, ticketID)
@@ -128,12 +128,12 @@ func (r *DependencyRepo) GetUnresolvedDependencies(ticketID int64) ([]*models.Ti
 }
 
 // HasUnresolvedDependencies checks if a ticket has any unresolved dependencies.
+// A dependency is only resolved if its ticket is closed with 'completed' resolution.
 func (r *DependencyRepo) HasUnresolvedDependencies(ticketID int64) (bool, error) {
-	// A dependency is resolved if its ticket is closed (any resolution)
 	query := `
 		SELECT 1 FROM ticket_dependencies td
 		JOIN tickets t ON td.depends_on_id = t.id
-		WHERE td.ticket_id = ? AND t.status != 'closed'
+		WHERE td.ticket_id = ? AND NOT (t.status = 'closed' AND t.resolution = 'completed')
 		LIMIT 1
 	`
 	var exists int

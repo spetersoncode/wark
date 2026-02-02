@@ -192,6 +192,7 @@ func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 }
 
 // ListWorkable retrieves all workable tickets (ready status with no unresolved dependencies).
+// A dependency is only resolved if its ticket is closed with 'completed' resolution.
 func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
@@ -206,7 +207,7 @@ func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error)
 			SELECT 1 FROM ticket_dependencies td
 			JOIN tickets dep ON td.depends_on_id = dep.id
 			WHERE td.ticket_id = t.id
-			AND dep.status != 'closed'
+			AND NOT (dep.status = 'closed' AND dep.resolution = 'completed')
 		)
 	`
 	args := []interface{}{}

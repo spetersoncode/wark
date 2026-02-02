@@ -749,8 +749,10 @@ func TestDependencyBlocking(t *testing.T) {
 	assert.False(t, hasUnresolved)
 }
 
-// TestDependencyCancellationUnblocks tests that cancelling a dependency unblocks dependents
-func TestDependencyCancellationUnblocks(t *testing.T) {
+// TestDependencyCancellationDoesNotAutoUnblock tests that cancelling a dependency
+// does NOT auto-unblock dependents (only completed resolution does that).
+// Non-completed closures require human review.
+func TestDependencyCancellationDoesNotAutoUnblock(t *testing.T) {
 	database, _, cleanup := testDB(t)
 	defer cleanup()
 
@@ -774,22 +776,66 @@ func TestDependencyCancellationUnblocks(t *testing.T) {
 	err = depRepo.Add(ticket2.ID, ticket1.ID)
 	require.NoError(t, err)
 
-	// ticket2 is blocked
+	// ticket2 has unresolved dependencies
 	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket2.ID)
 	require.NoError(t, err)
 	assert.True(t, hasUnresolved)
 
-	// Close ticket1 (as wont_do)
+	// Close ticket1 (as wont_do, NOT completed)
 	ticket1.Status = models.StatusClosed
 	wontDoRes := models.ResolutionWontDo
 	ticket1.Resolution = &wontDoRes
 	err = ticketRepo.Update(ticket1)
 	require.NoError(t, err)
 
-	// ticket2 should now be unblocked (closed counts as resolved)
+	// ticket2 should STILL have unresolved dependencies
+	// (only 'completed' resolution counts as truly resolved)
 	hasUnresolved, err = depRepo.HasUnresolvedDependencies(ticket2.ID)
 	require.NoError(t, err)
-	assert.False(t, hasUnresolved)
+	assert.True(t, hasUnresolved, "Non-completed closure should NOT resolve the dependency")
+}
+
+// TestDependencyCompletionUnblocks tests that completing a dependency unblocks dependents
+func TestDependencyCompletionUnblocks(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TEST", Name: "Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	depRepo := db.NewDependencyRepo(database.DB)
+
+	// Create two tickets
+	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 1", Status: models.StatusReady}
+	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 2", Status: models.StatusReady}
+	err = ticketRepo.Create(ticket1)
+	require.NoError(t, err)
+	err = ticketRepo.Create(ticket2)
+	require.NoError(t, err)
+
+	// ticket2 depends on ticket1
+	err = depRepo.Add(ticket2.ID, ticket1.ID)
+	require.NoError(t, err)
+
+	// ticket2 has unresolved dependencies
+	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket2.ID)
+	require.NoError(t, err)
+	assert.True(t, hasUnresolved)
+
+	// Close ticket1 with 'completed' resolution
+	ticket1.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	ticket1.Resolution = &completedRes
+	err = ticketRepo.Update(ticket1)
+	require.NoError(t, err)
+
+	// ticket2 should now have NO unresolved dependencies
+	hasUnresolved, err = depRepo.HasUnresolvedDependencies(ticket2.ID)
+	require.NoError(t, err)
+	assert.False(t, hasUnresolved, "Completed resolution should resolve the dependency")
 }
 
 // TestChainedDependencies tests a chain of dependencies

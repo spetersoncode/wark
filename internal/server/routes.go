@@ -27,8 +27,8 @@ func (s *Server) setupRoutes() {
 	s.router.HandleFunc("GET /api/health", s.handleHealth)
 
 	// Static files (embedded frontend)
-	// Note: Using "/" pattern alone handles all non-API routes
-	s.router.HandleFunc("/", s.handleStatic)
+	// Use catch-all pattern for SPA routing (Go 1.22+ requires explicit wildcard)
+	s.router.HandleFunc("GET /{path...}", s.handleStatic)
 }
 
 // handleHealth returns a simple health check response.

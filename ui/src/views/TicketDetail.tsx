@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { Markdown } from "../components/Markdown";
 import {
 	type ActivityLog,
 	acceptTicket,
@@ -245,7 +246,7 @@ export default function TicketDetail() {
 					<section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
 						<h2 className="text-lg font-semibold mb-3">Description</h2>
 						{ticket.description ? (
-							<p className="text-sm whitespace-pre-wrap">{ticket.description}</p>
+							<Markdown>{ticket.description}</Markdown>
 						) : (
 							<p className="text-sm text-[var(--muted-foreground)] italic">No description</p>
 						)}

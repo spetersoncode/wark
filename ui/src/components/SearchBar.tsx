@@ -54,10 +54,7 @@ export function SearchBar() {
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			// "/" or Cmd/Ctrl+K to focus search
-			if (
-				(e.key === "/" && !isInputFocused()) ||
-				((e.metaKey || e.ctrlKey) && e.key === "k")
-			) {
+			if ((e.key === "/" && !isInputFocused()) || ((e.metaKey || e.ctrlKey) && e.key === "k")) {
 				e.preventDefault();
 				inputRef.current?.focus();
 				inputRef.current?.select();
@@ -174,13 +171,9 @@ export function SearchBar() {
 			{isOpen && (
 				<div className="absolute top-full left-0 right-0 mt-1 py-1 bg-[var(--card)] border border-[var(--border)] rounded-md shadow-lg z-50 max-h-80 overflow-y-auto">
 					{isLoading ? (
-						<div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
-							Searching...
-						</div>
+						<div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Searching...</div>
 					) : results.length === 0 ? (
-						<div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
-							No tickets found
-						</div>
+						<div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No tickets found</div>
 					) : (
 						results.map((ticket, index) => (
 							<button
@@ -224,9 +217,5 @@ function isInputFocused(): boolean {
 	const active = document.activeElement;
 	if (!active) return false;
 	const tag = active.tagName.toLowerCase();
-	return (
-		tag === "input" ||
-		tag === "textarea" ||
-		(active as HTMLElement).isContentEditable
-	);
+	return tag === "input" || tag === "textarea" || (active as HTMLElement).isContentEditable;
 }

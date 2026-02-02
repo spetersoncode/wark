@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Markdown } from "../components/Markdown";
 import { type InboxMessage, listInbox, type MessageType, respondToInbox } from "../lib/api";
 import { cn, formatRelativeTime } from "../lib/utils";
 
@@ -125,9 +126,7 @@ export default function Inbox() {
 
 			{/* Messages list */}
 			{messages.length === 0 ? (
-				<div className="text-center py-12 text-[var(--muted-foreground)]">
-					No pending messages
-				</div>
+				<div className="text-center py-12 text-[var(--muted-foreground)]">No pending messages</div>
 			) : (
 				<div className="space-y-4">
 					{messages.map((message) => (
@@ -209,7 +208,7 @@ function InboxCard({
 				{message.from_agent && (
 					<p className="text-xs text-[var(--muted-foreground)] mb-2">From: {message.from_agent}</p>
 				)}
-				<p className="text-sm whitespace-pre-wrap">{message.content}</p>
+				<Markdown>{message.content}</Markdown>
 			</div>
 
 			{/* Response section */}

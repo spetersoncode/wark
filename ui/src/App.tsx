@@ -1,4 +1,11 @@
-import { FolderKanban, Home, Inbox as InboxIcon, KanbanSquare, ListTodo, Settings } from "lucide-react";
+import {
+	FolderKanban,
+	Home,
+	Inbox as InboxIcon,
+	KanbanSquare,
+	ListTodo,
+	Settings,
+} from "lucide-react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { SearchBar } from "./components/SearchBar";
 import { cn } from "./lib/utils";

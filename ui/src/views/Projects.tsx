@@ -102,9 +102,7 @@ function ProjectCard({ project }: { project: ProjectWithStats }) {
 				<FolderKanban className="w-5 h-5 text-[var(--primary)] mt-0.5" />
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
-						<span className="font-mono text-sm text-[var(--muted-foreground)]">
-							{project.key}
-						</span>
+						<span className="font-mono text-sm text-[var(--muted-foreground)]">{project.key}</span>
 					</div>
 					<h3 className="font-semibold truncate">{project.name}</h3>
 				</div>

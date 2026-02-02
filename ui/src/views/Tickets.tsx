@@ -1,10 +1,4 @@
-import {
-	ArrowDown,
-	ArrowUp,
-	ArrowUpDown,
-	ListTodo,
-	RefreshCw,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ListTodo, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -256,10 +250,7 @@ export default function Tickets() {
 							</thead>
 							<tbody className="divide-y divide-[var(--border)]">
 								{sortedTickets.map((ticket) => (
-									<tr
-										key={ticket.id}
-										className="hover:bg-[var(--accent)] transition-colors"
-									>
+									<tr key={ticket.id} className="hover:bg-[var(--accent)] transition-colors">
 										<td className="px-4 py-3">
 											<Link
 												to={`/tickets/${ticket.ticket_key}`}

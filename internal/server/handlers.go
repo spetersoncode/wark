@@ -72,6 +72,18 @@ type ClaimResponse struct {
 	MinutesRemaining int    `json:"minutes_remaining,omitempty"`
 }
 
+// ActivityResponse represents an activity log entry in API responses.
+type ActivityResponse struct {
+	ID        int64  `json:"id"`
+	TicketID  int64  `json:"ticket_id"`
+	Action    string `json:"action"`
+	ActorType string `json:"actor_type"`
+	ActorID   string `json:"actor_id,omitempty"`
+	Summary   string `json:"summary,omitempty"`
+	Details   string `json:"details,omitempty"`
+	CreatedAt string `json:"created_at"`
+}
+
 // StatusResponse represents the status overview.
 type StatusResponse struct {
 	Workable       int                  `json:"workable"`
@@ -268,7 +280,62 @@ func (s *Server) handleGetTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, ticketToResponse(ticket))
+	// Get dependencies
+	depRepo := db.NewDependencyRepo(s.config.DB)
+	dependencies, err := depRepo.GetDependencies(ticket.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	dependents, err := depRepo.GetDependents(ticket.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Get active claim if any
+	claimRepo := db.NewClaimRepo(s.config.DB)
+	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
+
+	// Get activity history
+	activityRepo := db.NewActivityRepo(s.config.DB)
+	history, err := activityRepo.ListByTicket(ticket.ID, 20)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Build response matching frontend expectations
+	ticketResp := ticketToResponse(ticket)
+	response := struct {
+		Ticket       *TicketResponse     `json:"ticket"`
+		Dependencies []TicketResponse    `json:"dependencies"`
+		Dependents   []TicketResponse    `json:"dependents"`
+		Claim        *ClaimResponse      `json:"claim,omitempty"`
+		History      []*ActivityResponse `json:"history"`
+	}{
+		Ticket:       &ticketResp,
+		Dependencies: make([]TicketResponse, len(dependencies)),
+		Dependents:   make([]TicketResponse, len(dependents)),
+		History:      make([]*ActivityResponse, len(history)),
+	}
+
+	for i, dep := range dependencies {
+		response.Dependencies[i] = ticketToResponse(dep)
+	}
+	for i, dep := range dependents {
+		response.Dependents[i] = ticketToResponse(dep)
+	}
+	if claim != nil {
+		claimResp := claimToResponse(claim)
+		response.Claim = &claimResp
+	}
+	for i, act := range history {
+		response.History[i] = activityToResponse(act)
+	}
+
+	writeJSON(w, http.StatusOK, response)
 }
 
 // Inbox handlers
@@ -626,6 +693,19 @@ func claimToResponse(c *models.Claim) ClaimResponse {
 		resp.ReleasedAt = c.ReleasedAt.Format("2006-01-02T15:04:05Z")
 	}
 	return resp
+}
+
+func activityToResponse(a *models.ActivityLog) *ActivityResponse {
+	return &ActivityResponse{
+		ID:        a.ID,
+		TicketID:  a.TicketID,
+		Action:    string(a.Action),
+		ActorType: string(a.ActorType),
+		ActorID:   a.ActorID,
+		Summary:   a.Summary,
+		Details:   a.Details,
+		CreatedAt: a.CreatedAt.Format("2006-01-02T15:04:05Z"),
+	}
 }
 
 // parseTicketKey parses a ticket key like "WEBAPP-42" into project key and number.

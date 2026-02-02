@@ -1,16 +1,10 @@
-import { AlertTriangle, CheckCircle, CircleDot, Clock, Eye, Pause, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle, CircleDot, Clock, Eye, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { listTickets, type Ticket, type TicketStatus } from "../lib/api";
 import { cn, getPriorityColor } from "../lib/utils";
 
 const STATUSES: { key: TicketStatus; label: string; icon: React.ReactNode; color: string }[] = [
-	{
-		key: "blocked",
-		label: "Blocked",
-		icon: <Pause className="w-4 h-4" />,
-		color: "border-orange-500",
-	},
 	{
 		key: "ready",
 		label: "Ready",

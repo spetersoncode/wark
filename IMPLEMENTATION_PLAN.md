@@ -77,36 +77,36 @@
 
 ---
 
-## Phase 4: State Machine Engine
+## Phase 4: State Machine Engine ✅
 
 ### 4.1 State Machine (`internal/state/`)
-- [ ] `machine.go` - Core state machine definition
-- [ ] Define all valid transitions per state
-- [ ] Implement transition validation
-- [ ] Implement precondition checks
+- [x] `machine.go` - Core state machine definition
+- [x] Define all valid transitions per state
+- [x] Implement transition validation
+- [x] Implement precondition checks
 
 ### 4.2 State Transitions
-- [ ] `created → ready` (auto, on successful validation)
-- [ ] `ready → blocked` (auto, on dependency check)
-- [ ] `blocked → ready` (auto, on dependency resolution)
-- [ ] `ready → in_progress` (claim)
-- [ ] `in_progress → ready` (release/expire)
-- [ ] `in_progress → review` (complete)
-- [ ] `in_progress → blocked` (add dependency)
-- [ ] `* → needs_human` (flag from any active state)
-- [ ] `needs_human → ready/in_progress` (human respond)
-- [ ] `review → done` (accept)
-- [ ] `review → ready` (reject)
-- [ ] `* → cancelled` (cancel)
-- [ ] `done/cancelled → ready/created` (reopen)
+- [x] `created → ready` (auto, on successful validation)
+- [x] `ready → blocked` (auto, on dependency check)
+- [x] `blocked → ready` (auto, on dependency resolution)
+- [x] `ready → in_progress` (claim)
+- [x] `in_progress → ready` (release/expire)
+- [x] `in_progress → review` (complete)
+- [x] `in_progress → blocked` (add dependency)
+- [x] `* → needs_human` (flag from any active state)
+- [x] `needs_human → ready/in_progress` (human respond)
+- [x] `review → done` (accept)
+- [x] `review → ready` (reject)
+- [x] `* → cancelled` (cancel)
+- [x] `done/cancelled → ready/created` (reopen)
 
 ### 4.3 Business Logic
-- [ ] Implement claim expiration logic
-- [ ] Implement retry counting and max retry escalation
-- [ ] Implement dependency resolution checker
-- [ ] Implement parent auto-completion on child completion
-- [ ] Circular dependency detection (already in DependencyRepo)
-- [ ] Write comprehensive state machine tests
+- [x] Implement claim expiration logic
+- [x] Implement retry counting and max retry escalation
+- [x] Implement dependency resolution checker
+- [x] Implement parent auto-completion on child completion
+- [x] Circular dependency detection (already in DependencyRepo)
+- [x] Write comprehensive state machine tests
 
 ---
 

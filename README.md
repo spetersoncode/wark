@@ -2,6 +2,8 @@
 
 > Local-first CLI task management for AI agent orchestration
 
+*Wark* is a Scots word for "work."
+
 Wark is a command-line task management tool inspired by Jira, purpose-built for coordinating AI coding agents. It provides claim-based work distribution, dependency tracking, and human-in-the-loop escalation.
 
 ## Features

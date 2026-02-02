@@ -119,28 +119,26 @@ func (r *ProjectRepo) GetStats(projectID int64) (*models.ProjectStats, error) {
 	query := `
 		SELECT
 			COUNT(*) AS total,
-			SUM(CASE WHEN status = 'created' THEN 1 ELSE 0 END) AS created,
+			SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) AS blocked,
 			SUM(CASE WHEN status = 'ready' THEN 1 ELSE 0 END) AS ready,
 			SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
-			SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) AS blocked,
-			SUM(CASE WHEN status = 'needs_human' THEN 1 ELSE 0 END) AS needs_human,
+			SUM(CASE WHEN status = 'human' THEN 1 ELSE 0 END) AS human,
 			SUM(CASE WHEN status = 'review' THEN 1 ELSE 0 END) AS review,
-			SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done,
-			SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
+			SUM(CASE WHEN status = 'closed' AND resolution = 'completed' THEN 1 ELSE 0 END) AS closed_completed,
+			SUM(CASE WHEN status = 'closed' AND resolution != 'completed' THEN 1 ELSE 0 END) AS closed_other
 		FROM tickets
 		WHERE project_id = ?
 	`
 	var stats models.ProjectStats
 	err := r.db.QueryRow(query, projectID).Scan(
 		&stats.TotalTickets,
-		&stats.CreatedCount,
+		&stats.BlockedCount,
 		&stats.ReadyCount,
 		&stats.InProgressCount,
-		&stats.BlockedCount,
-		&stats.NeedsHumanCount,
+		&stats.HumanCount,
 		&stats.ReviewCount,
-		&stats.DoneCount,
-		&stats.CancelledCount,
+		&stats.ClosedCompletedCount,
+		&stats.ClosedOtherCount,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project stats: %w", err)

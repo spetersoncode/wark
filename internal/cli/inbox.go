@@ -270,7 +270,7 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 
 	// Log activity
 	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionFlaggedHuman, models.ActorTypeAgent, workerID,
+	activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
 		fmt.Sprintf("Sent %s message", msgType),
 		map[string]interface{}{
 			"message_type":     string(msgType),
@@ -342,7 +342,7 @@ func runInboxRespond(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to record response: %w", err)
 	}
 
-	// Update ticket status if it was needs_human
+	// Update ticket status if it was human
 	ticketRepo := db.NewTicketRepo(database.DB)
 	ticket, err := ticketRepo.GetByID(message.TicketID)
 	if err != nil {
@@ -350,7 +350,7 @@ func runInboxRespond(cmd *cobra.Command, args []string) error {
 	}
 
 	statusChanged := false
-	if ticket != nil && ticket.Status == models.StatusNeedsHuman {
+	if ticket != nil && ticket.Status == models.StatusHuman {
 		ticket.Status = models.StatusReady
 		ticket.RetryCount = 0 // Reset retry count on human response
 		if err := ticketRepo.Update(ticket); err != nil {
@@ -386,7 +386,7 @@ func runInboxRespond(cmd *cobra.Command, args []string) error {
 	OutputLine("Responded to message #%d", msgID)
 	OutputLine("Ticket: %s", message.TicketKey)
 	if statusChanged {
-		OutputLine("Ticket status: %s → %s", models.StatusNeedsHuman, ticket.Status)
+		OutputLine("Ticket status: %s → %s", models.StatusHuman, ticket.Status)
 		OutputLine("Retry count reset to 0")
 	}
 

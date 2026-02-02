@@ -58,13 +58,14 @@ func NewDependencyResolver(database *sql.DB) *DependencyResolver {
 	}
 }
 
-// OnTicketCompleted is called when a ticket is marked as done.
-// It checks all dependents and unblocks them if all their dependencies are resolved.
+// OnTicketCompleted is called when a ticket is closed.
+// If closed with 'completed' resolution: unblocks dependents if all their dependencies are resolved.
+// If closed with other resolutions (wont_do, duplicate, etc.): flags dependents for human review.
 // It also checks if this was the last child of a parent ticket.
 func (r *DependencyResolver) OnTicketCompleted(ticketID int64, autoAccept bool) (*ResolutionResult, error) {
 	result := &ResolutionResult{}
 
-	// Get the completed ticket
+	// Get the closed ticket
 	ticket, err := r.ticketRepo.GetByID(ticketID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get completed ticket: %w", err)
@@ -73,19 +74,32 @@ func (r *DependencyResolver) OnTicketCompleted(ticketID int64, autoAccept bool) 
 		return nil, fmt.Errorf("ticket not found")
 	}
 
-	// 1. Check dependents and unblock those whose dependencies are now all resolved
+	// Check if this was a successful completion or other resolution
+	isSuccessfulCompletion := ticket.IsClosedSuccessfully()
+
+	// 1. Handle dependents based on resolution type
 	dependents, err := r.depRepo.GetDependents(ticketID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dependents: %w", err)
 	}
 
 	for _, dependent := range dependents {
-		unblockResult := r.checkAndUnblock(dependent, ticket)
-		result.UnblockResults = append(result.UnblockResults, unblockResult)
-		if unblockResult.ErrorMessage != "" {
-			result.Errors++
-		} else if unblockResult.NewStatus != "" {
-			result.Unblocked++
+		if isSuccessfulCompletion {
+			// Normal flow: try to unblock if all dependencies are resolved
+			unblockResult := r.checkAndUnblock(dependent, ticket)
+			result.UnblockResults = append(result.UnblockResults, unblockResult)
+			if unblockResult.ErrorMessage != "" {
+				result.Errors++
+			} else if unblockResult.NewStatus != "" {
+				result.Unblocked++
+			}
+		} else {
+			// Non-completed closure: flag dependent for human review
+			unblockResult := r.flagForHumanReview(dependent, ticket)
+			result.UnblockResults = append(result.UnblockResults, unblockResult)
+			if unblockResult.ErrorMessage != "" {
+				result.Errors++
+			}
 		}
 	}
 
@@ -149,6 +163,44 @@ func (r *DependencyResolver) checkAndUnblock(dependent *models.Ticket, completed
 	return result
 }
 
+// flagForHumanReview flags a dependent ticket for human review when a dependency
+// closes with a non-completed resolution (wont_do, duplicate, etc.).
+func (r *DependencyResolver) flagForHumanReview(dependent *models.Ticket, closedDep *models.Ticket) *UnblockResult {
+	result := &UnblockResult{
+		TicketID:       dependent.ID,
+		TicketKey:      dependent.TicketKey,
+		PreviousStatus: string(dependent.Status),
+	}
+
+	// Build the resolution string
+	resolution := "unknown"
+	if closedDep.Resolution != nil {
+		resolution = string(*closedDep.Resolution)
+	}
+
+	// Set the human flag reason
+	flagReason := fmt.Sprintf("Dependency '%s' closed as %s — please review", closedDep.Title, resolution)
+	dependent.HumanFlagReason = flagReason
+
+	if err := r.ticketRepo.Update(dependent); err != nil {
+		result.ErrorMessage = fmt.Sprintf("failed to flag ticket for review: %v", err)
+		return result
+	}
+
+	result.Reason = flagReason
+
+	// Log the activity
+	r.activityRepo.LogActionWithDetails(dependent.ID, models.ActionEscalated, models.ActorTypeSystem, "",
+		fmt.Sprintf("Flagged for review: dependency %s closed as %s", closedDep.TicketKey, resolution),
+		map[string]interface{}{
+			"dependency_id":         closedDep.ID,
+			"dependency_key":        closedDep.TicketKey,
+			"dependency_resolution": resolution,
+		})
+
+	return result
+}
+
 // checkParentCompletion checks if all children of a parent are done and updates the parent.
 func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bool) *ParentUpdateResult {
 	result := &ParentUpdateResult{
@@ -186,10 +238,10 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 		return result
 	}
 
-	// Count done children
+	// Count successfully closed children
 	doneCount := 0
 	for _, child := range children {
-		if child.Status == models.StatusDone {
+		if child.IsClosedSuccessfully() {
 			doneCount++
 		}
 	}
@@ -204,12 +256,14 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 	// All children are done - update parent status
 	newStatus := models.StatusReview
 	if autoAccept {
-		newStatus = models.StatusDone
+		newStatus = models.StatusClosed
+		res := models.ResolutionCompleted
+		parent.Resolution = &res
 		result.AutoAccepted = true
 	}
 
 	parent.Status = newStatus
-	if newStatus == models.StatusDone {
+	if newStatus == models.StatusClosed {
 		now := time.Now()
 		parent.CompletedAt = &now
 	}

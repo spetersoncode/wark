@@ -13,48 +13,45 @@ func TestMachine_CanTransition(t *testing.T) {
 	m := NewMachine()
 
 	tests := []struct {
-		name      string
-		from      models.Status
-		to        models.Status
-		transType TransitionType
-		reason    string
-		wantErr   bool
-		errMsg    string
+		name       string
+		from       models.Status
+		to         models.Status
+		transType  TransitionType
+		reason     string
+		resolution *models.Resolution
+		wantErr    bool
+		errMsg     string
 	}{
-		// Valid transitions
+		// Auto-transitions (dependency-triggered)
 		{
-			name:      "created to ready (auto)",
-			from:      models.StatusCreated,
+			name:      "blocked to ready (auto)",
+			from:      models.StatusBlocked,
 			to:        models.StatusReady,
 			transType: TransitionTypeAuto,
 			wantErr:   false,
 		},
 		{
-			name:      "created to ready (manual)",
-			from:      models.StatusCreated,
-			to:        models.StatusReady,
-			transType: TransitionTypeManual,
-			wantErr:   false,
-		},
-		{
-			name:      "ready to blocked",
+			name:      "ready to blocked (auto)",
 			from:      models.StatusReady,
 			to:        models.StatusBlocked,
 			transType: TransitionTypeAuto,
 			wantErr:   false,
 		},
+
+		// Manual transitions
 		{
-			name:      "blocked to ready",
-			from:      models.StatusBlocked,
-			to:        models.StatusReady,
-			transType: TransitionTypeResolve,
-			wantErr:   false,
-		},
-		{
-			name:      "ready to in_progress",
+			name:      "ready to in_progress (claim)",
 			from:      models.StatusReady,
 			to:        models.StatusInProgress,
 			transType: TransitionTypeManual,
+			wantErr:   false,
+		},
+		{
+			name:      "ready to human with reason",
+			from:      models.StatusReady,
+			to:        models.StatusHuman,
+			transType: TransitionTypeManual,
+			reason:    "Need clarification",
 			wantErr:   false,
 		},
 		{
@@ -72,6 +69,14 @@ func TestMachine_CanTransition(t *testing.T) {
 			wantErr:   false,
 		},
 		{
+			name:      "in_progress to human with reason",
+			from:      models.StatusInProgress,
+			to:        models.StatusHuman,
+			transType: TransitionTypeManual,
+			reason:    "Max retries exceeded",
+			wantErr:   false,
+		},
+		{
 			name:      "in_progress to review",
 			from:      models.StatusInProgress,
 			to:        models.StatusReview,
@@ -79,88 +84,75 @@ func TestMachine_CanTransition(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "in_progress to blocked",
-			from:      models.StatusInProgress,
-			to:        models.StatusBlocked,
-			transType: TransitionTypeAuto,
-			wantErr:   false,
-		},
-		{
-			name:      "review to done",
-			from:      models.StatusReview,
-			to:        models.StatusDone,
+			name:      "human to in_progress (resume)",
+			from:      models.StatusHuman,
+			to:        models.StatusInProgress,
 			transType: TransitionTypeManual,
 			wantErr:   false,
 		},
 		{
-			name:      "review to ready (reject with reason)",
+			name:       "human to closed (resolved)",
+			from:       models.StatusHuman,
+			to:         models.StatusClosed,
+			transType:  TransitionTypeManual,
+			resolution: ptrResolution(models.ResolutionCompleted),
+			wantErr:    false,
+		},
+		{
+			name:       "review to closed (accept)",
+			from:       models.StatusReview,
+			to:         models.StatusClosed,
+			transType:  TransitionTypeManual,
+			resolution: ptrResolution(models.ResolutionCompleted),
+			wantErr:    false,
+		},
+		{
+			name:      "review to in_progress (reject with reason)",
 			from:      models.StatusReview,
-			to:        models.StatusReady,
+			to:        models.StatusInProgress,
 			transType: TransitionTypeManual,
 			reason:    "Needs more tests",
 			wantErr:   false,
 		},
 		{
-			name:      "done to ready (reopen)",
-			from:      models.StatusDone,
+			name:      "closed to ready (reopen)",
+			from:      models.StatusClosed,
 			to:        models.StatusReady,
 			transType: TransitionTypeManual,
 			wantErr:   false,
 		},
 		{
-			name:      "cancelled to ready (reopen)",
-			from:      models.StatusCancelled,
-			to:        models.StatusReady,
-			transType: TransitionTypeManual,
-			wantErr:   false,
-		},
-		{
-			name:      "needs_human to ready",
-			from:      models.StatusNeedsHuman,
-			to:        models.StatusReady,
-			transType: TransitionTypeManual,
-			wantErr:   false,
-		},
-		{
-			name:      "needs_human to in_progress",
-			from:      models.StatusNeedsHuman,
-			to:        models.StatusInProgress,
+			name:      "closed to blocked (reopen with deps)",
+			from:      models.StatusClosed,
+			to:        models.StatusBlocked,
 			transType: TransitionTypeManual,
 			wantErr:   false,
 		},
 
-		// Transitions to needs_human (require reason)
+		// Close from various states
 		{
-			name:      "ready to needs_human with reason",
-			from:      models.StatusReady,
-			to:        models.StatusNeedsHuman,
-			transType: TransitionTypeManual,
-			reason:    "Need clarification on requirements",
-			wantErr:   false,
+			name:       "blocked to closed",
+			from:       models.StatusBlocked,
+			to:         models.StatusClosed,
+			transType:  TransitionTypeManual,
+			resolution: ptrResolution(models.ResolutionWontDo),
+			wantErr:    false,
 		},
 		{
-			name:      "in_progress to needs_human with reason",
-			from:      models.StatusInProgress,
-			to:        models.StatusNeedsHuman,
-			transType: TransitionTypeAuto,
-			reason:    "Max retries exceeded",
-			wantErr:   false,
-		},
-
-		// Transitions to cancelled
-		{
-			name:      "ready to cancelled",
-			from:      models.StatusReady,
-			to:        models.StatusCancelled,
-			transType: TransitionTypeManual,
-			wantErr:   false,
+			name:       "ready to closed",
+			from:       models.StatusReady,
+			to:         models.StatusClosed,
+			transType:  TransitionTypeManual,
+			resolution: ptrResolution(models.ResolutionDuplicate),
+			wantErr:    false,
 		},
 		{
-			name:      "in_progress to cancelled",
-			from:      models.StatusInProgress,
-			to:        models.StatusCancelled,
-			transType: TransitionTypeManual,
-			wantErr:   false,
+			name:       "in_progress to closed",
+			from:       models.StatusInProgress,
+			to:         models.StatusClosed,
+			transType:  TransitionTypeManual,
+			resolution: ptrResolution(models.ResolutionObsolete),
+			wantErr:    false,
 		},
 
 		// Invalid transitions
@@ -173,23 +165,23 @@ func TestMachine_CanTransition(t *testing.T) {
 			errMsg:    "already in status",
 		},
 		{
-			name:      "ready to done (skip review)",
+			name:      "ready to review (skip in_progress)",
 			from:      models.StatusReady,
-			to:        models.StatusDone,
+			to:        models.StatusReview,
 			transType: TransitionTypeManual,
 			wantErr:   true,
 			errMsg:    "not allowed",
 		},
 		{
-			name:      "done to in_progress (invalid)",
-			from:      models.StatusDone,
+			name:      "blocked to in_progress (must go through ready)",
+			from:      models.StatusBlocked,
 			to:        models.StatusInProgress,
 			transType: TransitionTypeManual,
 			wantErr:   true,
 			errMsg:    "not allowed",
 		},
 		{
-			name:      "wrong transition type",
+			name:      "wrong transition type for ready to in_progress",
 			from:      models.StatusReady,
 			to:        models.StatusInProgress,
 			transType: TransitionTypeAuto,
@@ -197,22 +189,38 @@ func TestMachine_CanTransition(t *testing.T) {
 			errMsg:    "not allowed",
 		},
 		{
-			name:      "review to ready without reason",
-			from:      models.StatusReview,
+			name:      "wrong transition type for blocked to ready",
+			from:      models.StatusBlocked,
 			to:        models.StatusReady,
+			transType: TransitionTypeManual,
+			wantErr:   true,
+			errMsg:    "not allowed",
+		},
+		{
+			name:      "review to in_progress without reason",
+			from:      models.StatusReview,
+			to:        models.StatusInProgress,
 			transType: TransitionTypeManual,
 			reason:    "",
 			wantErr:   true,
 			errMsg:    "reason is required",
 		},
 		{
-			name:      "needs_human without reason",
+			name:      "human without reason",
 			from:      models.StatusReady,
-			to:        models.StatusNeedsHuman,
+			to:        models.StatusHuman,
 			transType: TransitionTypeManual,
 			reason:    "",
 			wantErr:   true,
 			errMsg:    "reason is required",
+		},
+		{
+			name:      "close without resolution",
+			from:      models.StatusReady,
+			to:        models.StatusClosed,
+			transType: TransitionTypeManual,
+			wantErr:   true,
+			errMsg:    "resolution is required",
 		},
 	}
 
@@ -228,7 +236,7 @@ func TestMachine_CanTransition(t *testing.T) {
 				Complexity: models.ComplexityMedium,
 			}
 
-			err := m.CanTransition(ticket, tt.to, tt.transType, tt.reason)
+			err := m.CanTransition(ticket, tt.to, tt.transType, tt.reason, tt.resolution)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -242,10 +250,14 @@ func TestMachine_CanTransition(t *testing.T) {
 	}
 }
 
+func ptrResolution(r models.Resolution) *models.Resolution {
+	return &r
+}
+
 func TestMachine_NilTicket(t *testing.T) {
 	m := NewMachine()
 
-	err := m.CanTransition(nil, models.StatusReady, TransitionTypeAuto, "")
+	err := m.CanTransition(nil, models.StatusReady, TransitionTypeAuto, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nil")
 }
@@ -277,11 +289,18 @@ func TestMachine_ValidateTransition(t *testing.T) {
 	})
 
 	t.Run("mismatched from state", func(t *testing.T) {
-		trans := NewTransition(models.StatusCreated, models.StatusReady,
+		trans := NewTransition(models.StatusBlocked, models.StatusReady,
 			TransitionTypeAuto, models.ActorTypeSystem, "", "")
 		err := m.ValidateTransition(ticket, trans)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "status is ready")
+	})
+
+	t.Run("close transition with resolution", func(t *testing.T) {
+		trans := NewCloseTransition(models.StatusReady, models.ResolutionWontDo,
+			TransitionTypeManual, models.ActorTypeHuman, "user-1", "Not needed")
+		err := m.ValidateTransition(ticket, trans)
+		require.NoError(t, err)
 	})
 }
 
@@ -292,7 +311,7 @@ func TestMachine_GetValidTransitions(t *testing.T) {
 		transitions := m.GetValidTransitions(models.StatusReady)
 		require.NotEmpty(t, transitions)
 
-		// Should include blocked, in_progress, needs_human, cancelled
+		// Should include blocked, in_progress, human, closed
 		toStates := make(map[models.Status]bool)
 		for _, tr := range transitions {
 			toStates[tr.To] = true
@@ -300,14 +319,43 @@ func TestMachine_GetValidTransitions(t *testing.T) {
 
 		assert.True(t, toStates[models.StatusBlocked])
 		assert.True(t, toStates[models.StatusInProgress])
-		assert.True(t, toStates[models.StatusNeedsHuman])
-		assert.True(t, toStates[models.StatusCancelled])
+		assert.True(t, toStates[models.StatusHuman])
+		assert.True(t, toStates[models.StatusClosed])
 	})
 
-	t.Run("from done", func(t *testing.T) {
-		transitions := m.GetValidTransitions(models.StatusDone)
-		require.Len(t, transitions, 1)
-		assert.Equal(t, models.StatusReady, transitions[0].To)
+	t.Run("from blocked", func(t *testing.T) {
+		transitions := m.GetValidTransitions(models.StatusBlocked)
+		require.NotEmpty(t, transitions)
+
+		toStates := make(map[models.Status]bool)
+		for _, tr := range transitions {
+			toStates[tr.To] = true
+		}
+
+		assert.True(t, toStates[models.StatusReady])
+		assert.True(t, toStates[models.StatusClosed])
+		assert.False(t, toStates[models.StatusInProgress]) // Must go through ready
+	})
+
+	t.Run("from closed", func(t *testing.T) {
+		transitions := m.GetValidTransitions(models.StatusClosed)
+		require.Len(t, transitions, 2) // Can reopen to ready or blocked
+	})
+
+	t.Run("from in_progress", func(t *testing.T) {
+		transitions := m.GetValidTransitions(models.StatusInProgress)
+		require.NotEmpty(t, transitions)
+
+		toStates := make(map[models.Status]bool)
+		for _, tr := range transitions {
+			toStates[tr.To] = true
+		}
+
+		assert.True(t, toStates[models.StatusReady])   // release
+		assert.True(t, toStates[models.StatusHuman])   // escalate
+		assert.True(t, toStates[models.StatusReview])  // complete
+		assert.True(t, toStates[models.StatusClosed])  // cancel
+		assert.False(t, toStates[models.StatusBlocked]) // cannot block from in_progress
 	})
 }
 
@@ -322,8 +370,20 @@ func TestMachine_GetTransitionRule(t *testing.T) {
 	})
 
 	t.Run("invalid rule", func(t *testing.T) {
-		rule := m.GetTransitionRule(models.StatusReady, models.StatusDone)
+		rule := m.GetTransitionRule(models.StatusBlocked, models.StatusInProgress)
 		assert.Nil(t, rule)
+	})
+}
+
+func TestInitialStatus(t *testing.T) {
+	t.Run("no dependencies", func(t *testing.T) {
+		status := InitialStatus(false)
+		assert.Equal(t, models.StatusReady, status)
+	})
+
+	t.Run("has open dependencies", func(t *testing.T) {
+		status := InitialStatus(true)
+		assert.Equal(t, models.StatusBlocked, status)
 	})
 }
 
@@ -335,21 +395,19 @@ func TestActionForTransition(t *testing.T) {
 		transTyp TransitionType
 		want     models.Action
 	}{
-		{"created to ready", models.StatusCreated, models.StatusReady, TransitionTypeAuto, models.ActionVetted},
-		{"blocked to ready", models.StatusBlocked, models.StatusReady, TransitionTypeResolve, models.ActionUnblocked},
+		{"blocked to ready", models.StatusBlocked, models.StatusReady, TransitionTypeAuto, models.ActionUnblocked},
+		{"ready to blocked", models.StatusReady, models.StatusBlocked, TransitionTypeAuto, models.ActionBlocked},
 		{"in_progress to ready (release)", models.StatusInProgress, models.StatusReady, TransitionTypeManual, models.ActionReleased},
 		{"in_progress to ready (expire)", models.StatusInProgress, models.StatusReady, TransitionTypeExpire, models.ActionExpired},
-		{"needs_human to ready", models.StatusNeedsHuman, models.StatusReady, TransitionTypeManual, models.ActionHumanResponded},
-		{"review to ready", models.StatusReview, models.StatusReady, TransitionTypeManual, models.ActionRejected},
-		{"done to ready", models.StatusDone, models.StatusReady, TransitionTypeManual, models.ActionReopened},
-		{"cancelled to ready", models.StatusCancelled, models.StatusReady, TransitionTypeManual, models.ActionReopened},
-		{"any to blocked", models.StatusReady, models.StatusBlocked, TransitionTypeAuto, models.ActionBlocked},
+		{"closed to ready", models.StatusClosed, models.StatusReady, TransitionTypeManual, models.ActionReopened},
+		{"closed to blocked", models.StatusClosed, models.StatusBlocked, TransitionTypeManual, models.ActionReopened},
 		{"ready to in_progress", models.StatusReady, models.StatusInProgress, TransitionTypeManual, models.ActionClaimed},
-		{"needs_human to in_progress", models.StatusNeedsHuman, models.StatusInProgress, TransitionTypeManual, models.ActionHumanResponded},
-		{"any to needs_human", models.StatusInProgress, models.StatusNeedsHuman, TransitionTypeAuto, models.ActionFlaggedHuman},
+		{"human to in_progress", models.StatusHuman, models.StatusInProgress, TransitionTypeManual, models.ActionHumanResponded},
+		{"review to in_progress", models.StatusReview, models.StatusInProgress, TransitionTypeManual, models.ActionRejected},
+		{"any to human", models.StatusInProgress, models.StatusHuman, TransitionTypeAuto, models.ActionEscalated},
 		{"in_progress to review", models.StatusInProgress, models.StatusReview, TransitionTypeManual, models.ActionCompleted},
-		{"review to done", models.StatusReview, models.StatusDone, TransitionTypeManual, models.ActionAccepted},
-		{"any to cancelled", models.StatusReady, models.StatusCancelled, TransitionTypeManual, models.ActionCancelled},
+		{"review to closed", models.StatusReview, models.StatusClosed, TransitionTypeManual, models.ActionAccepted},
+		{"ready to closed", models.StatusReady, models.StatusClosed, TransitionTypeManual, models.ActionClosed},
 	}
 
 	for _, tt := range tests {
@@ -362,47 +420,48 @@ func TestActionForTransition(t *testing.T) {
 
 func TestHelperFunctions(t *testing.T) {
 	t.Run("IsActiveState", func(t *testing.T) {
-		assert.True(t, IsActiveState(models.StatusCreated))
+		assert.True(t, IsActiveState(models.StatusBlocked))
 		assert.True(t, IsActiveState(models.StatusReady))
 		assert.True(t, IsActiveState(models.StatusInProgress))
-		assert.True(t, IsActiveState(models.StatusBlocked))
-		assert.True(t, IsActiveState(models.StatusNeedsHuman))
+		assert.True(t, IsActiveState(models.StatusHuman))
 		assert.True(t, IsActiveState(models.StatusReview))
-		assert.False(t, IsActiveState(models.StatusDone))
-		assert.False(t, IsActiveState(models.StatusCancelled))
+		assert.False(t, IsActiveState(models.StatusClosed))
 	})
 
-	t.Run("CanBeFlagged", func(t *testing.T) {
-		assert.True(t, CanBeFlagged(models.StatusCreated))
-		assert.True(t, CanBeFlagged(models.StatusReady))
-		assert.True(t, CanBeFlagged(models.StatusInProgress))
-		assert.True(t, CanBeFlagged(models.StatusBlocked))
-		assert.True(t, CanBeFlagged(models.StatusReview))
-		assert.False(t, CanBeFlagged(models.StatusNeedsHuman))
-		assert.False(t, CanBeFlagged(models.StatusDone))
-		assert.False(t, CanBeFlagged(models.StatusCancelled))
+	t.Run("CanBeEscalated", func(t *testing.T) {
+		assert.True(t, CanBeEscalated(models.StatusReady))
+		assert.True(t, CanBeEscalated(models.StatusInProgress))
+		assert.False(t, CanBeEscalated(models.StatusBlocked))
+		assert.False(t, CanBeEscalated(models.StatusHuman))
+		assert.False(t, CanBeEscalated(models.StatusReview))
+		assert.False(t, CanBeEscalated(models.StatusClosed))
 	})
 
-	t.Run("CanBeCancelled", func(t *testing.T) {
-		assert.True(t, CanBeCancelled(models.StatusCreated))
-		assert.True(t, CanBeCancelled(models.StatusReady))
-		assert.True(t, CanBeCancelled(models.StatusInProgress))
-		assert.True(t, CanBeCancelled(models.StatusBlocked))
-		assert.True(t, CanBeCancelled(models.StatusNeedsHuman))
-		assert.True(t, CanBeCancelled(models.StatusReview))
-		assert.False(t, CanBeCancelled(models.StatusDone))
-		assert.False(t, CanBeCancelled(models.StatusCancelled))
+	t.Run("CanBeClosed", func(t *testing.T) {
+		assert.True(t, CanBeClosed(models.StatusBlocked))
+		assert.True(t, CanBeClosed(models.StatusReady))
+		assert.True(t, CanBeClosed(models.StatusInProgress))
+		assert.True(t, CanBeClosed(models.StatusHuman))
+		assert.True(t, CanBeClosed(models.StatusReview))
+		assert.False(t, CanBeClosed(models.StatusClosed))
 	})
 
 	t.Run("CanBeReopened", func(t *testing.T) {
-		assert.True(t, CanBeReopened(models.StatusDone))
-		assert.True(t, CanBeReopened(models.StatusCancelled))
-		assert.False(t, CanBeReopened(models.StatusCreated))
+		assert.True(t, CanBeReopened(models.StatusClosed))
+		assert.False(t, CanBeReopened(models.StatusBlocked))
 		assert.False(t, CanBeReopened(models.StatusReady))
 		assert.False(t, CanBeReopened(models.StatusInProgress))
-		assert.False(t, CanBeReopened(models.StatusBlocked))
-		assert.False(t, CanBeReopened(models.StatusNeedsHuman))
+		assert.False(t, CanBeReopened(models.StatusHuman))
 		assert.False(t, CanBeReopened(models.StatusReview))
+	})
+
+	t.Run("CanModifyDependencies", func(t *testing.T) {
+		assert.True(t, CanModifyDependencies(models.StatusBlocked))
+		assert.True(t, CanModifyDependencies(models.StatusReady))
+		assert.False(t, CanModifyDependencies(models.StatusInProgress))
+		assert.False(t, CanModifyDependencies(models.StatusHuman))
+		assert.False(t, CanModifyDependencies(models.StatusReview))
+		assert.False(t, CanModifyDependencies(models.StatusClosed))
 	})
 }
 
@@ -491,16 +550,33 @@ func TestLogic_ShouldBlock(t *testing.T) {
 		assert.False(t, shouldBlock)
 	})
 
-	t.Run("done ticket should not block", func(t *testing.T) {
-		ticket := &models.Ticket{ID: 1, Status: models.StatusDone}
+	t.Run("blocked with unresolved deps should block", func(t *testing.T) {
+		ticket := &models.Ticket{ID: 1, Status: models.StatusBlocked}
+		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
+		shouldBlock, err := logic.ShouldBlock(ticket)
+		require.NoError(t, err)
+		assert.True(t, shouldBlock)
+	})
+
+	t.Run("closed ticket should not block", func(t *testing.T) {
+		res := models.ResolutionCompleted
+		ticket := &models.Ticket{ID: 1, Status: models.StatusClosed, Resolution: &res}
 		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
 		shouldBlock, err := logic.ShouldBlock(ticket)
 		require.NoError(t, err)
 		assert.False(t, shouldBlock)
 	})
 
-	t.Run("needs_human should not block", func(t *testing.T) {
-		ticket := &models.Ticket{ID: 1, Status: models.StatusNeedsHuman}
+	t.Run("human should not block", func(t *testing.T) {
+		ticket := &models.Ticket{ID: 1, Status: models.StatusHuman}
+		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
+		shouldBlock, err := logic.ShouldBlock(ticket)
+		require.NoError(t, err)
+		assert.False(t, shouldBlock)
+	})
+
+	t.Run("in_progress should not block", func(t *testing.T) {
+		ticket := &models.Ticket{ID: 1, Status: models.StatusInProgress}
 		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
 		shouldBlock, err := logic.ShouldBlock(ticket)
 		require.NoError(t, err)
@@ -551,10 +627,11 @@ func TestLogic_ShouldEscalateToHuman(t *testing.T) {
 }
 
 func TestLogic_CheckParentCompletion(t *testing.T) {
-	t.Run("all children done", func(t *testing.T) {
+	t.Run("all children closed", func(t *testing.T) {
+		res := models.ResolutionCompleted
 		children := []*models.Ticket{
-			{ID: 2, Status: models.StatusDone},
-			{ID: 3, Status: models.StatusDone},
+			{ID: 2, Status: models.StatusClosed, Resolution: &res},
+			{ID: 3, Status: models.StatusClosed, Resolution: &res},
 		}
 		logic := NewLogic(nil, &mockTicketFetcher{children: children}, nil)
 		parent := &models.Ticket{ID: 1}
@@ -563,21 +640,10 @@ func TestLogic_CheckParentCompletion(t *testing.T) {
 		assert.True(t, complete)
 	})
 
-	t.Run("mixed terminal states", func(t *testing.T) {
-		children := []*models.Ticket{
-			{ID: 2, Status: models.StatusDone},
-			{ID: 3, Status: models.StatusCancelled},
-		}
-		logic := NewLogic(nil, &mockTicketFetcher{children: children}, nil)
-		parent := &models.Ticket{ID: 1}
-		complete, err := logic.CheckParentCompletion(parent)
-		require.NoError(t, err)
-		assert.True(t, complete) // All terminal
-	})
-
 	t.Run("incomplete children", func(t *testing.T) {
+		res := models.ResolutionCompleted
 		children := []*models.Ticket{
-			{ID: 2, Status: models.StatusDone},
+			{ID: 2, Status: models.StatusClosed, Resolution: &res},
 			{ID: 3, Status: models.StatusInProgress},
 		}
 		logic := NewLogic(nil, &mockTicketFetcher{children: children}, nil)
@@ -603,87 +669,107 @@ func TestLogic_CheckParentCompletion(t *testing.T) {
 	})
 }
 
-func TestLogic_AllChildrenDone(t *testing.T) {
-	t.Run("all children done", func(t *testing.T) {
+func TestLogic_AllChildrenClosedSuccessfully(t *testing.T) {
+	t.Run("all children completed", func(t *testing.T) {
+		res := models.ResolutionCompleted
 		children := []*models.Ticket{
-			{ID: 2, Status: models.StatusDone},
-			{ID: 3, Status: models.StatusDone},
+			{ID: 2, Status: models.StatusClosed, Resolution: &res},
+			{ID: 3, Status: models.StatusClosed, Resolution: &res},
 		}
 		logic := NewLogic(nil, &mockTicketFetcher{children: children}, nil)
 		parent := &models.Ticket{ID: 1}
-		allDone, err := logic.AllChildrenDone(parent)
+		allDone, err := logic.AllChildrenClosedSuccessfully(parent)
 		require.NoError(t, err)
 		assert.True(t, allDone)
 	})
 
-	t.Run("some cancelled", func(t *testing.T) {
+	t.Run("some wont_do", func(t *testing.T) {
+		completed := models.ResolutionCompleted
+		wontdo := models.ResolutionWontDo
 		children := []*models.Ticket{
-			{ID: 2, Status: models.StatusDone},
-			{ID: 3, Status: models.StatusCancelled},
+			{ID: 2, Status: models.StatusClosed, Resolution: &completed},
+			{ID: 3, Status: models.StatusClosed, Resolution: &wontdo},
 		}
 		logic := NewLogic(nil, &mockTicketFetcher{children: children}, nil)
 		parent := &models.Ticket{ID: 1}
-		allDone, err := logic.AllChildrenDone(parent)
+		allDone, err := logic.AllChildrenClosedSuccessfully(parent)
 		require.NoError(t, err)
-		assert.False(t, allDone) // Cancelled != done
+		assert.False(t, allDone) // wont_do != completed
 	})
 }
 
 func TestLogic_GetNextStatus(t *testing.T) {
-	t.Run("validated event", func(t *testing.T) {
-		logic := NewLogic(nil, nil, nil)
-		ticket := &models.Ticket{ID: 1, Status: models.StatusCreated}
-		next, changed := logic.GetNextStatus(ticket, EventValidated)
+	t.Run("dependency added to ready ticket", func(t *testing.T) {
+		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
+		ticket := &models.Ticket{ID: 1, Status: models.StatusReady}
+		next, res, changed := logic.GetNextStatus(ticket, EventDependencyAdded)
 		assert.True(t, changed)
-		assert.Equal(t, models.StatusReady, next)
+		assert.Equal(t, models.StatusBlocked, next)
+		assert.Nil(t, res)
 	})
 
-	t.Run("dependency resolved event", func(t *testing.T) {
+	t.Run("dependency resolved for blocked ticket", func(t *testing.T) {
 		logic := NewLogic(&mockDependencyChecker{hasUnresolved: false}, nil, nil)
 		ticket := &models.Ticket{ID: 1, Status: models.StatusBlocked}
-		next, changed := logic.GetNextStatus(ticket, EventDependencyResolved)
+		next, res, changed := logic.GetNextStatus(ticket, EventDependencyResolved)
 		assert.True(t, changed)
 		assert.Equal(t, models.StatusReady, next)
+		assert.Nil(t, res)
 	})
 
 	t.Run("claim expired with escalation", func(t *testing.T) {
 		logic := NewLogic(nil, nil, nil)
 		ticket := &models.Ticket{ID: 1, Status: models.StatusInProgress, RetryCount: 3, MaxRetries: 3}
-		next, changed := logic.GetNextStatus(ticket, EventClaimExpired)
+		next, res, changed := logic.GetNextStatus(ticket, EventClaimExpired)
 		assert.True(t, changed)
-		assert.Equal(t, models.StatusNeedsHuman, next)
+		assert.Equal(t, models.StatusHuman, next)
+		assert.Nil(t, res)
 	})
 
 	t.Run("claim expired without escalation", func(t *testing.T) {
 		logic := NewLogic(nil, nil, nil)
 		ticket := &models.Ticket{ID: 1, Status: models.StatusInProgress, RetryCount: 1, MaxRetries: 3}
-		next, changed := logic.GetNextStatus(ticket, EventClaimExpired)
+		next, res, changed := logic.GetNextStatus(ticket, EventClaimExpired)
 		assert.True(t, changed)
 		assert.Equal(t, models.StatusReady, next)
+		assert.Nil(t, res)
 	})
 
 	t.Run("work completed", func(t *testing.T) {
 		logic := NewLogic(nil, nil, nil)
 		ticket := &models.Ticket{ID: 1, Status: models.StatusInProgress}
-		next, changed := logic.GetNextStatus(ticket, EventWorkCompleted)
+		next, res, changed := logic.GetNextStatus(ticket, EventWorkCompleted)
 		assert.True(t, changed)
 		assert.Equal(t, models.StatusReview, next)
+		assert.Nil(t, res)
 	})
 
 	t.Run("accepted", func(t *testing.T) {
 		logic := NewLogic(nil, nil, nil)
 		ticket := &models.Ticket{ID: 1, Status: models.StatusReview}
-		next, changed := logic.GetNextStatus(ticket, EventAccepted)
+		next, res, changed := logic.GetNextStatus(ticket, EventAccepted)
 		assert.True(t, changed)
-		assert.Equal(t, models.StatusDone, next)
+		assert.Equal(t, models.StatusClosed, next)
+		require.NotNil(t, res)
+		assert.Equal(t, models.ResolutionCompleted, *res)
 	})
 
 	t.Run("rejected", func(t *testing.T) {
 		logic := NewLogic(nil, nil, nil)
 		ticket := &models.Ticket{ID: 1, Status: models.StatusReview}
-		next, changed := logic.GetNextStatus(ticket, EventRejected)
+		next, res, changed := logic.GetNextStatus(ticket, EventRejected)
 		assert.True(t, changed)
-		assert.Equal(t, models.StatusReady, next)
+		assert.Equal(t, models.StatusInProgress, next)
+		assert.Nil(t, res)
+	})
+
+	t.Run("human responded", func(t *testing.T) {
+		logic := NewLogic(nil, nil, nil)
+		ticket := &models.Ticket{ID: 1, Status: models.StatusHuman}
+		next, res, changed := logic.GetNextStatus(ticket, EventHumanResponded)
+		assert.True(t, changed)
+		assert.Equal(t, models.StatusInProgress, next)
+		assert.Nil(t, res)
 	})
 }
 
@@ -702,6 +788,14 @@ func TestLogic_CanClaim(t *testing.T) {
 
 	t.Run("cannot claim non-ready ticket", func(t *testing.T) {
 		ticket := &models.Ticket{ID: 1, Status: models.StatusInProgress}
+		logic := NewLogic(nil, nil, nil)
+		canClaim, reason := logic.CanClaim(ticket)
+		assert.False(t, canClaim)
+		assert.Contains(t, reason, "ready")
+	})
+
+	t.Run("cannot claim blocked ticket", func(t *testing.T) {
+		ticket := &models.Ticket{ID: 1, Status: models.StatusBlocked}
 		logic := NewLogic(nil, nil, nil)
 		canClaim, reason := logic.CanClaim(ticket)
 		assert.False(t, canClaim)
@@ -773,17 +867,12 @@ func TestLogic_CanAcceptReject(t *testing.T) {
 	})
 }
 
-func TestLogic_CanReopenCancel(t *testing.T) {
+func TestLogic_CanReopenClose(t *testing.T) {
 	logic := NewLogic(nil, nil, nil)
 
-	t.Run("can reopen done", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusDone}
-		can, _ := logic.CanReopen(ticket)
-		assert.True(t, can)
-	})
-
-	t.Run("can reopen cancelled", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusCancelled}
+	t.Run("can reopen closed", func(t *testing.T) {
+		res := models.ResolutionCompleted
+		ticket := &models.Ticket{Status: models.StatusClosed, Resolution: &res}
 		can, _ := logic.CanReopen(ticket)
 		assert.True(t, can)
 	})
@@ -792,43 +881,137 @@ func TestLogic_CanReopenCancel(t *testing.T) {
 		ticket := &models.Ticket{Status: models.StatusReady}
 		can, reason := logic.CanReopen(ticket)
 		assert.False(t, can)
-		assert.Contains(t, reason, "done or cancelled")
+		assert.Contains(t, reason, "closed")
 	})
 
-	t.Run("can cancel ready", func(t *testing.T) {
+	t.Run("can close ready", func(t *testing.T) {
 		ticket := &models.Ticket{Status: models.StatusReady}
-		can, _ := logic.CanCancel(ticket)
+		can, _ := logic.CanClose(ticket)
 		assert.True(t, can)
 	})
 
-	t.Run("cannot cancel done", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusDone}
-		can, reason := logic.CanCancel(ticket)
+	t.Run("cannot close closed", func(t *testing.T) {
+		res := models.ResolutionCompleted
+		ticket := &models.Ticket{Status: models.StatusClosed, Resolution: &res}
+		can, reason := logic.CanClose(ticket)
 		assert.False(t, can)
-		assert.Contains(t, reason, "cannot be cancelled")
+		assert.Contains(t, reason, "cannot be closed")
 	})
 }
 
-func TestLogic_CanFlag(t *testing.T) {
+func TestLogic_CanEscalate(t *testing.T) {
 	logic := NewLogic(nil, nil, nil)
 
-	t.Run("can flag ready", func(t *testing.T) {
+	t.Run("can escalate ready", func(t *testing.T) {
 		ticket := &models.Ticket{Status: models.StatusReady}
-		can, _ := logic.CanFlag(ticket)
+		can, _ := logic.CanEscalate(ticket)
 		assert.True(t, can)
 	})
 
-	t.Run("cannot flag needs_human", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusNeedsHuman}
-		can, reason := logic.CanFlag(ticket)
-		assert.False(t, can)
-		assert.Contains(t, reason, "cannot be flagged")
+	t.Run("can escalate in_progress", func(t *testing.T) {
+		ticket := &models.Ticket{Status: models.StatusInProgress}
+		can, _ := logic.CanEscalate(ticket)
+		assert.True(t, can)
 	})
 
-	t.Run("cannot flag done", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusDone}
-		can, reason := logic.CanFlag(ticket)
+	t.Run("cannot escalate human", func(t *testing.T) {
+		ticket := &models.Ticket{Status: models.StatusHuman}
+		can, reason := logic.CanEscalate(ticket)
 		assert.False(t, can)
-		assert.Contains(t, reason, "cannot be flagged")
+		assert.Contains(t, reason, "cannot be escalated")
+	})
+
+	t.Run("cannot escalate closed", func(t *testing.T) {
+		res := models.ResolutionCompleted
+		ticket := &models.Ticket{Status: models.StatusClosed, Resolution: &res}
+		can, reason := logic.CanEscalate(ticket)
+		assert.False(t, can)
+		assert.Contains(t, reason, "cannot be escalated")
+	})
+}
+
+func TestLogic_CanModifyDependencies(t *testing.T) {
+	logic := NewLogic(nil, nil, nil)
+
+	t.Run("can modify blocked", func(t *testing.T) {
+		ticket := &models.Ticket{Status: models.StatusBlocked}
+		can, _ := logic.CanAddDependency(ticket)
+		assert.True(t, can)
+	})
+
+	t.Run("can modify ready", func(t *testing.T) {
+		ticket := &models.Ticket{Status: models.StatusReady}
+		can, _ := logic.CanRemoveDependency(ticket)
+		assert.True(t, can)
+	})
+
+	t.Run("cannot modify in_progress", func(t *testing.T) {
+		ticket := &models.Ticket{Status: models.StatusInProgress}
+		can, reason := logic.CanAddDependency(ticket)
+		assert.False(t, can)
+		assert.Contains(t, reason, "blocked or ready")
+	})
+
+	t.Run("cannot modify human", func(t *testing.T) {
+		ticket := &models.Ticket{Status: models.StatusHuman}
+		can, reason := logic.CanRemoveDependency(ticket)
+		assert.False(t, can)
+		assert.Contains(t, reason, "blocked or ready")
+	})
+}
+
+func TestLogic_DependencyTriggers(t *testing.T) {
+	t.Run("OnDependencyCompleted unblocks", func(t *testing.T) {
+		logic := NewLogic(&mockDependencyChecker{hasUnresolved: false}, nil, nil)
+		ticket := &models.Ticket{ID: 1, Status: models.StatusBlocked}
+		newStatus, changed := logic.OnDependencyCompleted(ticket)
+		assert.True(t, changed)
+		assert.Equal(t, models.StatusReady, newStatus)
+	})
+
+	t.Run("OnDependencyCompleted stays blocked if deps remain", func(t *testing.T) {
+		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
+		ticket := &models.Ticket{ID: 1, Status: models.StatusBlocked}
+		newStatus, changed := logic.OnDependencyCompleted(ticket)
+		assert.False(t, changed)
+		assert.Equal(t, models.StatusBlocked, newStatus)
+	})
+
+	t.Run("OnDependencyAdded blocks ready ticket", func(t *testing.T) {
+		logic := NewLogic(nil, nil, nil)
+		ticket := &models.Ticket{ID: 1, Status: models.StatusReady}
+		newStatus, changed := logic.OnDependencyAdded(ticket, false) // dep not resolved
+		assert.True(t, changed)
+		assert.Equal(t, models.StatusBlocked, newStatus)
+	})
+
+	t.Run("OnDependencyAdded does not block if dep resolved", func(t *testing.T) {
+		logic := NewLogic(nil, nil, nil)
+		ticket := &models.Ticket{ID: 1, Status: models.StatusReady}
+		newStatus, changed := logic.OnDependencyAdded(ticket, true) // dep is resolved
+		assert.False(t, changed)
+		assert.Equal(t, models.StatusReady, newStatus)
+	})
+
+	t.Run("OnDependencyRemoved unblocks", func(t *testing.T) {
+		logic := NewLogic(&mockDependencyChecker{hasUnresolved: false}, nil, nil)
+		ticket := &models.Ticket{ID: 1, Status: models.StatusBlocked}
+		newStatus, changed := logic.OnDependencyRemoved(ticket)
+		assert.True(t, changed)
+		assert.Equal(t, models.StatusReady, newStatus)
+	})
+}
+
+func TestLogic_DetermineInitialStatus(t *testing.T) {
+	logic := NewLogic(nil, nil, nil)
+
+	t.Run("no deps", func(t *testing.T) {
+		status := logic.DetermineInitialStatus(false)
+		assert.Equal(t, models.StatusReady, status)
+	})
+
+	t.Run("has deps", func(t *testing.T) {
+		status := logic.DetermineInitialStatus(true)
+		assert.Equal(t, models.StatusBlocked, status)
 	})
 }

@@ -195,7 +195,7 @@ func TestTicketCreate(t *testing.T) {
 
 	assert.Equal(t, int64(1), ticket.ID)
 	assert.Equal(t, 1, ticket.Number)
-	assert.Equal(t, models.StatusCreated, ticket.Status)
+	assert.Equal(t, models.StatusReady, ticket.Status)
 	assert.Equal(t, models.PriorityHigh, ticket.Priority)
 	assert.Equal(t, 3, ticket.MaxRetries)
 }
@@ -256,7 +256,7 @@ func TestTicketWorkable(t *testing.T) {
 		title  string
 		status models.Status
 	}{
-		{"Created ticket", models.StatusCreated},
+		{"Review ticket", models.StatusReview},
 		{"Ready ticket", models.StatusReady},
 		{"In progress ticket", models.StatusInProgress},
 		{"Blocked ticket", models.StatusBlocked},
@@ -321,11 +321,11 @@ func TestTicketDependencies(t *testing.T) {
 	assert.True(t, hasUnresolved)
 
 	// Complete ticket1 and ticket2
-	ticket1.Status = models.StatusDone
+	ticket1.Status = models.StatusClosed
 	err = ticketRepo.Update(ticket1)
 	require.NoError(t, err)
 
-	ticket2.Status = models.StatusDone
+	ticket2.Status = models.StatusClosed
 	err = ticketRepo.Update(ticket2)
 	require.NoError(t, err)
 
@@ -455,21 +455,28 @@ func TestProjectStats(t *testing.T) {
 
 	// Create tickets with various statuses
 	ticketRepo := db.NewTicketRepo(database.DB)
-	statuses := []models.Status{
-		models.StatusCreated,
-		models.StatusReady,
-		models.StatusReady,
-		models.StatusInProgress,
-		models.StatusDone,
-		models.StatusDone,
-		models.StatusDone,
+	completedRes := models.ResolutionCompleted
+	wontDoRes := models.ResolutionWontDo
+	
+	testCases := []struct {
+		status     models.Status
+		resolution *models.Resolution
+	}{
+		{models.StatusReady, nil},
+		{models.StatusReady, nil},
+		{models.StatusReady, nil},
+		{models.StatusInProgress, nil},
+		{models.StatusClosed, &completedRes},
+		{models.StatusClosed, &completedRes},
+		{models.StatusClosed, &wontDoRes},
 	}
 
-	for i, status := range statuses {
+	for i, tc := range testCases {
 		ticket := &models.Ticket{
-			ProjectID: project.ID,
-			Title:     string(rune('A'+i)) + " Ticket",
-			Status:    status,
+			ProjectID:  project.ID,
+			Title:      string(rune('A'+i)) + " Ticket",
+			Status:     tc.status,
+			Resolution: tc.resolution,
 		}
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -480,10 +487,10 @@ func TestProjectStats(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 7, stats.TotalTickets)
-	assert.Equal(t, 1, stats.CreatedCount)
-	assert.Equal(t, 2, stats.ReadyCount)
+	assert.Equal(t, 3, stats.ReadyCount)
 	assert.Equal(t, 1, stats.InProgressCount)
-	assert.Equal(t, 3, stats.DoneCount)
+	assert.Equal(t, 2, stats.ClosedCompletedCount)
+	assert.Equal(t, 1, stats.ClosedOtherCount)
 }
 
 func TestCyclicDependencyDetection(t *testing.T) {
@@ -525,9 +532,9 @@ func TestCyclicDependencyDetection(t *testing.T) {
 
 func TestEnumValidation(t *testing.T) {
 	// Status
-	assert.True(t, models.StatusCreated.IsValid())
 	assert.True(t, models.StatusReady.IsValid())
-	assert.True(t, models.StatusDone.IsValid())
+	assert.True(t, models.StatusReady.IsValid())
+	assert.True(t, models.StatusClosed.IsValid())
 	assert.False(t, models.Status("invalid").IsValid())
 
 	// Priority
@@ -541,7 +548,7 @@ func TestEnumValidation(t *testing.T) {
 	assert.False(t, models.Complexity("invalid").IsValid())
 
 	// Terminal states
-	assert.True(t, models.StatusDone.IsTerminal())
-	assert.True(t, models.StatusCancelled.IsTerminal())
+	assert.True(t, models.StatusClosed.IsTerminal())
 	assert.False(t, models.StatusReady.IsTerminal())
+	assert.False(t, models.StatusInProgress.IsTerminal())
 }

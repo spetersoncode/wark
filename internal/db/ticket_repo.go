@@ -33,9 +33,9 @@ type TicketFilter struct {
 
 // Create creates a new ticket.
 func (r *TicketRepo) Create(t *models.Ticket) error {
-	// Set defaults
+	// Set defaults - status must be set by caller based on dependency check
 	if t.Status == "" {
-		t.Status = models.StatusCreated
+		t.Status = models.StatusReady
 	}
 	if t.Priority == "" {
 		t.Priority = models.PriorityMedium
@@ -53,10 +53,10 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 
 	query := `
 		INSERT INTO tickets (
-			project_id, number, title, description, status, human_flag_reason,
+			project_id, number, title, description, status, resolution, human_flag_reason,
 			priority, complexity, branch_name, retry_count, max_retries,
-			parent_ticket_id, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			parent_ticket_id, created_at, updated_at, completed_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	now := time.Now()
 
@@ -73,9 +73,9 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 	}
 
 	result, err := r.db.Exec(query,
-		t.ProjectID, number, t.Title, nullString(t.Description), t.Status, nullString(t.HumanFlagReason),
+		t.ProjectID, number, t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
 		t.Priority, t.Complexity, nullString(t.BranchName), t.RetryCount, t.MaxRetries,
-		nullInt64(t.ParentTicketID), now, now,
+		nullInt64(t.ParentTicketID), now, now, nullTime(t.CompletedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create ticket: %w", err)
@@ -97,7 +97,7 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 func (r *TicketRepo) GetByID(id int64) (*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
 			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key
@@ -112,7 +112,7 @@ func (r *TicketRepo) GetByID(id int64) (*models.Ticket, error) {
 func (r *TicketRepo) GetByKey(projectKey string, number int) (*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
 			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key
@@ -127,7 +127,7 @@ func (r *TicketRepo) GetByKey(projectKey string, number int) (*models.Ticket, er
 func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
 			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key
@@ -192,10 +192,11 @@ func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 }
 
 // ListWorkable retrieves all workable tickets (ready status with no unresolved dependencies).
+// A dependency is only resolved if its ticket is closed with 'completed' resolution.
 func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
 			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key
@@ -206,7 +207,7 @@ func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error)
 			SELECT 1 FROM ticket_dependencies td
 			JOIN tickets dep ON td.depends_on_id = dep.id
 			WHERE td.ticket_id = t.id
-			AND dep.status NOT IN ('done', 'cancelled')
+			AND NOT (dep.status = 'closed' AND dep.resolution = 'completed')
 		)
 	`
 	args := []interface{}{}
@@ -257,13 +258,13 @@ func (r *TicketRepo) Update(t *models.Ticket) error {
 
 	query := `
 		UPDATE tickets SET
-			title = ?, description = ?, status = ?, human_flag_reason = ?,
+			title = ?, description = ?, status = ?, resolution = ?, human_flag_reason = ?,
 			priority = ?, complexity = ?, branch_name = ?,
 			retry_count = ?, max_retries = ?, parent_ticket_id = ?, completed_at = ?
 		WHERE id = ?
 	`
 	result, err := r.db.Exec(query,
-		t.Title, nullString(t.Description), t.Status, nullString(t.HumanFlagReason),
+		t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
 		t.Priority, t.Complexity, nullString(t.BranchName),
 		t.RetryCount, t.MaxRetries, nullInt64(t.ParentTicketID), nullTime(t.CompletedAt),
 		t.ID,
@@ -357,13 +358,13 @@ func (r *TicketRepo) CountByStatus(projectID int64) (map[models.Status]int, erro
 
 func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 	var t models.Ticket
-	var desc, humanFlag, branch sql.NullString
+	var desc, resolution, humanFlag, branch sql.NullString
 	var parentID sql.NullInt64
 	var completedAt sql.NullTime
 
 	err := row.Scan(
 		&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status,
-		&humanFlag, &t.Priority, &t.Complexity, &branch,
+		&resolution, &humanFlag, &t.Priority, &t.Complexity, &branch,
 		&t.RetryCount, &t.MaxRetries, &parentID,
 		&t.CreatedAt, &t.UpdatedAt, &completedAt,
 		&t.ProjectKey,
@@ -378,6 +379,10 @@ func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 	t.Description = desc.String
 	t.HumanFlagReason = humanFlag.String
 	t.BranchName = branch.String
+	if resolution.Valid {
+		res := models.Resolution(resolution.String)
+		t.Resolution = &res
+	}
 	if parentID.Valid {
 		t.ParentTicketID = &parentID.Int64
 	}
@@ -392,13 +397,13 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 	var tickets []*models.Ticket
 	for rows.Next() {
 		var t models.Ticket
-		var desc, humanFlag, branch sql.NullString
+		var desc, resolution, humanFlag, branch sql.NullString
 		var parentID sql.NullInt64
 		var completedAt sql.NullTime
 
 		err := rows.Scan(
 			&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status,
-			&humanFlag, &t.Priority, &t.Complexity, &branch,
+			&resolution, &humanFlag, &t.Priority, &t.Complexity, &branch,
 			&t.RetryCount, &t.MaxRetries, &parentID,
 			&t.CreatedAt, &t.UpdatedAt, &completedAt,
 			&t.ProjectKey,
@@ -410,6 +415,10 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 		t.Description = desc.String
 		t.HumanFlagReason = humanFlag.String
 		t.BranchName = branch.String
+		if resolution.Valid {
+			res := models.Resolution(resolution.String)
+			t.Resolution = &res
+		}
 		if parentID.Valid {
 			t.ParentTicketID = &parentID.Int64
 		}
@@ -445,4 +454,11 @@ func nullTime(t *time.Time) sql.NullTime {
 		return sql.NullTime{}
 	}
 	return sql.NullTime{Time: *t, Valid: true}
+}
+
+func nullResolution(r *models.Resolution) sql.NullString {
+	if r == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: string(*r), Valid: true}
 }

@@ -126,10 +126,10 @@ func (e *ClaimExpirer) processExpiredClaim(claim *models.Claim, dryRun bool) *Ex
 	result.RetryCount = newRetryCount
 	result.MaxRetries = ticket.MaxRetries
 
-	// Determine new status: needs_human if exceeded max retries, otherwise ready
+	// Determine new status: human if exceeded max retries, otherwise ready
 	newStatus := models.StatusReady
 	if newRetryCount >= ticket.MaxRetries {
-		newStatus = models.StatusNeedsHuman
+		newStatus = models.StatusHuman
 		result.Escalated = true
 	}
 	result.NewStatus = string(newStatus)
@@ -147,7 +147,7 @@ func (e *ClaimExpirer) processExpiredClaim(claim *models.Claim, dryRun bool) *Ex
 	// Update ticket
 	ticket.Status = newStatus
 	ticket.RetryCount = newRetryCount
-	if newStatus == models.StatusNeedsHuman {
+	if newStatus == models.StatusHuman {
 		ticket.HumanFlagReason = "max_retries_exceeded"
 	}
 	if err := e.ticketRepo.Update(ticket); err != nil {

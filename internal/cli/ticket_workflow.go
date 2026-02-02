@@ -81,7 +81,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 
 	// Check if ticket can be claimed
 	machine := state.NewMachine()
-	if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, ""); err != nil {
+	if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
 		return fmt.Errorf("cannot claim ticket: %w", err)
 	}
 
@@ -293,14 +293,18 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 
 	// Determine final status
 	finalStatus := models.StatusReview
+	var resolution *models.Resolution
 	if autoAccept {
-		finalStatus = models.StatusDone
+		finalStatus = models.StatusClosed
+		res := models.ResolutionCompleted
+		resolution = &res
 	}
 
 	// Update ticket
 	ticketRepo := db.NewTicketRepo(database.DB)
 	ticket.Status = finalStatus
-	if finalStatus == models.StatusDone {
+	ticket.Resolution = resolution
+	if finalStatus == models.StatusClosed {
 		now := time.Now()
 		ticket.CompletedAt = &now
 	}
@@ -439,8 +443,8 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid reason code: %s", flagReason)
 	}
 
-	// Check if ticket can be flagged
-	if !state.CanBeFlagged(ticket.Status) {
+	// Check if ticket can be escalated to human
+	if !state.CanBeEscalated(ticket.Status) {
 		return fmt.Errorf("ticket cannot be flagged in status: %s", ticket.Status)
 	}
 
@@ -458,7 +462,7 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 
 	// Update ticket status
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusNeedsHuman
+	ticket.Status = models.StatusHuman
 	ticket.HumanFlagReason = flagReason
 	if err := ticketRepo.Update(ticket); err != nil {
 		return fmt.Errorf("failed to update ticket: %w", err)
@@ -480,7 +484,7 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 
 	// Log activity
 	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionFlaggedHuman, models.ActorTypeAgent, workerID,
+	activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
 		fmt.Sprintf("Flagged: %s", flagReason),
 		map[string]interface{}{
 			"reason":           flagReason,

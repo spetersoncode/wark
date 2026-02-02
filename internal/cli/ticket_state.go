@@ -14,8 +14,9 @@ import (
 
 // State command flags
 var (
-	rejectReason string
-	cancelReason string
+	rejectReason   string
+	cancelReason   string
+	closeResolution string
 )
 
 func init() {
@@ -23,13 +24,14 @@ func init() {
 	ticketRejectCmd.Flags().StringVar(&rejectReason, "reason", "", "Reason for rejection (required)")
 	ticketRejectCmd.MarkFlagRequired("reason")
 
-	// ticket cancel
-	ticketCancelCmd.Flags().StringVar(&cancelReason, "reason", "", "Reason for cancellation")
+	// ticket close (cancel)
+	ticketCloseCmd.Flags().StringVar(&closeResolution, "resolution", "wont_do", "Resolution (completed, wont_do, duplicate, invalid, obsolete)")
+	ticketCloseCmd.Flags().StringVar(&cancelReason, "reason", "", "Reason for closing")
 
 	// Add subcommands
 	ticketCmd.AddCommand(ticketAcceptCmd)
 	ticketCmd.AddCommand(ticketRejectCmd)
-	ticketCmd.AddCommand(ticketCancelCmd)
+	ticketCmd.AddCommand(ticketCloseCmd)
 	ticketCmd.AddCommand(ticketReopenCmd)
 }
 
@@ -37,7 +39,7 @@ func init() {
 var ticketAcceptCmd = &cobra.Command{
 	Use:   "accept <TICKET>",
 	Short: "Accept completed work",
-	Long: `Accept completed work and move the ticket from review to done status.
+	Long: `Accept completed work and move the ticket from review to closed (completed) status.
 
 Example:
   wark ticket accept WEBAPP-42`,
@@ -64,13 +66,15 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 
 	// Validate transition
 	machine := state.NewMachine()
-	if err := machine.CanTransition(ticket, models.StatusDone, state.TransitionTypeManual, ""); err != nil {
+	resolution := models.ResolutionCompleted
+	if err := machine.CanTransition(ticket, models.StatusClosed, state.TransitionTypeManual, "", &resolution); err != nil {
 		return fmt.Errorf("cannot accept ticket: %w", err)
 	}
 
 	// Update ticket
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusDone
+	ticket.Status = models.StatusClosed
+	ticket.Resolution = &resolution
 	now := time.Now()
 	ticket.CompletedAt = &now
 	if err := ticketRepo.Update(ticket); err != nil {
@@ -92,16 +96,17 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":   ticket.TicketKey,
-			"status":   ticket.Status,
-			"accepted": true,
+			"ticket":     ticket.TicketKey,
+			"status":     ticket.Status,
+			"resolution": ticket.Resolution,
+			"accepted":   true,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
 	OutputLine("Accepted: %s", ticket.TicketKey)
-	OutputLine("Status: %s", ticket.Status)
+	OutputLine("Status: %s (resolution: %s)", ticket.Status, *ticket.Resolution)
 
 	return nil
 }
@@ -110,7 +115,7 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 var ticketRejectCmd = &cobra.Command{
 	Use:   "reject <TICKET>",
 	Short: "Reject completed work",
-	Long: `Reject completed work and move the ticket from review back to ready status.
+	Long: `Reject completed work and move the ticket from review back to in_progress status.
 
 Example:
   wark ticket reject WEBAPP-42 --reason "Tests are failing"`,
@@ -135,15 +140,15 @@ func runTicketReject(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("ticket is not in review (current status: %s)", ticket.Status)
 	}
 
-	// Validate transition
+	// Validate transition (reject goes back to in_progress, not ready)
 	machine := state.NewMachine()
-	if err := machine.CanTransition(ticket, models.StatusReady, state.TransitionTypeManual, rejectReason); err != nil {
+	if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, rejectReason, nil); err != nil {
 		return fmt.Errorf("cannot reject ticket: %w", err)
 	}
 
 	// Update ticket
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusReady
+	ticket.Status = models.StatusInProgress
 	ticket.RetryCount++
 	if err := ticketRepo.Update(ticket); err != nil {
 		return fmt.Errorf("failed to update ticket: %w", err)
@@ -177,20 +182,27 @@ func runTicketReject(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// ticket cancel
-var ticketCancelCmd = &cobra.Command{
-	Use:   "cancel <TICKET>",
-	Short: "Cancel a ticket",
-	Long: `Cancel a ticket. This moves the ticket to cancelled status.
+// ticket close (replaces cancel)
+var ticketCloseCmd = &cobra.Command{
+	Use:   "close <TICKET>",
+	Short: "Close a ticket",
+	Long: `Close a ticket with a resolution.
+
+Resolutions:
+  completed  - Work finished successfully
+  wont_do    - Won't be doing this work
+  duplicate  - Duplicate of another ticket
+  invalid    - Invalid or not applicable
+  obsolete   - No longer needed
 
 Example:
-  wark ticket cancel WEBAPP-42
-  wark ticket cancel WEBAPP-42 --reason "No longer needed"`,
-	Args: cobra.ExactArgs(1),
-	RunE: runTicketCancel,
+  wark ticket close WEBAPP-42 --resolution wont_do --reason "No longer needed"`,
+	Args:    cobra.ExactArgs(1),
+	Aliases: []string{"cancel"},
+	RunE:    runTicketClose,
 }
 
-func runTicketCancel(cmd *cobra.Command, args []string) error {
+func runTicketClose(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
@@ -202,9 +214,15 @@ func runTicketCancel(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if ticket can be cancelled
-	if !state.CanBeCancelled(ticket.Status) {
-		return fmt.Errorf("ticket cannot be cancelled in status: %s", ticket.Status)
+	// Check if ticket can be closed
+	if !state.CanBeClosed(ticket.Status) {
+		return fmt.Errorf("ticket cannot be closed in status: %s", ticket.Status)
+	}
+
+	// Parse resolution
+	resolution := models.Resolution(closeResolution)
+	if !resolution.IsValid() {
+		return fmt.Errorf("invalid resolution: %s (must be completed, wont_do, duplicate, invalid, or obsolete)", closeResolution)
 	}
 
 	// Release any active claim
@@ -216,34 +234,40 @@ func runTicketCancel(cmd *cobra.Command, args []string) error {
 
 	// Update ticket
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusCancelled
+	ticket.Status = models.StatusClosed
+	ticket.Resolution = &resolution
+	now := time.Now()
+	ticket.CompletedAt = &now
 	if err := ticketRepo.Update(ticket); err != nil {
 		return fmt.Errorf("failed to update ticket: %w", err)
 	}
 
 	// Log activity
 	activityRepo := db.NewActivityRepo(database.DB)
-	summary := "Ticket cancelled"
+	summary := fmt.Sprintf("Ticket closed: %s", resolution)
 	if cancelReason != "" {
-		summary = fmt.Sprintf("Cancelled: %s", cancelReason)
+		summary = fmt.Sprintf("Closed (%s): %s", resolution, cancelReason)
 	}
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionCancelled, models.ActorTypeHuman, "",
+	activityRepo.LogActionWithDetails(ticket.ID, models.ActionClosed, models.ActorTypeHuman, "",
 		summary,
 		map[string]interface{}{
-			"reason": cancelReason,
+			"resolution": string(resolution),
+			"reason":     cancelReason,
 		})
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":    ticket.TicketKey,
-			"status":    ticket.Status,
-			"cancelled": true,
+			"ticket":     ticket.TicketKey,
+			"status":     ticket.Status,
+			"resolution": resolution,
+			"closed":     true,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Cancelled: %s", ticket.TicketKey)
+	OutputLine("Closed: %s", ticket.TicketKey)
+	OutputLine("Resolution: %s", resolution)
 	OutputLine("Status: %s", ticket.Status)
 
 	return nil
@@ -252,8 +276,8 @@ func runTicketCancel(cmd *cobra.Command, args []string) error {
 // ticket reopen
 var ticketReopenCmd = &cobra.Command{
 	Use:   "reopen <TICKET>",
-	Short: "Reopen a cancelled or done ticket",
-	Long: `Reopen a ticket that was previously cancelled or completed.
+	Short: "Reopen a closed ticket",
+	Long: `Reopen a ticket that was previously closed.
 
 Example:
   wark ticket reopen WEBAPP-42`,
@@ -275,14 +299,28 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 
 	// Check if ticket can be reopened
 	if !state.CanBeReopened(ticket.Status) {
-		return fmt.Errorf("ticket cannot be reopened in status: %s (must be done or cancelled)", ticket.Status)
+		return fmt.Errorf("ticket cannot be reopened in status: %s (must be closed)", ticket.Status)
 	}
 
 	previousStatus := ticket.Status
+	previousResolution := ticket.Resolution
+
+	// Determine new status: blocked if has deps, ready otherwise
+	depRepo := db.NewDependencyRepo(database.DB)
+	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check dependencies: %w", err)
+	}
+
+	newStatus := models.StatusReady
+	if hasUnresolved {
+		newStatus = models.StatusBlocked
+	}
 
 	// Update ticket
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusReady
+	ticket.Status = newStatus
+	ticket.Resolution = nil
 	ticket.CompletedAt = nil
 	if err := ticketRepo.Update(ticket); err != nil {
 		return fmt.Errorf("failed to update ticket: %w", err)
@@ -290,11 +328,15 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 
 	// Log activity
 	activityRepo := db.NewActivityRepo(database.DB)
+	details := map[string]interface{}{
+		"previous_status": string(previousStatus),
+	}
+	if previousResolution != nil {
+		details["previous_resolution"] = string(*previousResolution)
+	}
 	activityRepo.LogActionWithDetails(ticket.ID, models.ActionReopened, models.ActorTypeHuman, "",
 		fmt.Sprintf("Reopened from %s", previousStatus),
-		map[string]interface{}{
-			"previous_status": string(previousStatus),
-		})
+		details)
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{

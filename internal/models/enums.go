@@ -2,37 +2,72 @@
 package models
 
 // Status represents the state of a ticket in its lifecycle.
+// State machine redesign (WARK-12):
+// - blocked: has open dependencies, cannot be worked
+// - ready: no blockers, available for work
+// - in_progress: actively being worked
+// - human: needs human decision/input (escalation)
+// - review: work complete, awaiting approval
+// - closed: terminal state (with resolution)
 type Status string
 
 const (
-	StatusCreated    Status = "created"
+	StatusBlocked    Status = "blocked"
 	StatusReady      Status = "ready"
 	StatusInProgress Status = "in_progress"
-	StatusBlocked    Status = "blocked"
-	StatusNeedsHuman Status = "needs_human"
+	StatusHuman      Status = "human"
 	StatusReview     Status = "review"
-	StatusDone       Status = "done"
-	StatusCancelled  Status = "cancelled"
+	StatusClosed     Status = "closed"
 )
 
 // IsValid returns true if the status is a valid ticket status.
 func (s Status) IsValid() bool {
 	switch s {
-	case StatusCreated, StatusReady, StatusInProgress, StatusBlocked,
-		StatusNeedsHuman, StatusReview, StatusDone, StatusCancelled:
+	case StatusBlocked, StatusReady, StatusInProgress, StatusHuman, StatusReview, StatusClosed:
 		return true
 	}
 	return false
 }
 
-// IsTerminal returns true if the status is a terminal state (done or cancelled).
+// IsTerminal returns true if the status is a terminal state.
 func (s Status) IsTerminal() bool {
-	return s == StatusDone || s == StatusCancelled
+	return s == StatusClosed
 }
 
 // IsWorkable returns true if the status allows the ticket to be worked on.
 func (s Status) IsWorkable() bool {
 	return s == StatusReady
+}
+
+// CanModifyDependencies returns true if dependencies can be modified in this state.
+// Dependencies can only be modified when ticket is blocked or ready.
+func (s Status) CanModifyDependencies() bool {
+	return s == StatusBlocked || s == StatusReady
+}
+
+// Resolution represents why a ticket was closed.
+type Resolution string
+
+const (
+	ResolutionCompleted Resolution = "completed"
+	ResolutionWontDo    Resolution = "wont_do"
+	ResolutionDuplicate Resolution = "duplicate"
+	ResolutionInvalid   Resolution = "invalid"
+	ResolutionObsolete  Resolution = "obsolete"
+)
+
+// IsValid returns true if the resolution is valid.
+func (r Resolution) IsValid() bool {
+	switch r {
+	case ResolutionCompleted, ResolutionWontDo, ResolutionDuplicate, ResolutionInvalid, ResolutionObsolete:
+		return true
+	}
+	return false
+}
+
+// IsSuccessful returns true if this resolution indicates successful completion.
+func (r Resolution) IsSuccessful() bool {
+	return r == ResolutionCompleted
 }
 
 // Priority represents the importance of a ticket.
@@ -171,14 +206,13 @@ type Action string
 const (
 	// Lifecycle actions
 	ActionCreated   Action = "created"
-	ActionVetted    Action = "vetted"
 	ActionClaimed   Action = "claimed"
 	ActionReleased  Action = "released"
 	ActionExpired   Action = "expired"
 	ActionCompleted Action = "completed"
 	ActionAccepted  Action = "accepted"
 	ActionRejected  Action = "rejected"
-	ActionCancelled Action = "cancelled"
+	ActionClosed    Action = "closed"
 	ActionReopened  Action = "reopened"
 
 	// Dependency actions
@@ -192,7 +226,7 @@ const (
 	ActionChildCreated Action = "child_created"
 
 	// Human interaction
-	ActionFlaggedHuman   Action = "flagged_human"
+	ActionEscalated      Action = "escalated"
 	ActionHumanResponded Action = "human_responded"
 
 	// Field changes
@@ -205,10 +239,10 @@ const (
 // IsValid returns true if the action is valid.
 func (a Action) IsValid() bool {
 	switch a {
-	case ActionCreated, ActionVetted, ActionClaimed, ActionReleased, ActionExpired,
-		ActionCompleted, ActionAccepted, ActionRejected, ActionCancelled, ActionReopened,
+	case ActionCreated, ActionClaimed, ActionReleased, ActionExpired,
+		ActionCompleted, ActionAccepted, ActionRejected, ActionClosed, ActionReopened,
 		ActionDependencyAdded, ActionDependencyRemoved, ActionBlocked, ActionUnblocked,
-		ActionDecomposed, ActionChildCreated, ActionFlaggedHuman, ActionHumanResponded,
+		ActionDecomposed, ActionChildCreated, ActionEscalated, ActionHumanResponded,
 		ActionFieldChanged, ActionComment:
 		return true
 	}

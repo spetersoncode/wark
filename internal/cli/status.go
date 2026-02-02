@@ -98,7 +98,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Count tickets by status
 	statusInProgress := models.StatusInProgress
 	statusBlocked := models.StatusBlocked
-	statusNeedsHuman := models.StatusNeedsHuman
+	statusHuman := models.StatusHuman
 
 	inProgressFilter := db.TicketFilter{
 		ProjectKey: result.Project,
@@ -120,14 +120,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		result.BlockedDeps = len(blocked)
 	}
 
-	needsHumanFilter := db.TicketFilter{
+	humanFilter := db.TicketFilter{
 		ProjectKey: result.Project,
-		Status:     &statusNeedsHuman,
+		Status:     &statusHuman,
 		Limit:      1000,
 	}
-	needsHuman, err := ticketRepo.List(needsHumanFilter)
+	human, err := ticketRepo.List(humanFilter)
 	if err == nil {
-		result.BlockedHuman = len(needsHuman)
+		result.BlockedHuman = len(human)
 	}
 
 	// Count pending inbox messages

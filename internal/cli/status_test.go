@@ -33,17 +33,22 @@ func TestStatusOverview(t *testing.T) {
 		{"Ready 2", models.StatusReady},
 		{"In Progress", models.StatusInProgress},
 		{"Blocked", models.StatusBlocked},
-		{"Needs Human 1", models.StatusNeedsHuman},
-		{"Needs Human 2", models.StatusNeedsHuman},
-		{"Done", models.StatusDone},
+		{"Human 1", models.StatusHuman},
+		{"Human 2", models.StatusHuman},
+		{"Closed", models.StatusClosed},
 	}
 
+	completedRes := models.ResolutionCompleted
 	var inProgressTicket *models.Ticket
 	for _, td := range ticketData {
 		ticket := &models.Ticket{
 			ProjectID: project.ID,
 			Title:     td.title,
 			Status:    td.status,
+		}
+		// Closed tickets require a resolution
+		if td.status == models.StatusClosed {
+			ticket.Resolution = &completedRes
 		}
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -86,10 +91,10 @@ func TestStatusOverview(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(blocked))
 
-	needsHumanStatus := models.StatusNeedsHuman
-	needsHuman, err := ticketRepo.List(db.TicketFilter{Status: &needsHumanStatus})
+	humanStatus := models.StatusHuman
+	humanTickets, err := ticketRepo.List(db.TicketFilter{Status: &humanStatus})
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(needsHuman))
+	assert.Equal(t, 2, len(humanTickets))
 
 	pendingCount, err := inboxRepo.CountPending()
 	require.NoError(t, err)

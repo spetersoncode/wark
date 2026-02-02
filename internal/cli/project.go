@@ -173,9 +173,9 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%-10s %-20s %7s %6s %s\n", "KEY", "NAME", "TICKETS", "OPEN", "CREATED")
 		fmt.Println(strings.Repeat("-", 70))
 		for _, item := range items {
-			open := item.Stats.CreatedCount + item.Stats.ReadyCount +
-				item.Stats.InProgressCount + item.Stats.BlockedCount +
-				item.Stats.NeedsHumanCount + item.Stats.ReviewCount
+			open := item.Stats.BlockedCount + item.Stats.ReadyCount +
+				item.Stats.InProgressCount + item.Stats.HumanCount +
+				item.Stats.ReviewCount
 			fmt.Printf("%-10s %-20s %7d %6d %s\n",
 				item.Key,
 				truncate(item.Name, 20),
@@ -255,14 +255,13 @@ func runProjectShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Created: %s\n", project.CreatedAt.Format("2006-01-02 15:04:05"))
 	fmt.Println()
 	fmt.Println("Ticket Summary:")
-	fmt.Printf("  Created:        %d\n", stats.CreatedCount)
+	fmt.Printf("  Blocked:        %d\n", stats.BlockedCount)
 	fmt.Printf("  Ready:          %d\n", stats.ReadyCount)
 	fmt.Printf("  In Progress:    %d\n", stats.InProgressCount)
-	fmt.Printf("  Blocked:        %d\n", stats.BlockedCount)
-	fmt.Printf("  Needs Human:    %d\n", stats.NeedsHumanCount)
+	fmt.Printf("  Human:          %d\n", stats.HumanCount)
 	fmt.Printf("  Review:         %d\n", stats.ReviewCount)
-	fmt.Printf("  Done:           %d\n", stats.DoneCount)
-	fmt.Printf("  Cancelled:      %d\n", stats.CancelledCount)
+	fmt.Printf("  Closed (done):  %d\n", stats.ClosedCompletedCount)
+	fmt.Printf("  Closed (other): %d\n", stats.ClosedOtherCount)
 	fmt.Println("  " + strings.Repeat("-", 17))
 	fmt.Printf("  Total:          %d\n", stats.TotalTickets)
 

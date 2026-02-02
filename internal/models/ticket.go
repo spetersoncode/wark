@@ -16,7 +16,10 @@ type Ticket struct {
 	// Status (state machine)
 	Status Status `json:"status"`
 
-	// Human input flag (reason when needs_human)
+	// Resolution (only set when Status == StatusClosed)
+	Resolution *Resolution `json:"resolution,omitempty"`
+
+	// Human input flag (reason when human)
 	HumanFlagReason string `json:"human_flag_reason,omitempty"`
 
 	// Classification
@@ -77,6 +80,17 @@ func (t *Ticket) Validate() error {
 	if t.RetryCount < 0 {
 		return fmt.Errorf("retry_count cannot be negative")
 	}
+	// Validate resolution
+	if t.Status == StatusClosed {
+		if t.Resolution == nil {
+			return fmt.Errorf("resolution is required when status is closed")
+		}
+		if !t.Resolution.IsValid() {
+			return fmt.Errorf("invalid resolution: %s", *t.Resolution)
+		}
+	} else if t.Resolution != nil {
+		return fmt.Errorf("resolution should only be set when status is closed")
+	}
 	return nil
 }
 
@@ -90,9 +104,24 @@ func (t *Ticket) IsTerminal() bool {
 	return t.Status.IsTerminal()
 }
 
+// IsClosed returns true if the ticket is closed.
+func (t *Ticket) IsClosed() bool {
+	return t.Status == StatusClosed
+}
+
+// IsClosedSuccessfully returns true if the ticket is closed with completed resolution.
+func (t *Ticket) IsClosedSuccessfully() bool {
+	return t.Status == StatusClosed && t.Resolution != nil && *t.Resolution == ResolutionCompleted
+}
+
 // HasExceededRetries returns true if the ticket has exceeded its retry limit.
 func (t *Ticket) HasExceededRetries() bool {
 	return t.RetryCount >= t.MaxRetries
+}
+
+// CanModifyDependencies returns true if dependencies can be modified for this ticket.
+func (t *Ticket) CanModifyDependencies() bool {
+	return t.Status.CanModifyDependencies()
 }
 
 // TicketDependency represents a dependency between two tickets.

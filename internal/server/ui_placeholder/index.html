@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wark - Task Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e5e5e5;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            font-size: 1.25rem;
+            color: #a0aec0;
+            margin-bottom: 2rem;
+        }
+        .status {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #48bb78;
+        }
+        .api-info {
+            font-size: 0.875rem;
+            color: #718096;
+        }
+        code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+        .endpoints {
+            margin-top: 2rem;
+            text-align: left;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+        }
+        .endpoints h3 {
+            margin-bottom: 0.75rem;
+            color: #a0aec0;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .endpoint {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.875rem;
+            padding: 0.25rem 0;
+            color: #68d391;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Wark</h1>
+        <p class="subtitle">Local-first task management for AI agent orchestration</p>
+
+        <div class="status">
+            <div class="status-item">
+                <span class="status-dot"></span>
+                <span>API Server Running</span>
+            </div>
+            <p class="api-info">
+                The frontend UI will be available after running <code>make build-ui</code>
+            </p>
+        </div>
+
+        <div class="endpoints">
+            <h3>Available API Endpoints</h3>
+            <div class="endpoint">GET /api/health</div>
+            <div class="endpoint">GET /api/status</div>
+            <div class="endpoint">GET /api/projects</div>
+            <div class="endpoint">GET /api/tickets</div>
+            <div class="endpoint">GET /api/inbox</div>
+            <div class="endpoint">GET /api/claims</div>
+        </div>
+    </div>
+</body>
+</html>

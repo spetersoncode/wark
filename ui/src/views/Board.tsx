@@ -303,9 +303,20 @@ export default function Board() {
 									No tickets
 								</p>
 							) : (
-								ticketsByStatus[key]?.map((ticket) => (
-									<TicketCard key={ticket.id} ticket={ticket} />
-								))
+								<>
+									{(key === "closed"
+										? ticketsByStatus[key]?.slice(0, 10)
+										: ticketsByStatus[key]
+									)?.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} />)}
+									{key === "closed" && ticketsByStatus[key]?.length > 10 && (
+										<Link
+											to="/tickets?status=closed"
+											className="block text-center py-2 text-sm text-[var(--primary)] hover:underline"
+										>
+											View all {ticketsByStatus[key].length} closed →
+										</Link>
+									)}
+								</>
 							)}
 						</div>
 					</div>

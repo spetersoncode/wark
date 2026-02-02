@@ -59,6 +59,7 @@ const PRIORITY_STYLES: Record<TicketPriority, string> = {
 export default function Tickets() {
 	const [searchParams] = useSearchParams();
 	const projectFilter = searchParams.get("project");
+	const statusFilter = searchParams.get("status") as TicketStatus | null;
 
 	const [tickets, setTickets] = useState<Ticket[]>([]);
 	const [error, setError] = useState<string | null>(null);
@@ -69,7 +70,10 @@ export default function Tickets() {
 
 	const fetchTickets = useCallback(async () => {
 		try {
-			const data = await listTickets(projectFilter ? { project: projectFilter } : undefined);
+			const params: { project?: string; status?: TicketStatus } = {};
+			if (projectFilter) params.project = projectFilter;
+			if (statusFilter) params.status = statusFilter;
+			const data = await listTickets(Object.keys(params).length > 0 ? params : undefined);
 			setTickets(data);
 			setError(null);
 		} catch (e) {
@@ -82,7 +86,7 @@ export default function Tickets() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}, [projectFilter]);
+	}, [projectFilter, statusFilter]);
 
 	useEffect(() => {
 		fetchTickets();
@@ -204,6 +208,11 @@ export default function Tickets() {
 					{projectFilter && (
 						<span className="px-2 py-1 text-sm font-mono bg-[var(--secondary)] rounded">
 							{projectFilter}
+						</span>
+					)}
+					{statusFilter && (
+						<span className="px-2 py-1 text-sm bg-[var(--secondary)] rounded capitalize">
+							{statusFilter.replace("_", " ")}
 						</span>
 					)}
 				</div>

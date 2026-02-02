@@ -1,7 +1,15 @@
-import { AlertTriangle, CheckCircle, CircleDot, Clock, Eye, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle, CircleDot, Clock, Eye, Filter, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { listTickets, type Ticket, type TicketStatus } from "../lib/api";
+import {
+	listProjects,
+	listTickets,
+	type ProjectWithStats,
+	type Ticket,
+	type TicketComplexity,
+	type TicketPriority,
+	type TicketStatus,
+} from "../lib/api";
 import { cn, getPriorityColor } from "../lib/utils";
 
 const STATUSES: { key: TicketStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -37,40 +45,108 @@ const STATUSES: { key: TicketStatus; label: string; icon: React.ReactNode; color
 	},
 ];
 
+const PRIORITIES: { value: TicketPriority; label: string }[] = [
+	{ value: "highest", label: "Highest" },
+	{ value: "high", label: "High" },
+	{ value: "medium", label: "Medium" },
+	{ value: "low", label: "Low" },
+	{ value: "lowest", label: "Lowest" },
+];
+
+const COMPLEXITIES: { value: TicketComplexity; label: string }[] = [
+	{ value: "trivial", label: "Trivial" },
+	{ value: "small", label: "Small" },
+	{ value: "medium", label: "Medium" },
+	{ value: "large", label: "Large" },
+	{ value: "xlarge", label: "X-Large" },
+];
+
 export default function Board() {
 	const [tickets, setTickets] = useState<Ticket[]>([]);
+	const [projects, setProjects] = useState<ProjectWithStats[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [refreshing, setRefreshing] = useState(false);
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 
+	// Read filters from URL
 	const filterStatus = searchParams.get("status") as TicketStatus | null;
+	const filterProject = searchParams.get("project");
+	const filterPriority = searchParams.get("priority") as TicketPriority | null;
+	const filterComplexity = searchParams.get("complexity") as TicketComplexity | null;
 
-	const fetchTickets = useCallback(async () => {
+	const hasActiveFilters = filterProject || filterPriority || filterComplexity;
+
+	// Update a single filter in URL params
+	const setFilter = useCallback(
+		(key: string, value: string | null) => {
+			setSearchParams((prev) => {
+				const next = new URLSearchParams(prev);
+				if (value) {
+					next.set(key, value);
+				} else {
+					next.delete(key);
+				}
+				return next;
+			});
+		},
+		[setSearchParams],
+	);
+
+	// Clear all filters
+	const clearFilters = useCallback(() => {
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.delete("project");
+			next.delete("priority");
+			next.delete("complexity");
+			// Keep status filter if present (column filter)
+			return next;
+		});
+	}, [setSearchParams]);
+
+	const fetchData = useCallback(async () => {
 		try {
-			const data = await listTickets({ limit: 200 });
-			setTickets(data);
+			// Fetch tickets with API-supported filters
+			const ticketParams: { project?: string; priority?: TicketPriority; limit: number } = {
+				limit: 200,
+			};
+			if (filterProject) ticketParams.project = filterProject;
+			if (filterPriority) ticketParams.priority = filterPriority;
+
+			const [ticketData, projectData] = await Promise.all([
+				listTickets(ticketParams),
+				listProjects(),
+			]);
+
+			setTickets(ticketData);
+			setProjects(projectData);
 			setError(null);
 		} catch (e) {
-			setError(e instanceof Error ? e.message : "Failed to fetch tickets");
+			setError(e instanceof Error ? e.message : "Failed to fetch data");
 		} finally {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}, []);
+	}, [filterProject, filterPriority]);
 
 	useEffect(() => {
-		fetchTickets();
-	}, [fetchTickets]);
+		fetchData();
+	}, [fetchData]);
 
 	function handleRefresh() {
 		setRefreshing(true);
-		fetchTickets();
+		fetchData();
 	}
+
+	// Apply client-side complexity filter (API doesn't support it)
+	const filteredTickets = filterComplexity
+		? tickets.filter((t) => t.complexity === filterComplexity)
+		: tickets;
 
 	const ticketsByStatus = STATUSES.reduce(
 		(acc, { key }) => {
-			acc[key] = tickets.filter((t) => t.status === key);
+			acc[key] = filteredTickets.filter((t) => t.status === key);
 			return acc;
 		},
 		{} as Record<TicketStatus, Ticket[]>,
@@ -105,7 +181,7 @@ export default function Board() {
 							to="/board"
 							className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
 						>
-							Clear filter
+							Clear status filter
 						</Link>
 					)}
 				</div>
@@ -118,6 +194,75 @@ export default function Board() {
 					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
 					Refresh
 				</button>
+			</div>
+
+			{/* Filter Controls */}
+			<div className="flex items-center gap-4 flex-wrap p-3 bg-[var(--card)] border border-[var(--border)] rounded-lg">
+				<div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+					<Filter className="w-4 h-4" />
+					<span>Filters:</span>
+				</div>
+
+				{/* Project Filter */}
+				<select
+					value={filterProject || ""}
+					onChange={(e) => setFilter("project", e.target.value || null)}
+					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+				>
+					<option value="">All Projects</option>
+					{projects.map((p) => (
+						<option key={p.key} value={p.key}>
+							{p.name}
+						</option>
+					))}
+				</select>
+
+				{/* Priority Filter */}
+				<select
+					value={filterPriority || ""}
+					onChange={(e) => setFilter("priority", e.target.value || null)}
+					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+				>
+					<option value="">All Priorities</option>
+					{PRIORITIES.map((p) => (
+						<option key={p.value} value={p.value}>
+							{p.label}
+						</option>
+					))}
+				</select>
+
+				{/* Complexity Filter */}
+				<select
+					value={filterComplexity || ""}
+					onChange={(e) => setFilter("complexity", e.target.value || null)}
+					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+				>
+					<option value="">All Complexities</option>
+					{COMPLEXITIES.map((c) => (
+						<option key={c.value} value={c.value}>
+							{c.label}
+						</option>
+					))}
+				</select>
+
+				{/* Clear Filters */}
+				{hasActiveFilters && (
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="flex items-center gap-1 px-2 py-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded-md transition-colors"
+					>
+						<X className="w-3 h-3" />
+						Clear filters
+					</button>
+				)}
+
+				{/* Active filter count */}
+				{hasActiveFilters && (
+					<span className="text-xs text-[var(--muted-foreground)]">
+						{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} shown
+					</span>
+				)}
 			</div>
 
 			{/* Kanban columns */}

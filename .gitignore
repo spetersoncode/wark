@@ -1,5 +1,5 @@
-# Binaries
-wark
+# Binaries (only at root)
+/wark
 *.exe
 *.dll
 *.so

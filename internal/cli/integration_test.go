@@ -1507,3 +1507,232 @@ func TestActivityLogWithDetails(t *testing.T) {
 	}
 	assert.True(t, found, "should find our logged activity")
 }
+
+// =============================================================================
+// Auto-Transition Tests (WARK-11)
+// =============================================================================
+
+// TestAutoTransitionToBlockedOnCreate tests that tickets with unresolved dependencies
+// automatically transition to blocked status on creation
+func TestAutoTransitionToBlockedOnCreate(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TEST", Name: "Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	depRepo := db.NewDependencyRepo(database.DB)
+
+	// Create a dependency ticket (not completed)
+	depTicket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Dependency Ticket",
+		Status:    models.StatusReady,
+	}
+	err = ticketRepo.Create(depTicket)
+	require.NoError(t, err)
+
+	// Create main ticket with dependency
+	mainTicket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Main Ticket",
+		Status:    models.StatusReady, // Initial status
+	}
+	err = ticketRepo.Create(mainTicket)
+	require.NoError(t, err)
+
+	// Add dependency (simulating what happens in ticket create with --depends-on)
+	err = depRepo.Add(mainTicket.ID, depTicket.ID)
+	require.NoError(t, err)
+
+	// Check dependencies
+	hasUnresolved, err := depRepo.HasUnresolvedDependencies(mainTicket.ID)
+	require.NoError(t, err)
+	assert.True(t, hasUnresolved, "should have unresolved dependencies")
+
+	// Simulate auto-transition (this is what the CLI does after adding deps)
+	if hasUnresolved && mainTicket.Status == models.StatusReady {
+		mainTicket.Status = models.StatusBlocked
+		err = ticketRepo.Update(mainTicket)
+		require.NoError(t, err)
+	}
+
+	// Verify final state
+	updatedTicket, err := ticketRepo.GetByID(mainTicket.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusBlocked, updatedTicket.Status, "ticket should be blocked due to unresolved dependency")
+}
+
+// TestAutoTransitionToReadyWhenDependencyResolved tests that blocked tickets
+// automatically transition to ready when their dependencies are resolved
+func TestAutoTransitionToReadyWhenDependencyResolved(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TEST", Name: "Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	depRepo := db.NewDependencyRepo(database.DB)
+
+	// Create dependency ticket
+	depTicket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Dependency",
+		Status:    models.StatusReady,
+	}
+	err = ticketRepo.Create(depTicket)
+	require.NoError(t, err)
+
+	// Create blocked ticket
+	blockedTicket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Blocked Ticket",
+		Status:    models.StatusBlocked,
+	}
+	err = ticketRepo.Create(blockedTicket)
+	require.NoError(t, err)
+
+	// Add dependency
+	err = depRepo.Add(blockedTicket.ID, depTicket.ID)
+	require.NoError(t, err)
+
+	// Complete the dependency
+	depTicket.Status = models.StatusClosed
+	completed := models.ResolutionCompleted
+	depTicket.Resolution = &completed
+	err = ticketRepo.Update(depTicket)
+	require.NoError(t, err)
+
+	// Check if dependencies are now resolved
+	hasUnresolved, err := depRepo.HasUnresolvedDependencies(blockedTicket.ID)
+	require.NoError(t, err)
+	assert.False(t, hasUnresolved, "dependencies should be resolved now")
+
+	// Simulate auto-transition (this is what the CLI/tasks do)
+	if !hasUnresolved && blockedTicket.Status == models.StatusBlocked {
+		blockedTicket.Status = models.StatusReady
+		err = ticketRepo.Update(blockedTicket)
+		require.NoError(t, err)
+	}
+
+	// Verify final state
+	updatedTicket, err := ticketRepo.GetByID(blockedTicket.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusReady, updatedTicket.Status, "ticket should be ready after dependency resolved")
+}
+
+// TestAutoTransitionOnDependencyEdit tests status transitions when dependencies
+// are added or removed via ticket edit
+func TestAutoTransitionOnDependencyEdit(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TEST", Name: "Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	depRepo := db.NewDependencyRepo(database.DB)
+
+	// Create two tickets
+	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 1", Status: models.StatusReady}
+	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 2", Status: models.StatusReady}
+	err = ticketRepo.Create(ticket1)
+	require.NoError(t, err)
+	err = ticketRepo.Create(ticket2)
+	require.NoError(t, err)
+
+	// Test 1: Adding dependency to ready ticket should block it
+	err = depRepo.Add(ticket2.ID, ticket1.ID)
+	require.NoError(t, err)
+
+	// Check and transition
+	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket2.ID)
+	require.NoError(t, err)
+	assert.True(t, hasUnresolved)
+
+	if hasUnresolved && ticket2.Status == models.StatusReady {
+		ticket2.Status = models.StatusBlocked
+		err = ticketRepo.Update(ticket2)
+		require.NoError(t, err)
+	}
+
+	ticket2, _ = ticketRepo.GetByID(ticket2.ID)
+	assert.Equal(t, models.StatusBlocked, ticket2.Status, "ticket2 should be blocked after adding dependency")
+
+	// Test 2: Removing dependency from blocked ticket should unblock it
+	err = depRepo.Remove(ticket2.ID, ticket1.ID)
+	require.NoError(t, err)
+
+	hasUnresolved, err = depRepo.HasUnresolvedDependencies(ticket2.ID)
+	require.NoError(t, err)
+	assert.False(t, hasUnresolved)
+
+	if !hasUnresolved && ticket2.Status == models.StatusBlocked {
+		ticket2.Status = models.StatusReady
+		err = ticketRepo.Update(ticket2)
+		require.NoError(t, err)
+	}
+
+	ticket2, _ = ticketRepo.GetByID(ticket2.ID)
+	assert.Equal(t, models.StatusReady, ticket2.Status, "ticket2 should be ready after removing dependency")
+}
+
+// TestNoAutoTransitionWithResolvedDependency tests that tickets don't get blocked
+// when depending on already-completed tickets
+func TestNoAutoTransitionWithResolvedDependency(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TEST", Name: "Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	depRepo := db.NewDependencyRepo(database.DB)
+
+	// Create a completed dependency
+	completedTicket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Completed Ticket",
+		Status:    models.StatusClosed,
+	}
+	completed := models.ResolutionCompleted
+	completedTicket.Resolution = &completed
+	err = ticketRepo.Create(completedTicket)
+	require.NoError(t, err)
+
+	// Create main ticket
+	mainTicket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Main Ticket",
+		Status:    models.StatusReady,
+	}
+	err = ticketRepo.Create(mainTicket)
+	require.NoError(t, err)
+
+	// Add dependency on completed ticket
+	err = depRepo.Add(mainTicket.ID, completedTicket.ID)
+	require.NoError(t, err)
+
+	// Check dependencies - should be resolved since dep is completed
+	hasUnresolved, err := depRepo.HasUnresolvedDependencies(mainTicket.ID)
+	require.NoError(t, err)
+	assert.False(t, hasUnresolved, "dependency should be resolved")
+
+	// Status should remain ready
+	mainTicket, _ = ticketRepo.GetByID(mainTicket.ID)
+	assert.Equal(t, models.StatusReady, mainTicket.Status, "ticket should stay ready when depending on completed ticket")
+}

@@ -232,8 +232,8 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Add dependencies
+	depRepo := db.NewDependencyRepo(database.DB)
 	if len(ticketDependsOn) > 0 {
-		depRepo := db.NewDependencyRepo(database.DB)
 		for _, depKey := range ticketDependsOn {
 			depTicket, err := resolveTicket(database, depKey, projectKey)
 			if err != nil {
@@ -249,8 +249,20 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	activityRepo := db.NewActivityRepo(database.DB)
 	activityRepo.LogAction(ticket.ID, models.ActionCreated, models.ActorTypeHuman, "", "Ticket created")
 
-	// Auto-transition to ready if complexity allows (no xlarge) and no parent
-	// For now, keep in created status - validation happens at creation via DB constraints
+	// Auto-transition: check if ticket should be blocked based on dependencies
+	// State machine rule: ON create: if has_open_deps → blocked, else → ready
+	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
+	if err != nil {
+		VerboseOutput("Warning: failed to check dependencies: %v\n", err)
+	} else if hasUnresolved {
+		ticket.Status = models.StatusBlocked
+		if err := ticketRepo.Update(ticket); err != nil {
+			VerboseOutput("Warning: failed to update status to blocked: %v\n", err)
+		} else {
+			activityRepo.LogAction(ticket.ID, models.ActionBlocked, models.ActorTypeSystem, "",
+				"Blocked by unresolved dependencies")
+		}
+	}
 
 	result := ticketCreateResult{
 		Ticket: ticket,
@@ -628,6 +640,35 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 		activityRepo.LogAction(ticket.ID, models.ActionDependencyRemoved, models.ActorTypeHuman, "",
 			fmt.Sprintf("Removed dependency: %s", depTicket.TicketKey))
 		changed = true
+	}
+
+	// Auto-transition status based on dependency changes
+	// State machine rules:
+	// - ON dep added to ready ticket: if dep not closed(completed) → blocked
+	// - ON dep removed from blocked ticket: if all deps done → ready
+	if len(ticketAddDep) > 0 || len(ticketRemoveDep) > 0 {
+		ticketRepo := db.NewTicketRepo(database.DB)
+		// Refresh ticket to get current state
+		ticket, _ = ticketRepo.GetByID(ticket.ID)
+
+		hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
+		if err == nil {
+			if hasUnresolved && ticket.Status == models.StatusReady {
+				// Block ticket
+				ticket.Status = models.StatusBlocked
+				if err := ticketRepo.Update(ticket); err == nil {
+					activityRepo.LogAction(ticket.ID, models.ActionBlocked, models.ActorTypeSystem, "",
+						"Blocked by unresolved dependencies")
+				}
+			} else if !hasUnresolved && ticket.Status == models.StatusBlocked {
+				// Unblock ticket
+				ticket.Status = models.StatusReady
+				if err := ticketRepo.Update(ticket); err == nil {
+					activityRepo.LogAction(ticket.ID, models.ActionUnblocked, models.ActorTypeSystem, "",
+						"All dependencies resolved")
+				}
+			}
+		}
 	}
 
 	if !changed {

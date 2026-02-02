@@ -67,12 +67,15 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 
 	// Validate key format
 	if err := models.ValidateProjectKey(key); err != nil {
-		return fmt.Errorf("invalid project key: %w", err)
+		return ErrInvalidArgsWithSuggestion(
+			"Project keys must be 2-10 uppercase alphanumeric characters starting with a letter (e.g., MYAPP, PROJ123).",
+			"invalid project key: %s", err,
+		)
 	}
 
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
@@ -81,10 +84,13 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 	// Check if project already exists
 	exists, err := repo.Exists(key)
 	if err != nil {
-		return fmt.Errorf("failed to check project: %w", err)
+		return ErrDatabase(err, "failed to check project")
 	}
 	if exists {
-		return fmt.Errorf("project %s already exists", key)
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf("Use a different key, or run 'wark project show %s' to see the existing project.", key),
+			"project %s already exists", key,
+		)
 	}
 
 	project := &models.Project{
@@ -94,7 +100,7 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := repo.Create(project); err != nil {
-		return fmt.Errorf("failed to create project: %w", err)
+		return ErrDatabase(err, "failed to create project")
 	}
 
 	if IsJSON() {
@@ -131,14 +137,14 @@ type projectListItem struct {
 func runProjectList(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	repo := db.NewProjectRepo(database.DB)
 	projects, err := repo.List()
 	if err != nil {
-		return fmt.Errorf("failed to list projects: %w", err)
+		return ErrDatabase(err, "failed to list projects")
 	}
 
 	if len(projects) == 0 {
@@ -156,7 +162,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 		if projectWithStats {
 			stats, err := repo.GetStats(p.ID)
 			if err != nil {
-				return fmt.Errorf("failed to get stats for %s: %w", p.Key, err)
+				return ErrDatabase(err, "failed to get stats for %s", p.Key)
 			}
 			items[i].Stats = stats
 		}
@@ -218,22 +224,22 @@ func runProjectShow(cmd *cobra.Command, args []string) error {
 
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	repo := db.NewProjectRepo(database.DB)
 	project, err := repo.GetByKey(key)
 	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
+		return ErrDatabase(err, "failed to get project")
 	}
 	if project == nil {
-		return fmt.Errorf("project %s not found", key)
+		return ErrNotFoundWithSuggestion(SuggestListProjects, "project %s not found", key)
 	}
 
 	stats, err := repo.GetStats(project.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get project stats: %w", err)
+		return ErrDatabase(err, "failed to get project stats")
 	}
 
 	result := projectShowResult{
@@ -289,17 +295,17 @@ func runProjectDelete(cmd *cobra.Command, args []string) error {
 
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	repo := db.NewProjectRepo(database.DB)
 	project, err := repo.GetByKey(key)
 	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
+		return ErrDatabase(err, "failed to get project")
 	}
 	if project == nil {
-		return fmt.Errorf("project %s not found", key)
+		return ErrNotFoundWithSuggestion(SuggestListProjects, "project %s not found", key)
 	}
 
 	// Confirm deletion unless force flag is set
@@ -316,12 +322,12 @@ func runProjectDelete(cmd *cobra.Command, args []string) error {
 		confirm = strings.TrimSpace(confirm)
 
 		if strings.ToUpper(confirm) != key {
-			return fmt.Errorf("deletion cancelled")
+			return ErrGeneral("deletion cancelled")
 		}
 	}
 
 	if err := repo.Delete(project.ID); err != nil {
-		return fmt.Errorf("failed to delete project: %w", err)
+		return ErrDatabase(err, "failed to delete project")
 	}
 
 	result := projectDeleteResult{

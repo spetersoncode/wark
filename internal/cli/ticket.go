@@ -89,7 +89,7 @@ func parseTicketKey(key string) (projectKey string, number int, err error) {
 		return "", n, nil
 	}
 
-	return "", 0, fmt.Errorf("invalid ticket key: %s (expected format: PROJECT-NUMBER)", key)
+	return "", 0, ErrInvalidArgsWithSuggestion(SuggestCheckTicketKey, "invalid ticket key: %s (expected format: PROJECT-NUMBER)", key)
 }
 
 // resolveTicket looks up a ticket by key
@@ -103,16 +103,19 @@ func resolveTicket(database *db.DB, key string, defaultProject string) (*models.
 		projectKey = defaultProject
 	}
 	if projectKey == "" {
-		return nil, fmt.Errorf("project key required (use PROJECT-NUMBER format or --project flag)")
+		return nil, ErrInvalidArgsWithSuggestion(
+			"Use PROJECT-NUMBER format (e.g., WEBAPP-42) or specify --project.",
+			"project key required",
+		)
 	}
 
 	repo := db.NewTicketRepo(database.DB)
 	ticket, err := repo.GetByKey(projectKey, number)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ticket: %w", err)
+		return nil, ErrDatabase(err, "failed to get ticket")
 	}
 	if ticket == nil {
-		return nil, fmt.Errorf("ticket %s-%d not found", projectKey, number)
+		return nil, ErrNotFoundWithSuggestion(SuggestListTickets, "ticket %s-%d not found", projectKey, number)
 	}
 
 	return ticket, nil
@@ -171,7 +174,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
@@ -179,22 +182,22 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	projectRepo := db.NewProjectRepo(database.DB)
 	project, err := projectRepo.GetByKey(projectKey)
 	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
+		return ErrDatabase(err, "failed to get project")
 	}
 	if project == nil {
-		return fmt.Errorf("project %s not found", projectKey)
+		return ErrNotFoundWithSuggestion(SuggestListProjects, "project %s not found", projectKey)
 	}
 
 	// Parse priority
 	priority := models.Priority(strings.ToLower(ticketPriority))
 	if !priority.IsValid() {
-		return fmt.Errorf("invalid priority: %s (must be highest, high, medium, low, or lowest)", ticketPriority)
+		return ErrInvalidArgs("invalid priority: %s (must be highest, high, medium, low, or lowest)", ticketPriority)
 	}
 
 	// Parse complexity
 	complexity := models.Complexity(strings.ToLower(ticketComplexity))
 	if !complexity.IsValid() {
-		return fmt.Errorf("invalid complexity: %s (must be trivial, small, medium, large, or xlarge)", ticketComplexity)
+		return ErrInvalidArgs("invalid complexity: %s (must be trivial, small, medium, large, or xlarge)", ticketComplexity)
 	}
 
 	ticket := &models.Ticket{
@@ -217,7 +220,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 
 	ticketRepo := db.NewTicketRepo(database.DB)
 	if err := ticketRepo.Create(ticket); err != nil {
-		return fmt.Errorf("failed to create ticket: %w", err)
+		return ErrDatabase(err, "failed to create ticket")
 	}
 
 	// Generate branch name
@@ -237,10 +240,10 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		for _, depKey := range ticketDependsOn {
 			depTicket, err := resolveTicket(database, depKey, projectKey)
 			if err != nil {
-				return fmt.Errorf("failed to resolve dependency %s: %w", depKey, err)
+				return err // Already wrapped with proper error type
 			}
 			if err := depRepo.Add(ticket.ID, depTicket.ID); err != nil {
-				return fmt.Errorf("failed to add dependency on %s: %w", depKey, err)
+				return ErrDatabase(err, "failed to add dependency on %s", depKey)
 			}
 		}
 	}
@@ -301,7 +304,7 @@ Examples:
 func runTicketList(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
@@ -350,7 +353,7 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to list tickets: %w", err)
+		return ErrDatabase(err, "failed to list tickets")
 	}
 
 	if len(tickets) == 0 {
@@ -406,30 +409,30 @@ type ticketShowResult struct {
 func runTicketShow(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	ticket, err := resolveTicket(database, args[0], "")
 	if err != nil {
-		return err
+		return err // Already wrapped with proper error type
 	}
 
 	depRepo := db.NewDependencyRepo(database.DB)
 	dependencies, err := depRepo.GetDependencies(ticket.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get dependencies: %w", err)
+		return ErrDatabase(err, "failed to get dependencies")
 	}
 
 	dependents, err := depRepo.GetDependents(ticket.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get dependents: %w", err)
+		return ErrDatabase(err, "failed to get dependents")
 	}
 
 	activityRepo := db.NewActivityRepo(database.DB)
 	history, err := activityRepo.ListByTicket(ticket.ID, 10)
 	if err != nil {
-		return fmt.Errorf("failed to get history: %w", err)
+		return ErrDatabase(err, "failed to get history")
 	}
 
 	result := ticketShowResult{
@@ -546,13 +549,13 @@ Examples:
 func runTicketEdit(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	ticket, err := resolveTicket(database, args[0], "")
 	if err != nil {
-		return err
+		return err // Already wrapped with proper error type
 	}
 
 	changed := false
@@ -579,7 +582,7 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("priority") && ticketPriority != "" {
 		priority := models.Priority(strings.ToLower(ticketPriority))
 		if !priority.IsValid() {
-			return fmt.Errorf("invalid priority: %s", ticketPriority)
+			return ErrInvalidArgs("invalid priority: %s (must be highest, high, medium, low, or lowest)", ticketPriority)
 		}
 		oldPriority := ticket.Priority
 		ticket.Priority = priority
@@ -593,7 +596,7 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("complexity") && ticketComplexity != "" {
 		complexity := models.Complexity(strings.ToLower(ticketComplexity))
 		if !complexity.IsValid() {
-			return fmt.Errorf("invalid complexity: %s", ticketComplexity)
+			return ErrInvalidArgs("invalid complexity: %s (must be trivial, small, medium, large, or xlarge)", ticketComplexity)
 		}
 		oldComplexity := ticket.Complexity
 		ticket.Complexity = complexity
@@ -607,7 +610,7 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 	if changed {
 		ticketRepo := db.NewTicketRepo(database.DB)
 		if err := ticketRepo.Update(ticket); err != nil {
-			return fmt.Errorf("failed to update ticket: %w", err)
+			return ErrDatabase(err, "failed to update ticket")
 		}
 	}
 
@@ -618,10 +621,10 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 	for _, depKey := range ticketAddDep {
 		depTicket, err := resolveTicket(database, depKey, ticket.ProjectKey)
 		if err != nil {
-			return fmt.Errorf("failed to resolve dependency %s: %w", depKey, err)
+			return err // Already wrapped with proper error type
 		}
 		if err := depRepo.Add(ticket.ID, depTicket.ID); err != nil {
-			return fmt.Errorf("failed to add dependency on %s: %w", depKey, err)
+			return ErrDatabase(err, "failed to add dependency on %s", depKey)
 		}
 		activityRepo.LogAction(ticket.ID, models.ActionDependencyAdded, models.ActorTypeHuman, "",
 			fmt.Sprintf("Added dependency: %s", depTicket.TicketKey))
@@ -632,10 +635,10 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 	for _, depKey := range ticketRemoveDep {
 		depTicket, err := resolveTicket(database, depKey, ticket.ProjectKey)
 		if err != nil {
-			return fmt.Errorf("failed to resolve dependency %s: %w", depKey, err)
+			return err // Already wrapped with proper error type
 		}
 		if err := depRepo.Remove(ticket.ID, depTicket.ID); err != nil {
-			return fmt.Errorf("failed to remove dependency on %s: %w", depKey, err)
+			return ErrDatabase(err, "failed to remove dependency on %s", depKey)
 		}
 		activityRepo.LogAction(ticket.ID, models.ActionDependencyRemoved, models.ActorTypeHuman, "",
 			fmt.Sprintf("Removed dependency: %s", depTicket.TicketKey))

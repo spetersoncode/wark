@@ -70,40 +70,49 @@ type claimResult struct {
 func runTicketClaim(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	ticket, err := resolveTicket(database, args[0], "")
 	if err != nil {
-		return err
+		return err // Already wrapped with proper error type
 	}
 
 	// Check if ticket can be claimed
 	machine := state.NewMachine()
 	if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
-		return fmt.Errorf("cannot claim ticket: %w", err)
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
+			"cannot claim ticket: %s", err,
+		)
 	}
 
 	// Check for existing active claim
 	claimRepo := db.NewClaimRepo(database.DB)
 	existingClaim, err := claimRepo.GetActiveByTicketID(ticket.ID)
 	if err != nil {
-		return fmt.Errorf("failed to check existing claims: %w", err)
+		return ErrDatabase(err, "failed to check existing claims")
 	}
 	if existingClaim != nil {
-		return fmt.Errorf("ticket is already claimed by %s (expires: %s)",
-			existingClaim.WorkerID, existingClaim.ExpiresAt.Format("15:04:05"))
+		return ErrConcurrentConflictWithSuggestion(
+			SuggestReleaseClaim,
+			"ticket is already claimed by %s (expires: %s)",
+			existingClaim.WorkerID, existingClaim.ExpiresAt.Format("15:04:05"),
+		)
 	}
 
 	// Check for unresolved dependencies
 	depRepo := db.NewDependencyRepo(database.DB)
 	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
 	if err != nil {
-		return fmt.Errorf("failed to check dependencies: %w", err)
+		return ErrDatabase(err, "failed to check dependencies")
 	}
 	if hasUnresolved {
-		return fmt.Errorf("ticket has unresolved dependencies")
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf("Run 'wark ticket show %s' to see blocking dependencies.", ticket.TicketKey),
+			"ticket has unresolved dependencies",
+		)
 	}
 
 	// Generate worker ID if not provided
@@ -116,7 +125,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	duration := time.Duration(claimDuration) * time.Minute
 	claim := models.NewClaim(ticket.ID, workerID, duration)
 	if err := claimRepo.Create(claim); err != nil {
-		return fmt.Errorf("failed to create claim: %w", err)
+		return ErrDatabase(err, "failed to create claim")
 	}
 
 	// Update ticket status
@@ -125,7 +134,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	if err := ticketRepo.Update(ticket); err != nil {
 		// Rollback claim
 		claimRepo.Release(claim.ID, models.ClaimStatusReleased)
-		return fmt.Errorf("failed to update ticket status: %w", err)
+		return ErrDatabase(err, "failed to update ticket status")
 	}
 
 	// Log activity
@@ -183,33 +192,36 @@ Examples:
 func runTicketRelease(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	ticket, err := resolveTicket(database, args[0], "")
 	if err != nil {
-		return err
+		return err // Already wrapped with proper error type
 	}
 
 	// Check if ticket is in progress
 	if ticket.Status != models.StatusInProgress {
-		return fmt.Errorf("ticket is not in progress (current status: %s)", ticket.Status)
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
+			"ticket is not in progress (current status: %s)", ticket.Status,
+		)
 	}
 
 	// Get active claim
 	claimRepo := db.NewClaimRepo(database.DB)
 	claim, err := claimRepo.GetActiveByTicketID(ticket.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get claim: %w", err)
+		return ErrDatabase(err, "failed to get claim")
 	}
 	if claim == nil {
-		return fmt.Errorf("no active claim found for ticket")
+		return ErrStateError("no active claim found for ticket")
 	}
 
 	// Release claim
 	if err := claimRepo.Release(claim.ID, models.ClaimStatusReleased); err != nil {
-		return fmt.Errorf("failed to release claim: %w", err)
+		return ErrDatabase(err, "failed to release claim")
 	}
 
 	// Update ticket status
@@ -217,7 +229,7 @@ func runTicketRelease(cmd *cobra.Command, args []string) error {
 	ticket.Status = models.StatusReady
 	ticket.RetryCount++
 	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket status: %w", err)
+		return ErrDatabase(err, "failed to update ticket status")
 	}
 
 	// Log activity
@@ -267,18 +279,21 @@ Examples:
 func runTicketComplete(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	ticket, err := resolveTicket(database, args[0], "")
 	if err != nil {
-		return err
+		return err // Already wrapped with proper error type
 	}
 
 	// Check if ticket is in progress
 	if ticket.Status != models.StatusInProgress {
-		return fmt.Errorf("ticket is not in progress (current status: %s)", ticket.Status)
+		return ErrStateErrorWithSuggestion(
+			"Ticket must be in progress to complete. Claim it first with 'wark ticket claim'.",
+			"ticket is not in progress (current status: %s)", ticket.Status,
+		)
 	}
 
 	// Get active claim for logging
@@ -309,7 +324,7 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 		ticket.CompletedAt = &now
 	}
 	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket: %w", err)
+		return ErrDatabase(err, "failed to update ticket")
 	}
 
 	// Log activity
@@ -410,13 +425,13 @@ Examples:
 func runTicketFlag(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
 	}
 	defer database.Close()
 
 	ticket, err := resolveTicket(database, args[0], "")
 	if err != nil {
-		return err
+		return err // Already wrapped with proper error type
 	}
 
 	// Get message from remaining args
@@ -425,7 +440,7 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 		message = strings.Join(args[1:], " ")
 	}
 	if message == "" {
-		return fmt.Errorf("message is required")
+		return ErrInvalidArgs("message is required")
 	}
 
 	// Validate reason code
@@ -440,12 +455,18 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 		"other":                   true,
 	}
 	if !validReasons[flagReason] {
-		return fmt.Errorf("invalid reason code: %s", flagReason)
+		return ErrInvalidArgsWithSuggestion(
+			"Valid reasons: irreconcilable_conflict, unclear_requirements, decision_needed, access_required, blocked_external, risk_assessment, out_of_scope, other",
+			"invalid reason code: %s", flagReason,
+		)
 	}
 
 	// Check if ticket can be escalated to human
 	if !state.CanBeEscalated(ticket.Status) {
-		return fmt.Errorf("ticket cannot be flagged in status: %s", ticket.Status)
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
+			"ticket cannot be flagged in status: %s", ticket.Status,
+		)
 	}
 
 	previousStatus := ticket.Status
@@ -465,7 +486,7 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 	ticket.Status = models.StatusHuman
 	ticket.HumanFlagReason = flagReason
 	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket: %w", err)
+		return ErrDatabase(err, "failed to update ticket")
 	}
 
 	// Create inbox message
@@ -479,7 +500,7 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 
 	inboxMsg := models.NewInboxMessage(ticket.ID, msgType, message, workerID)
 	if err := inboxRepo.Create(inboxMsg); err != nil {
-		return fmt.Errorf("failed to create inbox message: %w", err)
+		return ErrDatabase(err, "failed to create inbox message")
 	}
 
 	// Log activity

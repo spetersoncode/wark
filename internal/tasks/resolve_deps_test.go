@@ -41,7 +41,9 @@ func TestDependencyResolver_OnTicketCompleted_UnblocksDependents(t *testing.T) {
 	require.NoError(t, depRepo.Add(ticket2.ID, ticket1.ID))
 
 	// Complete ticket1
-	ticket1.Status = models.StatusDone
+	ticket1.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	ticket1.Resolution = &completedRes
 	now := time.Now()
 	ticket1.CompletedAt = &now
 	require.NoError(t, ticketRepo.Update(ticket1))
@@ -73,7 +75,8 @@ func TestDependencyResolver_OnTicketCompleted_MultipleDependencies(t *testing.T)
 	depRepo := db.NewDependencyRepo(database.DB)
 
 	// Create ticket1 and ticket2 (dependencies)
-	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Dep 1", Status: models.StatusDone}
+	completedRes := models.ResolutionCompleted
+	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Dep 1", Status: models.StatusClosed, Resolution: &completedRes}
 	require.NoError(t, ticketRepo.Create(ticket1))
 
 	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Dep 2", Status: models.StatusInProgress}
@@ -87,7 +90,8 @@ func TestDependencyResolver_OnTicketCompleted_MultipleDependencies(t *testing.T)
 	require.NoError(t, depRepo.Add(ticket3.ID, ticket2.ID))
 
 	// Complete ticket2
-	ticket2.Status = models.StatusDone
+	ticket2.Status = models.StatusClosed
+	ticket2.Resolution = &completedRes
 	require.NoError(t, ticketRepo.Update(ticket2))
 
 	// Run resolution
@@ -130,7 +134,9 @@ func TestDependencyResolver_OnTicketCompleted_DoesNotUnblockWithRemainingDeps(t 
 	require.NoError(t, depRepo.Add(ticket3.ID, ticket2.ID))
 
 	// Complete only ticket1
-	ticket1.Status = models.StatusDone
+	ticket1.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	ticket1.Resolution = &completedRes
 	require.NoError(t, ticketRepo.Update(ticket1))
 
 	// Run resolution
@@ -166,10 +172,12 @@ func TestDependencyResolver_OnTicketCompleted_UpdatesParent(t *testing.T) {
 	require.NoError(t, ticketRepo.Create(parent))
 
 	// Create child tickets
+	completedRes := models.ResolutionCompleted
 	child1 := &models.Ticket{
 		ProjectID:      project.ID,
 		Title:          "Child 1",
-		Status:         models.StatusDone,
+		Status:         models.StatusClosed,
+		Resolution:     &completedRes,
 		ParentTicketID: &parent.ID,
 	}
 	require.NoError(t, ticketRepo.Create(child1))
@@ -183,7 +191,8 @@ func TestDependencyResolver_OnTicketCompleted_UpdatesParent(t *testing.T) {
 	require.NoError(t, ticketRepo.Create(child2))
 
 	// Complete child2
-	child2.Status = models.StatusDone
+	child2.Status = models.StatusClosed
+	child2.Resolution = &completedRes
 	require.NoError(t, ticketRepo.Update(child2))
 
 	// Run resolution (without auto-accept)
@@ -231,7 +240,9 @@ func TestDependencyResolver_OnTicketCompleted_ParentAutoAccept(t *testing.T) {
 	require.NoError(t, ticketRepo.Create(child))
 
 	// Complete child
-	child.Status = models.StatusDone
+	child.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	child.Resolution = &completedRes
 	require.NoError(t, ticketRepo.Update(child))
 
 	// Run resolution with auto-accept
@@ -245,7 +256,7 @@ func TestDependencyResolver_OnTicketCompleted_ParentAutoAccept(t *testing.T) {
 	// Verify parent is done
 	updated, err := ticketRepo.GetByID(parent.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusDone, updated.Status)
+	assert.Equal(t, models.StatusClosed, updated.Status)
 	assert.NotNil(t, updated.CompletedAt)
 }
 
@@ -286,7 +297,9 @@ func TestDependencyResolver_OnTicketCompleted_ParentNotUpdatedWithIncompleteChil
 	require.NoError(t, ticketRepo.Create(child2))
 
 	// Complete child1
-	child1.Status = models.StatusDone
+	child1.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	child1.Resolution = &completedRes
 	require.NoError(t, ticketRepo.Update(child1))
 
 	// Run resolution
@@ -314,8 +327,9 @@ func TestDependencyResolver_ResolveAll(t *testing.T) {
 	ticketRepo := db.NewTicketRepo(database.DB)
 	depRepo := db.NewDependencyRepo(database.DB)
 
-	// Create dependency (already done)
-	dep := &models.Ticket{ProjectID: project.ID, Title: "Dependency", Status: models.StatusDone}
+	// Create dependency (already closed)
+	completedRes := models.ResolutionCompleted
+	dep := &models.Ticket{ProjectID: project.ID, Title: "Dependency", Status: models.StatusClosed, Resolution: &completedRes}
 	require.NoError(t, ticketRepo.Create(dep))
 
 	// Create blocked tickets whose dependencies are resolved
@@ -355,8 +369,9 @@ func TestDependencyResolver_SkipsNonBlockedTickets(t *testing.T) {
 	ticketRepo := db.NewTicketRepo(database.DB)
 	depRepo := db.NewDependencyRepo(database.DB)
 
-	// Create dependency (done)
-	dep := &models.Ticket{ProjectID: project.ID, Title: "Dependency", Status: models.StatusDone}
+	// Create dependency (closed)
+	completedRes := models.ResolutionCompleted
+	dep := &models.Ticket{ProjectID: project.ID, Title: "Dependency", Status: models.StatusClosed, Resolution: &completedRes}
 	require.NoError(t, ticketRepo.Create(dep))
 
 	// Create ready ticket with resolved dependency
@@ -393,7 +408,9 @@ func TestDependencyResolver_NoParentUpdate(t *testing.T) {
 	require.NoError(t, ticketRepo.Create(ticket))
 
 	// Complete ticket
-	ticket.Status = models.StatusDone
+	ticket.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	ticket.Resolution = &completedRes
 	require.NoError(t, ticketRepo.Update(ticket))
 
 	// Run resolution

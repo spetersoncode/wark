@@ -186,10 +186,10 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 		return result
 	}
 
-	// Count done children
+	// Count successfully closed children
 	doneCount := 0
 	for _, child := range children {
-		if child.Status == models.StatusDone {
+		if child.IsClosedSuccessfully() {
 			doneCount++
 		}
 	}
@@ -204,12 +204,14 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 	// All children are done - update parent status
 	newStatus := models.StatusReview
 	if autoAccept {
-		newStatus = models.StatusDone
+		newStatus = models.StatusClosed
+		res := models.ResolutionCompleted
+		parent.Resolution = &res
 		result.AutoAccepted = true
 	}
 
 	parent.Status = newStatus
-	if newStatus == models.StatusDone {
+	if newStatus == models.StatusClosed {
 		now := time.Now()
 		parent.CompletedAt = &now
 	}

@@ -95,7 +95,7 @@ func TestInboxRespond(t *testing.T) {
 	require.NoError(t, err)
 
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket := &models.Ticket{ProjectID: project.ID, Title: "Test Ticket", Status: models.StatusNeedsHuman}
+	ticket := &models.Ticket{ProjectID: project.ID, Title: "Test Ticket", Status: models.StatusHuman}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
 

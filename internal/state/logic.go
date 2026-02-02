@@ -62,10 +62,13 @@ func (l *Logic) GetBlockingDependencies(ticket *models.Ticket) ([]*models.Ticket
 }
 
 // ShouldBlock determines if a ticket should be in blocked status based on its dependencies.
+// Only applies to blocked or ready tickets.
 func (l *Logic) ShouldBlock(ticket *models.Ticket) (bool, error) {
-	// Only check blocking for non-terminal, non-needs_human states
+	// Only check blocking for blocked or ready states
 	switch ticket.Status {
-	case models.StatusDone, models.StatusCancelled, models.StatusNeedsHuman:
+	case models.StatusBlocked, models.StatusReady:
+		// These states can be affected by dependency changes
+	default:
 		return false, nil
 	}
 
@@ -128,8 +131,8 @@ func (l *Logic) ShouldAutoEscalate(ticket *models.Ticket) (bool, string) {
 	return false, ""
 }
 
-// CheckParentCompletion checks if all children of a parent ticket are done.
-// Returns true if all children are in a terminal state (done or cancelled).
+// CheckParentCompletion checks if all children of a parent ticket are closed.
+// Returns true if all children are in a terminal state.
 func (l *Logic) CheckParentCompletion(parentTicket *models.Ticket) (bool, error) {
 	if l.ticketFetcher == nil {
 		return false, nil
@@ -156,13 +159,12 @@ func (l *Logic) CheckParentCompletion(parentTicket *models.Ticket) (bool, error)
 		}
 	}
 
-	// All children are done or cancelled
+	// All children are closed
 	return true, nil
 }
 
-// AllChildrenDone checks if all children of a ticket are in done status specifically.
-// Unlike CheckParentCompletion, this excludes cancelled children.
-func (l *Logic) AllChildrenDone(parentTicket *models.Ticket) (bool, error) {
+// AllChildrenClosedSuccessfully checks if all children of a ticket are closed with completed resolution.
+func (l *Logic) AllChildrenClosedSuccessfully(parentTicket *models.Ticket) (bool, error) {
 	if l.ticketFetcher == nil {
 		return false, nil
 	}
@@ -181,7 +183,7 @@ func (l *Logic) AllChildrenDone(parentTicket *models.Ticket) (bool, error) {
 	}
 
 	for _, child := range children {
-		if child.Status != models.StatusDone {
+		if !child.IsClosedSuccessfully() {
 			return false, nil
 		}
 	}
@@ -215,76 +217,76 @@ func (l *Logic) HasIncompleteChildren(parentTicket *models.Ticket) (bool, error)
 
 // GetNextStatus determines the appropriate next status for a ticket based on its state.
 // This is used for auto-transitions after certain events.
-func (l *Logic) GetNextStatus(ticket *models.Ticket, event Event) (models.Status, bool) {
+func (l *Logic) GetNextStatus(ticket *models.Ticket, event Event) (models.Status, *models.Resolution, bool) {
 	switch event {
-	case EventValidated:
-		if ticket.Status == models.StatusCreated {
-			return models.StatusReady, true
-		}
-
 	case EventDependencyAdded:
-		shouldBlock, err := l.ShouldBlock(ticket)
-		if err == nil && shouldBlock {
-			return models.StatusBlocked, true
+		// Only block if currently ready and dependency is unresolved
+		if ticket.Status == models.StatusReady {
+			shouldBlock, err := l.ShouldBlock(ticket)
+			if err == nil && shouldBlock {
+				return models.StatusBlocked, nil, true
+			}
 		}
 
 	case EventDependencyResolved:
+		// Unblock if all dependencies are now resolved
 		if ticket.Status == models.StatusBlocked {
 			resolved, err := l.CheckDependencies(ticket)
 			if err == nil && resolved {
-				return models.StatusReady, true
+				return models.StatusReady, nil, true
 			}
 		}
 
 	case EventClaimExpired:
 		if ticket.Status == models.StatusInProgress {
 			if l.ShouldEscalateToHuman(ticket) {
-				return models.StatusNeedsHuman, true
+				return models.StatusHuman, nil, true
 			}
-			return models.StatusReady, true
+			return models.StatusReady, nil, true
 		}
 
 	case EventWorkCompleted:
 		if ticket.Status == models.StatusInProgress {
-			return models.StatusReview, true
+			return models.StatusReview, nil, true
 		}
 
 	case EventAccepted:
 		if ticket.Status == models.StatusReview {
-			return models.StatusDone, true
+			res := models.ResolutionCompleted
+			return models.StatusClosed, &res, true
 		}
 
 	case EventRejected:
 		if ticket.Status == models.StatusReview {
-			return models.StatusReady, true
+			return models.StatusInProgress, nil, true
 		}
 
 	case EventHumanResponded:
-		if ticket.Status == models.StatusNeedsHuman {
-			// Default to ready; caller can specify in_progress if needed
-			return models.StatusReady, true
+		if ticket.Status == models.StatusHuman {
+			// Default to in_progress (resuming work)
+			return models.StatusInProgress, nil, true
 		}
 	}
 
-	return ticket.Status, false
+	return ticket.Status, nil, false
 }
 
 // Event represents a business event that may trigger a state transition.
 type Event string
 
 const (
-	EventValidated          Event = "validated"
 	EventDependencyAdded    Event = "dependency_added"
 	EventDependencyResolved Event = "dependency_resolved"
+	EventDependencyRemoved  Event = "dependency_removed"
 	EventClaimed            Event = "claimed"
 	EventReleased           Event = "released"
 	EventClaimExpired       Event = "claim_expired"
 	EventWorkCompleted      Event = "work_completed"
 	EventAccepted           Event = "accepted"
 	EventRejected           Event = "rejected"
-	EventFlagged            Event = "flagged"
+	EventEscalated          Event = "escalated"
 	EventHumanResponded     Event = "human_responded"
-	EventCancelled          Event = "cancelled"
+	EventClosed             Event = "closed"
 	EventReopened           Event = "reopened"
 )
 
@@ -308,7 +310,7 @@ func (l *Logic) CanClaim(ticket *models.Ticket) (bool, string) {
 		return false, "ticket already has an active claim"
 	}
 
-	// Check dependencies
+	// Check dependencies (should be resolved since it's ready, but double-check)
 	resolved, err := l.CheckDependencies(ticket)
 	if err != nil {
 		return false, "failed to check dependencies"
@@ -320,7 +322,7 @@ func (l *Logic) CanClaim(ticket *models.Ticket) (bool, string) {
 	return true, ""
 }
 
-// CanComplete checks if a ticket can be marked as completed.
+// CanComplete checks if a ticket can be marked as completed (moved to review).
 func (l *Logic) CanComplete(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
 		return false, "ticket is nil"
@@ -334,7 +336,7 @@ func (l *Logic) CanComplete(ticket *models.Ticket) (bool, string) {
 	return true, ""
 }
 
-// CanAccept checks if a ticket can be accepted (moved to done).
+// CanAccept checks if a ticket can be accepted (moved to closed with completed resolution).
 func (l *Logic) CanAccept(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
 		return false, "ticket is nil"
@@ -348,7 +350,7 @@ func (l *Logic) CanAccept(ticket *models.Ticket) (bool, string) {
 	return true, ""
 }
 
-// CanReject checks if a ticket can be rejected (moved back to ready).
+// CanReject checks if a ticket can be rejected (moved back to in_progress).
 func (l *Logic) CanReject(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
 		return false, "ticket is nil"
@@ -369,34 +371,117 @@ func (l *Logic) CanReopen(ticket *models.Ticket) (bool, string) {
 	}
 
 	if !CanBeReopened(ticket.Status) {
-		return false, "ticket must be done or cancelled to be reopened"
+		return false, "ticket must be closed to be reopened"
 	}
 
 	return true, ""
 }
 
-// CanCancel checks if a ticket can be cancelled.
-func (l *Logic) CanCancel(ticket *models.Ticket) (bool, string) {
+// CanClose checks if a ticket can be closed.
+func (l *Logic) CanClose(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
 		return false, "ticket is nil"
 	}
 
-	if !CanBeCancelled(ticket.Status) {
-		return false, "ticket cannot be cancelled from its current status"
+	if !CanBeClosed(ticket.Status) {
+		return false, "ticket cannot be closed from its current status"
 	}
 
 	return true, ""
 }
 
-// CanFlag checks if a ticket can be flagged for human attention.
-func (l *Logic) CanFlag(ticket *models.Ticket) (bool, string) {
+// CanEscalate checks if a ticket can be escalated to human.
+func (l *Logic) CanEscalate(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
 		return false, "ticket is nil"
 	}
 
-	if !CanBeFlagged(ticket.Status) {
-		return false, "ticket cannot be flagged from its current status"
+	if !CanBeEscalated(ticket.Status) {
+		return false, "ticket cannot be escalated from its current status"
 	}
 
 	return true, ""
+}
+
+// CanAddDependency checks if a dependency can be added to the ticket.
+func (l *Logic) CanAddDependency(ticket *models.Ticket) (bool, string) {
+	if ticket == nil {
+		return false, "ticket is nil"
+	}
+
+	if !ticket.CanModifyDependencies() {
+		return false, "dependencies can only be modified when ticket is blocked or ready"
+	}
+
+	return true, ""
+}
+
+// CanRemoveDependency checks if a dependency can be removed from the ticket.
+func (l *Logic) CanRemoveDependency(ticket *models.Ticket) (bool, string) {
+	if ticket == nil {
+		return false, "ticket is nil"
+	}
+
+	if !ticket.CanModifyDependencies() {
+		return false, "dependencies can only be modified when ticket is blocked or ready"
+	}
+
+	return true, ""
+}
+
+// DetermineInitialStatus determines whether a new ticket should start as blocked or ready.
+func (l *Logic) DetermineInitialStatus(hasOpenDeps bool) models.Status {
+	return InitialStatus(hasOpenDeps)
+}
+
+// OnDependencyCompleted handles when a dependency ticket is completed.
+// Returns the new status if a transition should occur, or the current status if not.
+func (l *Logic) OnDependencyCompleted(ticket *models.Ticket) (models.Status, bool) {
+	if ticket.Status != models.StatusBlocked {
+		return ticket.Status, false
+	}
+
+	resolved, err := l.CheckDependencies(ticket)
+	if err != nil {
+		return ticket.Status, false
+	}
+
+	if resolved {
+		return models.StatusReady, true
+	}
+	return ticket.Status, false
+}
+
+// OnDependencyAdded handles when a dependency is added to a ticket.
+// Returns the new status if a transition should occur, or the current status if not.
+func (l *Logic) OnDependencyAdded(ticket *models.Ticket, depIsResolved bool) (models.Status, bool) {
+	// Only affect ready tickets
+	if ticket.Status != models.StatusReady {
+		return ticket.Status, false
+	}
+
+	// If the dependency is not resolved (closed with completed), block the ticket
+	if !depIsResolved {
+		return models.StatusBlocked, true
+	}
+
+	return ticket.Status, false
+}
+
+// OnDependencyRemoved handles when a dependency is removed from a ticket.
+// Returns the new status if a transition should occur, or the current status if not.
+func (l *Logic) OnDependencyRemoved(ticket *models.Ticket) (models.Status, bool) {
+	if ticket.Status != models.StatusBlocked {
+		return ticket.Status, false
+	}
+
+	resolved, err := l.CheckDependencies(ticket)
+	if err != nil {
+		return ticket.Status, false
+	}
+
+	if resolved {
+		return models.StatusReady, true
+	}
+	return ticket.Status, false
 }

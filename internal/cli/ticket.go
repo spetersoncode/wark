@@ -203,7 +203,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Description: ticketDescription,
 		Priority:    priority,
 		Complexity:  complexity,
-		Status:      models.StatusCreated,
+		Status:      models.StatusReady, // Initial status, may change to blocked if deps added
 	}
 
 	// Handle parent ticket
@@ -467,12 +467,17 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		fmt.Println(strings.Repeat("-", 65))
 		for _, dep := range dependencies {
 			checkmark := " "
-			if dep.Status == models.StatusDone {
+			statusStr := string(dep.Status)
+			if dep.IsClosedSuccessfully() {
 				checkmark = "✓"
-			} else if dep.Status == models.StatusCancelled {
+				statusStr = "completed"
+			} else if dep.Status == models.StatusClosed {
 				checkmark = "✗"
+				if dep.Resolution != nil {
+					statusStr = string(*dep.Resolution)
+				}
 			}
-			fmt.Printf("  %s %s: %s (%s)\n", checkmark, dep.TicketKey, dep.Title, dep.Status)
+			fmt.Printf("  %s %s: %s (%s)\n", checkmark, dep.TicketKey, dep.Title, statusStr)
 		}
 	}
 

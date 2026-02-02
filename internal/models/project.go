@@ -18,15 +18,14 @@ type Project struct {
 
 // ProjectStats holds statistics for a project.
 type ProjectStats struct {
-	TotalTickets    int `json:"total_tickets"`
-	CreatedCount    int `json:"created_count"`
-	ReadyCount      int `json:"ready_count"`
-	InProgressCount int `json:"in_progress_count"`
-	BlockedCount    int `json:"blocked_count"`
-	NeedsHumanCount int `json:"needs_human_count"`
-	ReviewCount     int `json:"review_count"`
-	DoneCount       int `json:"done_count"`
-	CancelledCount  int `json:"cancelled_count"`
+	TotalTickets         int `json:"total_tickets"`
+	BlockedCount         int `json:"blocked_count"`
+	ReadyCount           int `json:"ready_count"`
+	InProgressCount      int `json:"in_progress_count"`
+	HumanCount           int `json:"human_count"`
+	ReviewCount          int `json:"review_count"`
+	ClosedCompletedCount int `json:"closed_completed_count"`
+	ClosedOtherCount     int `json:"closed_other_count"`
 }
 
 // projectKeyRegex validates project keys (uppercase alphanumeric, 2-10 chars).

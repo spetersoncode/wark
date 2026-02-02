@@ -139,7 +139,7 @@ func TestClaimExpirer_ExpireAll_MaxRetriesEscalation(t *testing.T) {
 	// Verify ticket was escalated
 	updated, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusNeedsHuman, updated.Status)
+	assert.Equal(t, models.StatusHuman, updated.Status)
 	assert.Equal(t, 3, updated.RetryCount)
 	assert.Equal(t, "max_retries_exceeded", updated.HumanFlagReason)
 }
@@ -264,11 +264,13 @@ func TestClaimExpirer_SkipsNonInProgressTickets(t *testing.T) {
 	ticketRepo := db.NewTicketRepo(database.DB)
 	claimRepo := db.NewClaimRepo(database.DB)
 
-	// Create ticket that's already done
+	// Create ticket that's already closed
+	completedRes := models.ResolutionCompleted
 	ticket := &models.Ticket{
-		ProjectID: project.ID,
-		Title:     "Test Ticket",
-		Status:    models.StatusDone, // Not in_progress
+		ProjectID:  project.ID,
+		Title:      "Test Ticket",
+		Status:     models.StatusClosed, // Not in_progress
+		Resolution: &completedRes,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 

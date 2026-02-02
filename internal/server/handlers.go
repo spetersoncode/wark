@@ -475,7 +475,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	// Count tickets by status
 	statusInProgress := models.StatusInProgress
 	statusBlocked := models.StatusBlocked
-	statusNeedsHuman := models.StatusNeedsHuman
+	statusHuman := models.StatusHuman
 
 	inProgressFilter := db.TicketFilter{
 		ProjectKey: projectKey,
@@ -495,13 +495,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		result.BlockedDeps = len(blocked)
 	}
 
-	needsHumanFilter := db.TicketFilter{
+	humanFilter := db.TicketFilter{
 		ProjectKey: projectKey,
-		Status:     &statusNeedsHuman,
+		Status:     &statusHuman,
 		Limit:      1000,
 	}
-	if needsHuman, err := ticketRepo.List(needsHumanFilter); err == nil {
-		result.BlockedHuman = len(needsHuman)
+	if human, err := ticketRepo.List(humanFilter); err == nil {
+		result.BlockedHuman = len(human)
 	}
 
 	// Count pending inbox messages

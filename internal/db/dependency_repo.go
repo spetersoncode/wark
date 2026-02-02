@@ -61,7 +61,7 @@ func (r *DependencyRepo) Remove(ticketID, dependsOnID int64) error {
 func (r *DependencyRepo) GetDependencies(ticketID int64) ([]*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
 			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key
@@ -84,7 +84,7 @@ func (r *DependencyRepo) GetDependencies(ticketID int64) ([]*models.Ticket, erro
 func (r *DependencyRepo) GetDependents(ticketID int64) ([]*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
 			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key
@@ -103,18 +103,19 @@ func (r *DependencyRepo) GetDependents(ticketID int64) ([]*models.Ticket, error)
 	return r.scanTickets(rows)
 }
 
-// GetUnresolvedDependencies retrieves all unresolved (not done/cancelled) dependencies for a ticket.
+// GetUnresolvedDependencies retrieves all unresolved (not closed) dependencies for a ticket.
 func (r *DependencyRepo) GetUnresolvedDependencies(ticketID int64) ([]*models.Ticket, error) {
+	// A dependency is resolved if its ticket is closed (any resolution)
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
 			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
 		JOIN ticket_dependencies td ON t.id = td.depends_on_id
-		WHERE td.ticket_id = ? AND t.status NOT IN ('done', 'cancelled')
+		WHERE td.ticket_id = ? AND t.status != 'closed'
 		ORDER BY t.created_at
 	`
 	rows, err := r.db.Query(query, ticketID)
@@ -128,10 +129,11 @@ func (r *DependencyRepo) GetUnresolvedDependencies(ticketID int64) ([]*models.Ti
 
 // HasUnresolvedDependencies checks if a ticket has any unresolved dependencies.
 func (r *DependencyRepo) HasUnresolvedDependencies(ticketID int64) (bool, error) {
+	// A dependency is resolved if its ticket is closed (any resolution)
 	query := `
 		SELECT 1 FROM ticket_dependencies td
 		JOIN tickets t ON td.depends_on_id = t.id
-		WHERE td.ticket_id = ? AND t.status NOT IN ('done', 'cancelled')
+		WHERE td.ticket_id = ? AND t.status != 'closed'
 		LIMIT 1
 	`
 	var exists int
@@ -215,13 +217,13 @@ func (r *DependencyRepo) scanTickets(rows *sql.Rows) ([]*models.Ticket, error) {
 	var tickets []*models.Ticket
 	for rows.Next() {
 		var t models.Ticket
-		var desc, humanFlag, branch sql.NullString
+		var desc, resolution, humanFlag, branch sql.NullString
 		var parentID sql.NullInt64
 		var completedAt sql.NullTime
 
 		err := rows.Scan(
 			&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status,
-			&humanFlag, &t.Priority, &t.Complexity, &branch,
+			&resolution, &humanFlag, &t.Priority, &t.Complexity, &branch,
 			&t.RetryCount, &t.MaxRetries, &parentID,
 			&t.CreatedAt, &t.UpdatedAt, &completedAt,
 			&t.ProjectKey,
@@ -233,6 +235,10 @@ func (r *DependencyRepo) scanTickets(rows *sql.Rows) ([]*models.Ticket, error) {
 		t.Description = desc.String
 		t.HumanFlagReason = humanFlag.String
 		t.BranchName = branch.String
+		if resolution.Valid {
+			res := models.Resolution(resolution.String)
+			t.Resolution = &res
+		}
 		if parentID.Valid {
 			t.ParentTicketID = &parentID.Int64
 		}

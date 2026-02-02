@@ -89,7 +89,9 @@ func TestFullWorkflowInitToAccept(t *testing.T) {
 	require.NoError(t, err)
 
 	// 6. Accept the ticket
-	ticket.Status = models.StatusDone
+	ticket.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	ticket.Resolution = &completedRes
 	now := time.Now()
 	ticket.CompletedAt = &now
 	err = ticketRepo.Update(ticket)
@@ -101,7 +103,7 @@ func TestFullWorkflowInitToAccept(t *testing.T) {
 	// Verify final state
 	finalTicket, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusDone, finalTicket.Status)
+	assert.Equal(t, models.StatusClosed, finalTicket.Status)
 	assert.NotNil(t, finalTicket.CompletedAt)
 
 	// Verify activity log
@@ -187,17 +189,19 @@ func TestWorkflowWithCancellation(t *testing.T) {
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
 
-	// Cancel the ticket
-	assert.True(t, state.CanBeCancelled(ticket.Status))
-	ticket.Status = models.StatusCancelled
+	// Close the ticket (cancel)
+	assert.True(t, state.CanBeClosed(ticket.Status))
+	ticket.Status = models.StatusClosed
+	wontDoRes := models.ResolutionWontDo
+	ticket.Resolution = &wontDoRes
 	err = ticketRepo.Update(ticket)
 	require.NoError(t, err)
 
 	// Verify
-	cancelledTicket, err := ticketRepo.GetByID(ticket.ID)
+	closedTicket, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusCancelled, cancelledTicket.Status)
-	assert.True(t, cancelledTicket.Status.IsTerminal())
+	assert.Equal(t, models.StatusClosed, closedTicket.Status)
+	assert.True(t, closedTicket.Status.IsTerminal())
 }
 
 // TestWorkflowReopen tests reopening a done or cancelled ticket
@@ -213,18 +217,21 @@ func TestWorkflowReopen(t *testing.T) {
 
 	ticketRepo := db.NewTicketRepo(database.DB)
 
-	// Test reopening a done ticket
-	t.Run("reopen done ticket", func(t *testing.T) {
+	// Test reopening a closed (completed) ticket
+	t.Run("reopen completed ticket", func(t *testing.T) {
+		completedRes := models.ResolutionCompleted
 		ticket := &models.Ticket{
-			ProjectID: project.ID,
-			Title:     "Done ticket",
-			Status:    models.StatusDone,
+			ProjectID:  project.ID,
+			Title:      "Completed ticket",
+			Status:     models.StatusClosed,
+			Resolution: &completedRes,
 		}
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
 
 		assert.True(t, state.CanBeReopened(ticket.Status))
 		ticket.Status = models.StatusReady
+		ticket.Resolution = nil
 		ticket.CompletedAt = nil
 		err = ticketRepo.Update(ticket)
 		require.NoError(t, err)
@@ -234,18 +241,21 @@ func TestWorkflowReopen(t *testing.T) {
 		assert.Equal(t, models.StatusReady, reopened.Status)
 	})
 
-	// Test reopening a cancelled ticket
-	t.Run("reopen cancelled ticket", func(t *testing.T) {
+	// Test reopening a closed (wont_do) ticket
+	t.Run("reopen wont_do ticket", func(t *testing.T) {
+		wontDoRes := models.ResolutionWontDo
 		ticket := &models.Ticket{
-			ProjectID: project.ID,
-			Title:     "Cancelled ticket",
-			Status:    models.StatusCancelled,
+			ProjectID:  project.ID,
+			Title:      "WontDo ticket",
+			Status:     models.StatusClosed,
+			Resolution: &wontDoRes,
 		}
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
 
 		assert.True(t, state.CanBeReopened(ticket.Status))
 		ticket.Status = models.StatusReady
+		ticket.Resolution = nil
 		err = ticketRepo.Update(ticket)
 		require.NoError(t, err)
 
@@ -356,12 +366,11 @@ func TestStateTransitionErrors(t *testing.T) {
 		toStatus    models.Status
 		shouldError bool
 	}{
-		{"created to in_progress", models.StatusCreated, models.StatusInProgress, true},  // Must be ready first
-		{"done to in_progress", models.StatusDone, models.StatusInProgress, true},        // Terminal state
-		{"cancelled to in_progress", models.StatusCancelled, models.StatusInProgress, true}, // Terminal state
+		{"blocked to in_progress", models.StatusBlocked, models.StatusInProgress, true},  // Must be ready first
+		{"closed to in_progress", models.StatusClosed, models.StatusInProgress, true},    // Terminal state
 		{"ready to in_progress", models.StatusReady, models.StatusInProgress, false},     // Valid
 		{"in_progress to review", models.StatusInProgress, models.StatusReview, false},   // Valid
-		{"review to done", models.StatusReview, models.StatusDone, false},                // Valid
+		{"review to closed", models.StatusReview, models.StatusClosed, false},            // Valid (accept)
 	}
 
 	for _, tt := range tests {
@@ -371,10 +380,21 @@ func TestStateTransitionErrors(t *testing.T) {
 				Title:     tt.name,
 				Status:    tt.fromStatus,
 			}
+			// For closed status, we need a resolution to create a valid ticket
+			if tt.fromStatus == models.StatusClosed {
+				res := models.ResolutionCompleted
+				ticket.Resolution = &res
+			}
 			err := ticketRepo.Create(ticket)
 			require.NoError(t, err)
 
-			err = machine.CanTransition(ticket, tt.toStatus, state.TransitionTypeManual, "")
+			// For transitions to closed, provide a resolution
+			var resolution *models.Resolution
+			if tt.toStatus == models.StatusClosed {
+				res := models.ResolutionCompleted
+				resolution = &res
+			}
+			err = machine.CanTransition(ticket, tt.toStatus, state.TransitionTypeManual, "", resolution)
 			if tt.shouldError {
 				assert.Error(t, err)
 			} else {
@@ -717,7 +737,9 @@ func TestDependencyBlocking(t *testing.T) {
 	assert.True(t, hasUnresolved)
 
 	// Complete parent
-	parent.Status = models.StatusDone
+	parent.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	parent.Resolution = &completedRes
 	err = ticketRepo.Update(parent)
 	require.NoError(t, err)
 
@@ -757,12 +779,14 @@ func TestDependencyCancellationUnblocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, hasUnresolved)
 
-	// Cancel ticket1
-	ticket1.Status = models.StatusCancelled
+	// Close ticket1 (as wont_do)
+	ticket1.Status = models.StatusClosed
+	wontDoRes := models.ResolutionWontDo
+	ticket1.Resolution = &wontDoRes
 	err = ticketRepo.Update(ticket1)
 	require.NoError(t, err)
 
-	// ticket2 should now be unblocked (cancelled counts as resolved)
+	// ticket2 should now be unblocked (closed counts as resolved)
 	hasUnresolved, err = depRepo.HasUnresolvedDependencies(ticket2.ID)
 	require.NoError(t, err)
 	assert.False(t, hasUnresolved)
@@ -808,7 +832,9 @@ func TestChainedDependencies(t *testing.T) {
 	assert.True(t, hasUnresolved3)
 
 	// Complete ticket1
-	ticket1.Status = models.StatusDone
+	ticket1.Status = models.StatusClosed
+	completedRes := models.ResolutionCompleted
+	ticket1.Resolution = &completedRes
 	err = ticketRepo.Update(ticket1)
 	require.NoError(t, err)
 
@@ -819,7 +845,8 @@ func TestChainedDependencies(t *testing.T) {
 	assert.True(t, hasUnresolved3)
 
 	// Complete ticket2
-	ticket2.Status = models.StatusDone
+	ticket2.Status = models.StatusClosed
+	ticket2.Resolution = &completedRes
 	err = ticketRepo.Update(ticket2)
 	require.NoError(t, err)
 
@@ -888,10 +915,10 @@ func TestInboxBlocksTicket(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify ticket can be flagged
-	assert.True(t, state.CanBeFlagged(ticket.Status))
+	assert.True(t, state.CanBeEscalated(ticket.Status))
 
 	// Flag the ticket
-	ticket.Status = models.StatusNeedsHuman
+	ticket.Status = models.StatusHuman
 	ticket.HumanFlagReason = "unclear_requirements"
 	err = ticketRepo.Update(ticket)
 	require.NoError(t, err)
@@ -905,7 +932,7 @@ func TestInboxBlocksTicket(t *testing.T) {
 	// Verify ticket is blocked
 	blockedTicket, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusNeedsHuman, blockedTicket.Status)
+	assert.Equal(t, models.StatusHuman, blockedTicket.Status)
 
 	// Verify pending message
 	pending, err := inboxRepo.ListPending()
@@ -927,7 +954,7 @@ func TestInboxResponseUnblocksTicket(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID:       project.ID,
 		Title:           "Test",
-		Status:          models.StatusNeedsHuman,
+		Status:          models.StatusHuman,
 		HumanFlagReason: "decision_needed",
 	}
 	err = ticketRepo.Create(ticket)
@@ -971,7 +998,7 @@ func TestMultipleInboxMessages(t *testing.T) {
 	require.NoError(t, err)
 
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket := &models.Ticket{ProjectID: project.ID, Title: "Test", Status: models.StatusNeedsHuman}
+	ticket := &models.Ticket{ProjectID: project.ID, Title: "Test", Status: models.StatusHuman}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
 
@@ -1094,14 +1121,12 @@ func TestWorkableOnlyReady(t *testing.T) {
 
 	// Create tickets with various statuses
 	statuses := []models.Status{
-		models.StatusCreated,
+		models.StatusBlocked,
 		models.StatusReady,
 		models.StatusInProgress,
-		models.StatusBlocked,
-		models.StatusNeedsHuman,
+		models.StatusHuman,
 		models.StatusReview,
-		models.StatusDone,
-		models.StatusCancelled,
+		models.StatusClosed,
 	}
 
 	for _, s := range statuses {
@@ -1109,6 +1134,11 @@ func TestWorkableOnlyReady(t *testing.T) {
 			ProjectID: project.ID,
 			Title:     string(s),
 			Status:    s,
+		}
+		// Closed tickets require a resolution
+		if s == models.StatusClosed {
+			res := models.ResolutionCompleted
+			ticket.Resolution = &res
 		}
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -1149,7 +1179,7 @@ func TestClaimExpirationEscalation(t *testing.T) {
 	// Simulate what happens on claim expiry when at max-1 retries
 	ticket.RetryCount++
 	if ticket.RetryCount >= ticket.MaxRetries {
-		ticket.Status = models.StatusNeedsHuman
+		ticket.Status = models.StatusHuman
 		ticket.HumanFlagReason = "max_retries_reached"
 	} else {
 		ticket.Status = models.StatusReady
@@ -1160,7 +1190,7 @@ func TestClaimExpirationEscalation(t *testing.T) {
 	// Verify escalation
 	escalatedTicket, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusNeedsHuman, escalatedTicket.Status)
+	assert.Equal(t, models.StatusHuman, escalatedTicket.Status)
 	assert.Equal(t, 3, escalatedTicket.RetryCount)
 }
 
@@ -1266,13 +1296,18 @@ func TestTicketFilterByStatus(t *testing.T) {
 		models.StatusReady,
 		models.StatusReady,
 		models.StatusInProgress,
-		models.StatusDone,
-		models.StatusDone,
-		models.StatusDone,
+		models.StatusClosed,
+		models.StatusClosed,
+		models.StatusClosed,
 	}
 
+	completedRes := models.ResolutionCompleted
 	for _, s := range statuses {
-		err := ticketRepo.Create(&models.Ticket{ProjectID: project.ID, Title: string(s), Status: s})
+		ticket := &models.Ticket{ProjectID: project.ID, Title: string(s), Status: s}
+		if s == models.StatusClosed {
+			ticket.Resolution = &completedRes
+		}
+		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
 	}
 
@@ -1282,10 +1317,10 @@ func TestTicketFilterByStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, readyTickets, 2)
 
-	doneStatus := models.StatusDone
-	doneTickets, err := ticketRepo.List(db.TicketFilter{Status: &doneStatus})
+	closedStatus := models.StatusClosed
+	closedTickets, err := ticketRepo.List(db.TicketFilter{Status: &closedStatus})
 	require.NoError(t, err)
-	assert.Len(t, doneTickets, 3)
+	assert.Len(t, closedTickets, 3)
 }
 
 // TestTicketFilterByPriority tests filtering tickets by priority

@@ -295,7 +295,7 @@ func TestInboxEndpoints(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test Ticket",
-		Status:    models.StatusNeedsHuman,
+		Status:    models.StatusHuman,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
@@ -478,7 +478,7 @@ func TestStatusEndpoint(t *testing.T) {
 		{ProjectID: project.ID, Title: "Ready 2", Status: models.StatusReady},
 		{ProjectID: project.ID, Title: "In Progress", Status: models.StatusInProgress},
 		{ProjectID: project.ID, Title: "Blocked", Status: models.StatusBlocked},
-		{ProjectID: project.ID, Title: "Needs Human", Status: models.StatusNeedsHuman},
+		{ProjectID: project.ID, Title: "Needs Human", Status: models.StatusHuman},
 	}
 	for _, ticket := range tickets {
 		err := ticketRepo.Create(ticket)

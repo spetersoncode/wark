@@ -1,21 +1,29 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/diogenes-ai-code/wark/internal/tasks"
 	"github.com/spf13/cobra"
 )
 
 // Claim command flags
 var (
-	claimAll     bool
-	claimExpired bool
-	claimTicket  string
+	claimAll      bool
+	claimExpired  bool
+	claimTicket   string
+	claimDryRun   bool
+	claimDaemon   bool
+	claimInterval int
 )
 
 func init() {
@@ -24,8 +32,11 @@ func init() {
 	claimListCmd.Flags().BoolVar(&claimExpired, "expired", false, "Show only expired claims")
 
 	// claim expire
-	claimExpireCmd.Flags().BoolVar(&claimAll, "all", false, "Expire all active claims")
+	claimExpireCmd.Flags().BoolVar(&claimAll, "all", false, "Expire all expired claims")
 	claimExpireCmd.Flags().StringVar(&claimTicket, "ticket", "", "Expire claim for specific ticket")
+	claimExpireCmd.Flags().BoolVar(&claimDryRun, "dry-run", false, "Show what would be expired without making changes")
+	claimExpireCmd.Flags().BoolVar(&claimDaemon, "daemon", false, "Run continuously, checking every N seconds")
+	claimExpireCmd.Flags().IntVar(&claimInterval, "interval", 60, "Check interval in seconds (for --daemon mode)")
 
 	// Add subcommands
 	claimCmd.AddCommand(claimListCmd)
@@ -214,14 +225,20 @@ func runClaimShow(cmd *cobra.Command, args []string) error {
 // claim expire
 var claimExpireCmd = &cobra.Command{
 	Use:   "expire",
-	Short: "Manually expire claims (admin command)",
-	Long: `Manually expire claims that have passed their expiration time.
+	Short: "Expire claims that have passed their expiration time",
+	Long: `Expire claims that have passed their expiration time.
 
-This is an admin command to clean up expired claims.
+When a claim expires:
+  - The ticket is released back to ready status
+  - The retry count is incremented
+  - If max_retries is reached, the ticket is escalated to needs_human
 
 Examples:
   wark claim expire --all                  # Expire all expired claims
-  wark claim expire --ticket WEBAPP-42     # Expire claim for specific ticket`,
+  wark claim expire --ticket WEBAPP-42     # Expire specific ticket's claim
+  wark claim expire --all --dry-run        # Show what would expire
+  wark claim expire --all --daemon         # Run continuously
+  wark claim expire --all --daemon --interval 30`,
 	Args: cobra.NoArgs,
 	RunE: runClaimExpire,
 }
@@ -231,127 +248,155 @@ func runClaimExpire(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("must specify --all or --ticket")
 	}
 
+	if claimDaemon && claimTicket != "" {
+		return fmt.Errorf("--daemon cannot be used with --ticket")
+	}
+
+	if claimDaemon && claimDryRun {
+		return fmt.Errorf("--daemon cannot be used with --dry-run")
+	}
+
 	database, err := db.Open(GetDBPath())
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer database.Close()
 
-	claimRepo := db.NewClaimRepo(database.DB)
-	ticketRepo := db.NewTicketRepo(database.DB)
-	activityRepo := db.NewActivityRepo(database.DB)
+	expirer := tasks.NewClaimExpirer(database.DB)
 
-	var expiredCount int64
-
+	// Handle specific ticket
 	if claimTicket != "" {
-		// Expire specific ticket's claim
 		ticket, err := resolveTicket(database, claimTicket, "")
 		if err != nil {
 			return err
 		}
 
-		claim, err := claimRepo.GetActiveByTicketID(ticket.ID)
+		result, err := expirer.ExpireTicket(ticket.ID, claimDryRun)
 		if err != nil {
-			return fmt.Errorf("failed to get claim: %w", err)
-		}
-		if claim == nil {
-			return fmt.Errorf("no active claim found for %s", ticket.TicketKey)
+			return err
 		}
 
-		// Expire the claim
-		if err := claimRepo.Release(claim.ID, models.ClaimStatusExpired); err != nil {
-			return fmt.Errorf("failed to expire claim: %w", err)
-		}
+		return outputSingleExpiration(result, claimDryRun)
+	}
 
-		// Update ticket status
-		ticket.Status = models.StatusReady
-		ticket.RetryCount++
-		if err := ticketRepo.Update(ticket); err != nil {
-			return fmt.Errorf("failed to update ticket: %w", err)
-		}
+	// Handle daemon mode
+	if claimDaemon {
+		return runExpireDaemon(expirer, time.Duration(claimInterval)*time.Second)
+	}
 
-		// Log activity
-		activityRepo.LogActionWithDetails(ticket.ID, models.ActionExpired, models.ActorTypeSystem, "",
-			"Claim manually expired",
-			map[string]interface{}{
-				"worker_id":   claim.WorkerID,
-				"retry_count": ticket.RetryCount,
-			})
+	// Handle single run (--all)
+	result, err := expirer.ExpireAll(claimDryRun)
+	if err != nil {
+		return err
+	}
 
-		expiredCount = 1
+	return outputExpireResult(result)
+}
 
-		if IsJSON() {
-			data, _ := json.MarshalIndent(map[string]interface{}{
-				"expired":      true,
-				"ticket":       ticket.TicketKey,
-				"worker_id":    claim.WorkerID,
-				"new_status":   ticket.Status,
-				"retry_count":  ticket.RetryCount,
-			}, "", "  ")
-			fmt.Println(string(data))
-			return nil
-		}
+func outputSingleExpiration(result *tasks.ExpirationResult, dryRun bool) error {
+	if IsJSON() {
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
 
-		OutputLine("Expired claim for: %s", ticket.TicketKey)
-		OutputLine("Worker: %s", claim.WorkerID)
-		OutputLine("Ticket status: %s", ticket.Status)
-		OutputLine("Retry count: %d/%d", ticket.RetryCount, ticket.MaxRetries)
+	if result.ErrorMessage != "" {
+		return fmt.Errorf("%s", result.ErrorMessage)
+	}
 
-	} else {
-		// Expire all expired claims
-		// First, get the list of expired claims to update tickets
-		expiredClaims, err := claimRepo.ListExpired()
-		if err != nil {
-			return fmt.Errorf("failed to list expired claims: %w", err)
-		}
+	prefix := ""
+	if dryRun {
+		prefix = "[DRY RUN] "
+	}
 
-		// Mark claims as expired
-		expiredCount, err = claimRepo.ExpireAll()
-		if err != nil {
-			return fmt.Errorf("failed to expire claims: %w", err)
-		}
+	OutputLine("%sExpired claim for: %s", prefix, result.TicketKey)
+	OutputLine("Worker: %s", result.WorkerID)
+	OutputLine("New status: %s", result.NewStatus)
+	OutputLine("Retry count: %d/%d", result.RetryCount, result.MaxRetries)
+	if result.Escalated {
+		OutputLine("ESCALATED: Ticket moved to needs_human (max retries reached)")
+	}
 
-		// Update ticket statuses
-		for _, claim := range expiredClaims {
-			ticket, err := ticketRepo.GetByID(claim.TicketID)
-			if err != nil || ticket == nil {
-				continue
+	return nil
+}
+
+func outputExpireResult(result *tasks.ExpireClaimsResult) error {
+	if IsJSON() {
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	prefix := ""
+	if result.DryRun {
+		prefix = "[DRY RUN] "
+	}
+
+	if result.Processed == 0 {
+		OutputLine("%sNo expired claims to process.", prefix)
+		return nil
+	}
+
+	OutputLine("%sProcessed %d expired claim(s):", prefix, result.Processed)
+	OutputLine("  Expired:   %d", result.Expired)
+	OutputLine("  Escalated: %d (moved to needs_human)", result.Escalated)
+	if result.Errors > 0 {
+		OutputLine("  Errors:    %d", result.Errors)
+	}
+
+	if IsVerbose() && len(result.Results) > 0 {
+		OutputLine("")
+		OutputLine("Details:")
+		for _, r := range result.Results {
+			if r.ErrorMessage != "" {
+				OutputLine("  %s: ERROR - %s", r.TicketKey, r.ErrorMessage)
+			} else if r.Escalated {
+				OutputLine("  %s: expired -> needs_human (retry %d/%d)", r.TicketKey, r.RetryCount, r.MaxRetries)
+			} else {
+				OutputLine("  %s: expired -> ready (retry %d/%d)", r.TicketKey, r.RetryCount, r.MaxRetries)
 			}
-
-			// Only update if still in progress
-			if ticket.Status == models.StatusInProgress {
-				ticket.Status = models.StatusReady
-				ticket.RetryCount++
-				if err := ticketRepo.Update(ticket); err != nil {
-					VerboseOutput("Warning: failed to update ticket %s: %v\n", ticket.TicketKey, err)
-					continue
-				}
-
-				activityRepo.LogActionWithDetails(ticket.ID, models.ActionExpired, models.ActorTypeSystem, "",
-					"Claim expired",
-					map[string]interface{}{
-						"worker_id":   claim.WorkerID,
-						"retry_count": ticket.RetryCount,
-					})
-			}
-		}
-
-		if IsJSON() {
-			data, _ := json.MarshalIndent(map[string]interface{}{
-				"expired_count": expiredCount,
-			}, "", "  ")
-			fmt.Println(string(data))
-			return nil
-		}
-
-		if expiredCount == 0 {
-			OutputLine("No expired claims to process.")
-		} else {
-			OutputLine("Expired %d claim(s).", expiredCount)
 		}
 	}
 
 	return nil
+}
+
+func runExpireDaemon(expirer *tasks.ClaimExpirer, interval time.Duration) error {
+	OutputLine("Starting claim expiration daemon (checking every %s)", interval)
+	OutputLine("Press Ctrl+C to stop...")
+	OutputLine("")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle shutdown signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		OutputLine("")
+		OutputLine("Shutting down daemon...")
+		cancel()
+	}()
+
+	callback := func(result *tasks.ExpireClaimsResult) {
+		if result.Processed > 0 {
+			OutputLine("[%s] Expired %d claim(s), escalated %d",
+				time.Now().Format("15:04:05"),
+				result.Expired,
+				result.Escalated)
+		} else {
+			VerboseOutput("[%s] No expired claims\n", time.Now().Format("15:04:05"))
+		}
+	}
+
+	err := expirer.RunDaemon(ctx, interval, callback)
+	if err == context.Canceled {
+		OutputLine("Daemon stopped.")
+		return nil
+	}
+	return err
 }
 
 // formatDuration formats minutes as a human-readable duration

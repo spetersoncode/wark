@@ -300,3 +300,10 @@ export const listClaims = (active?: boolean) =>
 	fetchApi<Array<Claim & { ticket_key: string; ticket_title: string }>>(
 		`/claims${active ? "?active=true" : ""}`,
 	);
+
+// Search
+export const searchTickets = (query: string, limit?: number) => {
+	const params = new URLSearchParams({ q: query });
+	if (limit) params.set("limit", limit.toString());
+	return fetchApi<Ticket[]>(`/tickets/search?${params.toString()}`);
+};

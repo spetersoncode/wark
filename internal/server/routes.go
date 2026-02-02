@@ -12,6 +12,7 @@ func (s *Server) setupRoutes() {
 	s.router.HandleFunc("GET /api/projects/{key}/stats", s.handleGetProjectStats)
 
 	s.router.HandleFunc("GET /api/tickets", s.handleListTickets)
+	s.router.HandleFunc("GET /api/tickets/search", s.handleSearchTickets)
 	s.router.HandleFunc("GET /api/tickets/{key}", s.handleGetTicket)
 
 	s.router.HandleFunc("GET /api/inbox", s.handleListInbox)

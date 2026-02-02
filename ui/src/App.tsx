@@ -1,5 +1,6 @@
 import { FolderKanban, Home, Inbox as InboxIcon, KanbanSquare, ListTodo, Settings } from "lucide-react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { SearchBar } from "./components/SearchBar";
 import { cn } from "./lib/utils";
 import { Board, Dashboard, Inbox, Projects, TicketDetail, Tickets } from "./views";
 
@@ -43,13 +44,16 @@ function App() {
 							))}
 						</nav>
 					</div>
-					<button
-						type="button"
-						className="p-2 rounded-md hover:bg-[var(--accent)] transition-colors"
-						aria-label="Settings"
-					>
-						<Settings className="w-5 h-5" />
-					</button>
+					<div className="flex items-center gap-4">
+						<SearchBar />
+						<button
+							type="button"
+							className="p-2 rounded-md hover:bg-[var(--accent)] transition-colors"
+							aria-label="Settings"
+						>
+							<Settings className="w-5 h-5" />
+						</button>
+					</div>
 				</div>
 			</header>
 

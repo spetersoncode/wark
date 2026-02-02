@@ -335,6 +335,48 @@ func (r *TicketRepo) GetChildren(parentID int64) ([]*models.Ticket, error) {
 	return r.List(filter)
 }
 
+// Search searches tickets by key, title, or description.
+func (r *TicketRepo) Search(query string, limit int) ([]*models.Ticket, error) {
+	if query == "" {
+		return []*models.Ticket{}, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	// Search pattern for LIKE matching
+	pattern := "%" + query + "%"
+
+	sqlQuery := `
+		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
+			t.retry_count, t.max_retries, t.parent_ticket_id,
+			t.created_at, t.updated_at, t.completed_at,
+			p.key AS project_key
+		FROM tickets t
+		JOIN projects p ON t.project_id = p.id
+		WHERE (p.key || '-' || t.number) LIKE ? COLLATE NOCASE
+		   OR t.title LIKE ? COLLATE NOCASE
+		   OR t.description LIKE ? COLLATE NOCASE
+		ORDER BY
+			CASE
+				WHEN (p.key || '-' || t.number) LIKE ? COLLATE NOCASE THEN 1
+				WHEN t.title LIKE ? COLLATE NOCASE THEN 2
+				ELSE 3
+			END,
+			t.updated_at DESC
+		LIMIT ?
+	`
+
+	rows, err := r.db.Query(sqlQuery, pattern, pattern, pattern, pattern, pattern, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search tickets: %w", err)
+	}
+	defer rows.Close()
+
+	return r.scanMany(rows)
+}
+
 // CountByStatus counts tickets by status for a project.
 func (r *TicketRepo) CountByStatus(projectID int64) (map[models.Status]int, error) {
 	query := `SELECT status, COUNT(*) FROM tickets WHERE project_id = ? GROUP BY status`

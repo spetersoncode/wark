@@ -207,6 +207,35 @@ func (s *Server) handleGetProjectStats(w http.ResponseWriter, r *http.Request) {
 
 // Ticket handlers
 
+func (s *Server) handleSearchTickets(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		writeJSON(w, http.StatusOK, []TicketResponse{})
+		return
+	}
+
+	limit := 20
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	repo := db.NewTicketRepo(s.config.DB)
+	tickets, err := repo.Search(query, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := make([]TicketResponse, 0, len(tickets))
+	for _, t := range tickets {
+		response = append(response, ticketToResponse(t))
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (s *Server) handleListTickets(w http.ResponseWriter, r *http.Request) {
 	repo := db.NewTicketRepo(s.config.DB)
 

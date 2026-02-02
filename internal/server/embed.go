@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-//go:embed all:ui_placeholder
+//go:embed all:ui
 var uiFS embed.FS
 
 // handleStatic serves embedded frontend files.
@@ -23,7 +23,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	fsPath := strings.TrimPrefix(path, "/")
 
 	// Try to get the embedded filesystem
-	subFS, err := fs.Sub(uiFS, "ui_placeholder")
+	subFS, err := fs.Sub(uiFS, "ui")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load UI files")
 		return

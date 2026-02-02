@@ -12,21 +12,42 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
 # Directories
 BUILD_DIR := ./build
 INSTALL_DIR := /usr/local/bin
+UI_DIR := ./ui
+UI_DIST := $(UI_DIR)/dist
+UI_EMBED := ./internal/server/ui
 
 # Go settings
 GOFLAGS := -trimpath
 
-.PHONY: all build test install uninstall clean fmt lint vet help
+.PHONY: all build build-all build-ui copy-ui test install uninstall clean clean-ui fmt lint vet dev help
 
 # Default target
-all: build
+all: build-all
 
-## build: Build the wark binary
+## build: Build the wark binary (without UI rebuild)
 build:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
 	go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/wark
 	@echo "Built: $(BUILD_DIR)/$(BINARY_NAME)"
+
+## build-all: Build UI and Go binary together
+build-all: build-ui copy-ui build
+	@echo "Full build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+
+## build-ui: Build the frontend (Vite + React)
+build-ui:
+	@echo "Building UI..."
+	@cd $(UI_DIR) && pnpm install --frozen-lockfile && pnpm build
+	@echo "UI built: $(UI_DIST)"
+
+## copy-ui: Copy built UI files to embed location
+copy-ui:
+	@echo "Copying UI to embed location..."
+	@rm -rf $(UI_EMBED)
+	@mkdir -p $(UI_EMBED)
+	@cp -r $(UI_DIST)/* $(UI_EMBED)/
+	@echo "UI copied to: $(UI_EMBED)"
 
 ## test: Run all tests
 test:
@@ -69,8 +90,17 @@ uninstall:
 clean:
 	@echo "Cleaning..."
 	@rm -rf $(BUILD_DIR)
+	@rm -rf $(UI_EMBED)
 	@rm -f coverage.out coverage.html
 	@echo "Clean complete"
+
+## clean-ui: Remove UI build artifacts
+clean-ui:
+	@echo "Cleaning UI..."
+	@rm -rf $(UI_DIST)
+	@rm -rf $(UI_DIR)/node_modules
+	@rm -rf $(UI_EMBED)
+	@echo "UI clean complete"
 
 ## fmt: Format Go source code
 fmt:
@@ -102,6 +132,20 @@ version:
 	@echo "Version: $(VERSION)"
 	@echo "Build Time: $(BUILD_TIME)"
 	@echo "Go Version: $(GO_VERSION)"
+
+## dev: Start development servers (UI dev + Go server)
+dev:
+	@echo "Starting development environment..."
+	@echo "Run these in separate terminals:"
+	@echo "  Terminal 1 (UI):   cd ui && pnpm dev"
+	@echo "  Terminal 2 (Go):   make build && ./build/wark serve"
+	@echo ""
+	@echo "UI dev server: http://localhost:5173 (proxies /api to :18080)"
+	@echo "Go server:     http://localhost:18080"
+
+## dev-ui: Start UI development server
+dev-ui:
+	@cd $(UI_DIR) && pnpm dev
 
 ## help: Show this help message
 help:

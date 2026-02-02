@@ -23,17 +23,105 @@ Use Wark when you need to:
 
 ## Core Workflow
 
-The fundamental agent workflow is: **claim → work → complete**
+The fundamental agent workflow is: **claim → worktree → work → complete → cleanup**
 
 ```bash
 # 1. Get the next available ticket (automatically claims it)
 wark ticket next --json
 
-# 2. Work on the ticket (write code, make changes)
+# 2. Create isolated worktree for parallel-safe work
+BRANCH=$(wark ticket branch PROJ-42)
+DIR_NAME=${BRANCH#wark/}
+git worktree add ~/repos/wark-worktrees/$DIR_NAME -b $BRANCH
+cd ~/repos/wark-worktrees/$DIR_NAME
+
+# 3. Work on the ticket (write code, make changes)
 # ... your implementation work ...
 
-# 3. Complete the ticket when done
+# 4. Complete the ticket when done
 wark ticket complete PROJ-42 --summary "Implemented feature X"
+
+# 5. Cleanup worktree after merge
+cd ~/repos/<project>
+git worktree remove ~/repos/wark-worktrees/$DIR_NAME
+git branch -d $BRANCH
+git worktree prune
+```
+
+## Git Worktrees (Required for Parallel Work)
+
+**All work happens in an isolated git worktree, NOT the main repo.**
+
+This enables multiple agents to work simultaneously without conflicts.
+
+### Why Worktrees?
+
+- Each agent gets its own working directory on its own branch
+- All worktrees share the same git object database (efficient)
+- No "last write wins" problems when multiple agents run in parallel
+- Clean isolation, easy cleanup
+
+### Worktree Locations
+
+```
+~/repos/<project>/                           ← main repo (main branch)
+~/repos/wark-worktrees/
+  └── PROJ-42-add-user-login/                ← worktree for PROJ-42
+  └── PROJ-43-fix-validation/                ← worktree for PROJ-43
+```
+
+### Branch Naming
+
+Wark generates branch names in format: `wark/{PROJECT}-{number}-{title-slug}`
+
+Example: `wark/PROJ-42-add-user-login`
+
+The worktree directory uses the same name **without** the `wark/` prefix:
+- Branch: `wark/PROJ-42-add-user-login`
+- Directory: `~/repos/wark-worktrees/PROJ-42-add-user-login/`
+
+### Setup Worktree
+
+```bash
+# Get the branch name
+BRANCH=$(wark ticket branch PROJ-42)
+
+# Extract directory name (strip wark/ prefix)
+DIR_NAME=${BRANCH#wark/}
+
+# Create worktree
+git worktree add ~/repos/wark-worktrees/$DIR_NAME -b $BRANCH
+
+# Work in the worktree
+cd ~/repos/wark-worktrees/$DIR_NAME
+```
+
+### Cleanup Worktree
+
+**Always clean up after work is merged:**
+
+```bash
+# Return to main repo
+cd ~/repos/<project>
+
+# Remove the worktree
+git worktree remove ~/repos/wark-worktrees/$DIR_NAME
+
+# Delete the branch (if merged)
+git branch -d $BRANCH
+
+# Prune stale references
+git worktree prune
+```
+
+### Useful Commands
+
+```bash
+# List all worktrees
+git worktree list
+
+# Force remove (if stuck)
+git worktree remove --force ~/repos/wark-worktrees/<name>
 ```
 
 ## Ticket Lifecycle

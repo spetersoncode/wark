@@ -13,16 +13,12 @@ import (
 
 // Inbox command flags
 var (
-	inboxPending bool
-	inboxAll     bool
 	inboxProject string
 	inboxType    string
 )
 
 func init() {
-	// inbox list
-	inboxListCmd.Flags().BoolVar(&inboxPending, "pending", true, "Only show unanswered messages")
-	inboxListCmd.Flags().BoolVar(&inboxAll, "all", false, "Show all messages (including answered)")
+	// inbox list (always shows only pending - responded messages are gone)
 	inboxListCmd.Flags().StringVarP(&inboxProject, "project", "p", "", "Filter by project")
 	inboxListCmd.Flags().StringVar(&inboxType, "type", "", "Filter by message type (question, decision, review, escalation, info)")
 
@@ -45,11 +41,10 @@ var inboxCmd = &cobra.Command{
 var inboxListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List inbox messages",
-	Long: `List inbox messages with optional filtering.
+	Long: `List pending inbox messages. Once responded, messages are removed from the inbox.
 
 Examples:
   wark inbox list                           # List pending messages
-  wark inbox list --all                     # List all messages
   wark inbox list --project WEBAPP          # Filter by project
   wark inbox list --type question           # Filter by type`,
 	Args: cobra.NoArgs,
@@ -68,11 +63,7 @@ func runInboxList(cmd *cobra.Command, args []string) error {
 	filter := db.InboxFilter{
 		ProjectKey: strings.ToUpper(inboxProject),
 		Limit:      100,
-	}
-
-	// --all overrides --pending
-	if !inboxAll {
-		filter.Pending = inboxPending
+		Pending:    true, // Inbox only shows pending messages
 	}
 
 	// Parse message type

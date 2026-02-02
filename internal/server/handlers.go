@@ -344,7 +344,8 @@ func (s *Server) handleListInbox(w http.ResponseWriter, r *http.Request) {
 	repo := db.NewInboxRepo(s.config.DB)
 
 	filter := db.InboxFilter{
-		Limit: 100,
+		Limit:   100,
+		Pending: true, // Inbox only shows pending messages
 	}
 
 	// Parse query parameters
@@ -354,9 +355,6 @@ func (s *Server) handleListInbox(w http.ResponseWriter, r *http.Request) {
 	if msgType := r.URL.Query().Get("type"); msgType != "" {
 		t := models.MessageType(msgType)
 		filter.MessageType = &t
-	}
-	if r.URL.Query().Get("pending") == "true" {
-		filter.Pending = true
 	}
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {

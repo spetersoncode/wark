@@ -438,6 +438,23 @@ func (s *Server) handleRespondInbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Transition ticket from human → ready
+	ticketRepo := db.NewTicketRepo(s.config.DB)
+	ticket, err := ticketRepo.GetByID(message.TicketID)
+	if err == nil && ticket != nil && ticket.Status == models.StatusHuman {
+		ticket.Status = models.StatusReady
+		ticket.RetryCount = 0
+		ticketRepo.Update(ticket)
+
+		// Log activity
+		activityRepo := db.NewActivityRepo(s.config.DB)
+		activityRepo.LogActionWithDetails(message.TicketID, models.ActionHumanResponded, models.ActorTypeHuman, "",
+			"Responded to message via web UI",
+			map[string]interface{}{
+				"inbox_message_id": id,
+			})
+	}
+
 	// Return updated message
 	message, _ = repo.GetByID(id)
 	writeJSON(w, http.StatusOK, inboxToResponse(message))

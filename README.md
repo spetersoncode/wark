@@ -2,43 +2,158 @@
 
 > Local-first CLI task management for AI agent orchestration
 
-Wark is a command-line task management tool inspired by Jira, purpose-built for coordinating AI coding agents.
+Wark is a command-line task management tool inspired by Jira, purpose-built for coordinating AI coding agents. It provides claim-based work distribution, dependency tracking, and human-in-the-loop escalation.
 
 ## Features
 
-- **Project-based organization** for long-running work streams
-- **Dependency-aware ticket management** with automatic decomposition
-- **Claim-based work distribution** to handle agent failures gracefully
-- **Human-in-the-loop support** via an inbox system
-- **Branch tracking** to enable seamless agent handoffs
-- **TUI interface** for human oversight and management
+- **Project-based organization** - Group related work into projects with unique keys
+- **Dependency-aware scheduling** - Tickets auto-block/unblock based on dependencies
+- **Claim-based work distribution** - Prevents multiple agents from working on the same task
+- **Human-in-the-loop support** - Inbox system for escalations and questions
+- **Branch tracking** - Suggested branch names for seamless agent handoffs
+- **Full audit trail** - Activity logging for all ticket operations
+- **JSON output** - Machine-readable output for agent integration
 
 ## Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/diogenes-ai-code/wark.git
+cd wark
+
+# Build and install
+make build
+make install
+```
+
+### Using Go Install
 
 ```bash
 go install github.com/diogenes-ai-code/wark/cmd/wark@latest
 ```
 
-## Quick Start
+### Verify Installation
 
 ```bash
-# Initialize wark
+wark version
+```
+
+## Quick Start
+
+### Initialize Wark
+
+```bash
 wark init
+```
 
-# Create a project
-wark project create MYAPP --name "My Application"
+This creates `~/.wark/wark.db` with the required schema.
 
-# Create a ticket
+### Create a Project
+
+```bash
+wark project create MYAPP --name "My Application" --description "Main web application"
+```
+
+### Create Tickets
+
+```bash
+# Simple ticket
 wark ticket create MYAPP --title "Add user authentication"
 
-# Vet and start working
-wark ticket vet MYAPP-1
-wark ticket next  # Claims the next workable ticket
+# Ticket with dependencies
+wark ticket create MYAPP --title "Add user profile page" --depends-on MYAPP-1
+
+# High priority ticket
+wark ticket create MYAPP --title "Fix login bug" --priority high
 ```
+
+### Work on Tickets (Agent Workflow)
+
+```bash
+# Get the next available ticket (automatically claims it)
+wark ticket next --json
+
+# View ticket details
+wark ticket show MYAPP-1 --json
+
+# Get the suggested git branch
+wark ticket branch MYAPP-1
+# Output: wark/MYAPP-1-add-user-authentication
+
+# Complete the ticket
+wark ticket complete MYAPP-1 --summary "Implemented OAuth2 login with Google provider"
+```
+
+### Check Status
+
+```bash
+# Overall status
+wark status
+
+# List workable tickets
+wark ticket list --workable
+
+# View pending inbox messages
+wark inbox list
+```
+
+## Agent Integration
+
+Wark is designed for AI agent orchestration. For comprehensive agent documentation, see:
+
+- **[skill/SKILL.md](skill/SKILL.md)** - Complete guide for AI agents
+- **[docs/CLI_COMMAND_REFERENCE.md](docs/CLI_COMMAND_REFERENCE.md)** - Full CLI reference
+
+### Agent Workflow Summary
+
+1. **Claim work**: `wark ticket next --json`
+2. **Work on ticket**: Create branch, implement changes
+3. **Complete**: `wark ticket complete PROJ-42 --summary "..."`
+
+If blocked or uncertain:
+- **Flag for human**: `wark ticket flag PROJ-42 --reason decision_needed "..."`
+- **Ask a question**: `wark inbox send PROJ-42 --type question "..."`
 
 ## Documentation
 
-See the [docs/](docs/) directory for full documentation.
+| Document | Description |
+|----------|-------------|
+| [CLI Reference](docs/CLI_COMMAND_REFERENCE.md) | Complete CLI command documentation |
+| [Agent Skill Guide](skill/SKILL.md) | AI agent integration guide |
+| [Implementation Plan](IMPLEMENTATION_PLAN.md) | Development roadmap |
+
+## Development
+
+### Prerequisites
+
+- Go 1.21+
+- Make
+
+### Build Commands
+
+```bash
+make build    # Build the binary
+make test     # Run all tests
+make install  # Install to /usr/local/bin
+make clean    # Remove build artifacts
+```
+
+### Project Structure
+
+```
+wark/
+├── cmd/wark/          # CLI entrypoint
+├── internal/
+│   ├── cli/           # Command implementations
+│   ├── db/            # Database layer and repositories
+│   ├── models/        # Domain models
+│   ├── state/         # State machine engine
+│   └── tasks/         # Background task services
+├── docs/              # Documentation
+└── skill/             # Agent skill package
+```
 
 ## License
 

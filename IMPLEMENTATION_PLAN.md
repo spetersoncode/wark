@@ -170,17 +170,22 @@
 
 ---
 
-## Phase 6: Background Tasks
+## Phase 6: Background Tasks ✅
 
-### 6.1 Claim Expiration
-- [ ] Implement claim expiration check routine
-- [ ] Auto-transition expired claims to ready (or needs_human if max retries)
-- [ ] Optionally run as periodic task or on-demand
+### 6.1 Claim Expiration ✅
+- [x] Implement claim expiration check routine (`internal/tasks/expire_claims.go`)
+- [x] Auto-transition expired claims to ready (or needs_human if max retries)
+- [x] Optionally run as periodic task or on-demand (--daemon, --dry-run flags)
 
-### 6.2 Dependency Resolution
-- [ ] Implement dependency check on ticket completion
-- [ ] Auto-unblock dependent tickets
-- [ ] Parent ticket auto-completion logic
+### 6.2 Dependency Resolution ✅
+- [x] Implement dependency check on ticket completion (`internal/tasks/resolve_deps.go`)
+- [x] Auto-unblock dependent tickets
+- [x] Parent ticket auto-completion logic (moves to review or auto-done)
+
+### 6.3 Integration ✅
+- [x] Claim expiration via `wark claim expire` command
+- [x] Dependency resolution triggers on `ticket complete --auto-accept` and `ticket accept`
+- [x] Reusable services in `internal/tasks/` package
 
 ---
 
@@ -269,4 +274,4 @@
 
 ---
 
-*Last updated: 2026-02-02 (Phase 5.5-5.7 complete)*
+*Last updated: 2026-02-02 (Phase 6 complete)*

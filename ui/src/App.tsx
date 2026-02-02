@@ -1,13 +1,12 @@
-import { GitGraph, Home, Inbox as InboxIcon, KanbanSquare, Settings } from "lucide-react";
+import { Home, Inbox as InboxIcon, KanbanSquare, Settings } from "lucide-react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { cn } from "./lib/utils";
-import { Board, Dashboard, Graph, Inbox, TicketDetail } from "./views";
+import { Board, Dashboard, Inbox, TicketDetail } from "./views";
 
 const NAV_ITEMS = [
 	{ to: "/", label: "Dashboard", icon: Home, end: true },
 	{ to: "/board", label: "Board", icon: KanbanSquare },
 	{ to: "/inbox", label: "Inbox", icon: InboxIcon },
-	{ to: "/graph", label: "Graph", icon: GitGraph },
 ];
 
 function App() {
@@ -59,7 +58,6 @@ function App() {
 					<Route path="/dashboard" element={<Dashboard />} />
 					<Route path="/board" element={<Board />} />
 					<Route path="/inbox" element={<Inbox />} />
-					<Route path="/graph" element={<Graph />} />
 					<Route path="/tickets/:key" element={<TicketDetail />} />
 				</Routes>
 			</main>

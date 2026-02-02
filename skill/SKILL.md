@@ -129,9 +129,9 @@ git worktree remove --force ~/repos/wark-worktrees/<name>
 Tickets move through these states:
 
 ```
-created → ready → in_progress → review → done
-            ↓         ↓
-         blocked   needs_human
+created → ready → in_progress → review → done → closed
+            ↓         ↓                     ↓
+         blocked   needs_human          cancelled
 ```
 
 **States explained:**
@@ -142,6 +142,7 @@ created → ready → in_progress → review → done
 - `needs_human` - Waiting for human input
 - `review` - Work complete, awaiting human acceptance
 - `done` - Accepted and finished
+- `closed` - Archived after completion
 - `cancelled` - No longer needed
 
 ## Essential Commands
@@ -189,10 +190,7 @@ wark ticket branch PROJ-42
 # Example output: wark/PROJ-42-add-user-login
 ```
 
-**Best practice:** Create a git branch using the suggested branch name:
-```bash
-git checkout -b "$(wark ticket branch PROJ-42)"
-```
+**Important:** Use the worktree protocol (see "Git Worktrees" section above) rather than `git checkout`. This enables parallel work by multiple agents.
 
 ### Completing Work
 
@@ -359,13 +357,12 @@ Always use `--json` flag for machine-readable output.
 
 ## Best Practices for Agents
 
-### 1. One Ticket, One Commit
+### 1. One Ticket, One Branch
 
-Make atomic commits per ticket. The suggested branch name includes the ticket ID for traceability:
+Each ticket gets its own branch in an isolated worktree. Make atomic commits with the ticket ID for traceability:
 
 ```bash
-git checkout -b "$(wark ticket branch PROJ-42)"
-# ... make changes ...
+# In your worktree for PROJ-42
 git commit -m "feat(auth): add login form [PROJ-42]"
 ```
 

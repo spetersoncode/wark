@@ -146,7 +146,12 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]ProjectResponse, 0, len(projects))
 	for _, p := range projects {
-		response = append(response, projectToResponse(p))
+		resp := projectToResponse(p)
+		// Include stats for each project
+		if stats, err := repo.GetStats(p.ID); err == nil {
+			resp.Stats = stats
+		}
+		response = append(response, resp)
 	}
 
 	writeJSON(w, http.StatusOK, response)

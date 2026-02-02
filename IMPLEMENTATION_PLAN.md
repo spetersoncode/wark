@@ -189,27 +189,43 @@
 
 ---
 
-## Phase 7: TUI (Deferred)
+## Phase 7: Web UI
 
-*Lower priority — CLI + agent skill is the MVP*
+*Human oversight dashboard — embedded React app served by Go binary*
 
-### 7.1 TUI Framework (`internal/tui/`)
-- [ ] `app.go` - Main TUI application
-- [ ] `styles.go` - Lip Gloss styles and color scheme
-- [ ] `keys.go` - Key bindings
+### 7.1 Server Infrastructure (`internal/server/`)
+- [ ] `server.go` - HTTP server with REST API endpoints
+- [ ] `embed.go` - Embed frontend assets via `//go:embed ui/dist/*`
+- [ ] `routes.go` - API routes (`/api/projects`, `/api/tickets`, `/api/inbox`, etc.)
+- [ ] `handlers.go` - Request handlers (reuse existing repos)
+- [ ] `wark serve` command - Start server, auto-open browser
 
-### 7.2 Views
-- [ ] `board.go` - Kanban board view
-- [ ] `list.go` - List view with filtering/sorting
-- [ ] `inbox.go` - Inbox view
-- [ ] `claims.go` - Claims view
-- [ ] `graph.go` - Dependency graph view (ASCII)
+### 7.2 Frontend Setup (`ui/`)
+- [ ] Initialize Vite + React + TypeScript
+- [ ] Add shadcn/ui components
+- [ ] Add Tailwind CSS
+- [ ] Configure API client for `/api/*` endpoints
+- [ ] Add lucide-react icons
 
-### 7.3 Components
-- [ ] Header, tabs, ticket cards, modals, etc.
+### 7.3 Views
+- [ ] `Board.tsx` - Kanban board (drag-drop between status columns)
+- [ ] `Inbox.tsx` - Human inbox with respond functionality
+- [ ] `Graph.tsx` - Dependency DAG visualization (d3 or reactflow)
+- [ ] `TicketDetail.tsx` - Full ticket view with history
+- [ ] `Dashboard.tsx` - Overview (workable, blocked, claims, recent activity)
 
-### 7.4 TUI Command
-- [ ] `wark tui` - Launch TUI
+### 7.4 Build Integration
+- [ ] Makefile: `make build-ui` runs `pnpm build` in `ui/`
+- [ ] Makefile: `make build` builds UI then embeds into Go binary
+- [ ] Dev workflow: `make dev-ui` + `make dev-api` for hot reload
+- [ ] Single binary distribution with embedded frontend
+
+### 7.5 Features
+- [ ] Real-time updates (polling or WebSocket)
+- [ ] Respond to inbox messages inline
+- [ ] Accept/reject tickets from review
+- [ ] Filter/search tickets
+- [ ] Dark mode
 
 ---
 
@@ -266,7 +282,7 @@
 8. **Phase 5.8-5.9** → JSON output + CLI tests
 9. **Phase 8** → Polish
 10. **Phase 9** → Agent skill
-11. **Phase 7** → TUI *[deferred, nice-to-have]*
+11. **Phase 7** → Web UI (human oversight dashboard)
 
 ---
 
@@ -275,7 +291,8 @@
 - **No `wark vet` command** — Validation happens automatically at ticket creation/edit time via DB constraints and repo logic
 - **No `wark decompose` command** — Decomposition is an AI agent behavior, not a CLI operation. Agents use `wark ticket create --parent` to break down work
 - **Dependencies via ticket commands** — Use `--depends-on` on create, `--add-dep`/`--remove-dep` on edit, view in `ticket show`
+- **Web UI over TUI** — Human oversight needs rich visuals (kanban, dependency graphs). Embed React app in Go binary via `//go:embed`. Single binary distribution preserved. CLI remains the agent interface.
 
 ---
 
-*Last updated: 2026-02-02 (Phase 9 complete - Agent Skill Package)*
+*Last updated: 2026-02-02 (Phase 7 updated: Web UI replaces TUI)*

@@ -352,7 +352,8 @@ func runInboxRespond(cmd *cobra.Command, args []string) error {
 	statusChanged := false
 	if ticket != nil && ticket.Status == models.StatusHuman {
 		ticket.Status = models.StatusReady
-		ticket.RetryCount = 0 // Reset retry count on human response
+		ticket.RetryCount = 0          // Reset retry count on human response
+		ticket.HumanFlagReason = ""    // Clear the flag reason
 		if err := ticketRepo.Update(ticket); err != nil {
 			return fmt.Errorf("failed to update ticket: %w", err)
 		}

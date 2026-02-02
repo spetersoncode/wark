@@ -438,12 +438,13 @@ func (s *Server) handleRespondInbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Transition ticket from human → ready
+	// Transition ticket from human → ready and clear flag
 	ticketRepo := db.NewTicketRepo(s.config.DB)
 	ticket, err := ticketRepo.GetByID(message.TicketID)
 	if err == nil && ticket != nil && ticket.Status == models.StatusHuman {
 		ticket.Status = models.StatusReady
 		ticket.RetryCount = 0
+		ticket.HumanFlagReason = "" // Clear the flag reason
 		ticketRepo.Update(ticket)
 
 		// Log activity

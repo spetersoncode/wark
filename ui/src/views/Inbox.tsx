@@ -9,7 +9,7 @@ import {
 	Star,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { type InboxMessage, listInbox, type MessageType, respondToInbox } from "../lib/api";
 import { cn, formatRelativeTime } from "../lib/utils";
 
@@ -49,13 +49,11 @@ export default function Inbox() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [refreshing, setRefreshing] = useState(false);
-	const [searchParams, setSearchParams] = useSearchParams();
-
-	const showPending = searchParams.get("pending") === "true";
 
 	const fetchMessages = useCallback(async () => {
 		try {
-			const data = await listInbox({ pending: showPending || undefined });
+			// Always show only pending messages
+			const data = await listInbox({ pending: true });
 			setMessages(data);
 			setError(null);
 		} catch (e) {
@@ -64,7 +62,7 @@ export default function Inbox() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}, [showPending]);
+	}, []);
 
 	useEffect(() => {
 		fetchMessages();
@@ -73,15 +71,6 @@ export default function Inbox() {
 	function handleRefresh() {
 		setRefreshing(true);
 		fetchMessages();
-	}
-
-	function togglePending() {
-		if (showPending) {
-			searchParams.delete("pending");
-		} else {
-			searchParams.set("pending", "true");
-		}
-		setSearchParams(searchParams);
 	}
 
 	async function handleRespond(id: number, response: string) {
@@ -123,35 +112,21 @@ export default function Inbox() {
 						</span>
 					)}
 				</div>
-				<div className="flex items-center gap-2">
-					<button
-						type="button"
-						onClick={togglePending}
-						className={cn(
-							"px-3 py-2 text-sm rounded-md transition-colors",
-							showPending
-								? "bg-[var(--primary)] text-[var(--primary-foreground)]"
-								: "bg-[var(--secondary)] hover:bg-[var(--accent)]",
-						)}
-					>
-						Pending only
-					</button>
-					<button
-						type="button"
-						onClick={handleRefresh}
-						disabled={refreshing}
-						className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
-					>
-						<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-						Refresh
-					</button>
-				</div>
+				<button
+					type="button"
+					onClick={handleRefresh}
+					disabled={refreshing}
+					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+				>
+					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+					Refresh
+				</button>
 			</div>
 
 			{/* Messages list */}
 			{messages.length === 0 ? (
 				<div className="text-center py-12 text-[var(--muted-foreground)]">
-					{showPending ? "No pending messages" : "No messages in inbox"}
+					No pending messages
 				</div>
 			) : (
 				<div className="space-y-4">

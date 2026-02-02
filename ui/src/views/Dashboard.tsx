@@ -100,7 +100,7 @@ export default function Dashboard() {
 					value={status.pending_inbox}
 					icon={<CircleDot className="w-5 h-5" />}
 					color="text-purple-600 dark:text-purple-400"
-					href="/inbox?pending=true"
+					href="/inbox"
 				/>
 			</div>
 

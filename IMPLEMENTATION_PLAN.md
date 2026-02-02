@@ -110,40 +110,40 @@
 
 ---
 
-## Phase 5: CLI Commands
+## Phase 5: CLI Commands ✅ (5.1-5.4)
 
-### 5.1 Root Command (`internal/cli/`)
+### 5.1 Root Command (`internal/cli/`) ✅
 - [x] `root.go` - Base command skeleton
-- [ ] Global flags (`--db`, `--json`, `--quiet`, `--verbose`)
-- [ ] Version command
-- [ ] Help customization
+- [x] Global flags (`--db`, `--json`, `--quiet`, `--verbose`)
+- [x] Version command
+- [x] Help customization
 
-### 5.2 Init Command
-- [ ] `wark init` - Create ~/.wark/, run migrations
-- [ ] `--force` flag to reset database
+### 5.2 Init Command ✅
+- [x] `wark init` - Create ~/.wark/, run migrations
+- [x] `--force` flag to reset database
 
-### 5.3 Project Commands
-- [ ] `wark project create <KEY> --name --description`
-- [ ] `wark project list [--with-stats]`
-- [ ] `wark project show <KEY>`
-- [ ] `wark project delete <KEY> [--force]`
+### 5.3 Project Commands ✅
+- [x] `wark project create <KEY> --name --description`
+- [x] `wark project list [--with-stats]`
+- [x] `wark project show <KEY>`
+- [x] `wark project delete <KEY> [--force]`
 
-### 5.4 Ticket Commands
-- [ ] `wark ticket create <PROJECT> --title --description --priority --complexity --depends-on --parent`
-- [ ] `wark ticket list [--project] [--status] [--priority] [--workable] [--limit]`
-- [ ] `wark ticket show <TICKET>` (includes dependencies)
-- [ ] `wark ticket edit <TICKET> [--title] [--description] [--priority] [--complexity] [--add-dep] [--remove-dep]`
-- [ ] `wark ticket claim <TICKET> [--worker-id] [--duration]`
-- [ ] `wark ticket release <TICKET> [--reason]`
-- [ ] `wark ticket complete <TICKET> [--summary] [--auto-accept]`
-- [ ] `wark ticket flag <TICKET> --reason "<message>"`
-- [ ] `wark ticket accept <TICKET>`
-- [ ] `wark ticket reject <TICKET> --reason`
-- [ ] `wark ticket cancel <TICKET> [--reason]`
-- [ ] `wark ticket reopen <TICKET>`
-- [ ] `wark ticket next [--project] [--worker-id] [--dry-run] [--complexity]`
-- [ ] `wark ticket branch <TICKET> [--set]`
-- [ ] `wark ticket log <TICKET> [--limit] [--action] [--actor] [--since] [--full]`
+### 5.4 Ticket Commands ✅
+- [x] `wark ticket create <PROJECT> --title --description --priority --complexity --depends-on --parent`
+- [x] `wark ticket list [--project] [--status] [--priority] [--workable] [--limit]`
+- [x] `wark ticket show <TICKET>` (includes dependencies)
+- [x] `wark ticket edit <TICKET> [--title] [--description] [--priority] [--complexity] [--add-dep] [--remove-dep]`
+- [x] `wark ticket claim <TICKET> [--worker-id] [--duration]`
+- [x] `wark ticket release <TICKET> [--reason]`
+- [x] `wark ticket complete <TICKET> [--summary] [--auto-accept]`
+- [x] `wark ticket flag <TICKET> --reason "<message>"`
+- [x] `wark ticket accept <TICKET>`
+- [x] `wark ticket reject <TICKET> --reason`
+- [x] `wark ticket cancel <TICKET> [--reason]`
+- [x] `wark ticket reopen <TICKET>`
+- [x] `wark ticket next [--project] [--worker-id] [--dry-run] [--complexity]`
+- [x] `wark ticket branch <TICKET> [--set]`
+- [x] `wark ticket log <TICKET> [--limit] [--action] [--actor] [--since] [--full]`
 
 ### 5.5 Inbox Commands
 - [ ] `wark inbox list [--pending] [--all] [--project] [--type]`
@@ -159,12 +159,13 @@
 ### 5.7 Status Command
 - [ ] `wark status [--project]` - Quick overview dashboard
 
-### 5.8 JSON Output
-- [ ] Implement `--json` flag for all commands
-- [ ] Consistent JSON schema across commands
+### 5.8 JSON Output ✅
+- [x] Implement `--json` flag for all commands
+- [x] Consistent JSON schema across commands
 
-### 5.9 CLI Tests
-- [ ] Write integration tests for each command
+### 5.9 CLI Tests (Partial)
+- [x] Write unit tests for CLI utilities
+- [ ] Write full integration tests for each command
 - [ ] Test error cases and edge conditions
 
 ---
@@ -268,4 +269,4 @@
 
 ---
 
-*Last updated: 2026-02-01*
+*Last updated: 2026-02-02*

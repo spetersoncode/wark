@@ -1,0 +1,408 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/diogenes-ai-code/wark/internal/db"
+	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/google/uuid"
+	"github.com/spf13/cobra"
+)
+
+// Utility command flags
+var (
+	nextDryRun       bool
+	nextComplexity   string
+	branchSet        string
+	logLimit         int
+	logAction        string
+	logActor         string
+	logSince         string
+	logFull          bool
+)
+
+func init() {
+	// ticket next
+	ticketNextCmd.Flags().StringVarP(&ticketProject, "project", "p", "", "Limit to project")
+	ticketNextCmd.Flags().StringVar(&claimWorkerID, "worker-id", "", "Worker identifier")
+	ticketNextCmd.Flags().BoolVar(&nextDryRun, "dry-run", false, "Show ticket without claiming")
+	ticketNextCmd.Flags().StringVar(&nextComplexity, "complexity", "large", "Max complexity to accept")
+
+	// ticket branch
+	ticketBranchCmd.Flags().StringVar(&branchSet, "set", "", "Override auto-generated branch name")
+
+	// ticket log
+	ticketLogCmd.Flags().IntVarP(&logLimit, "limit", "l", 20, "Number of entries to show (0 for all)")
+	ticketLogCmd.Flags().StringVar(&logAction, "action", "", "Filter by action type (comma-separated)")
+	ticketLogCmd.Flags().StringVar(&logActor, "actor", "", "Filter by actor type (human/agent/system)")
+	ticketLogCmd.Flags().StringVar(&logSince, "since", "", "Show entries after date (YYYY-MM-DD)")
+	ticketLogCmd.Flags().BoolVar(&logFull, "full", false, "Show full details (JSON)")
+
+	// Add subcommands
+	ticketCmd.AddCommand(ticketNextCmd)
+	ticketCmd.AddCommand(ticketBranchCmd)
+	ticketCmd.AddCommand(ticketLogCmd)
+}
+
+// ticket next
+var ticketNextCmd = &cobra.Command{
+	Use:   "next",
+	Short: "Get and claim the next workable ticket",
+	Long: `Get and claim the next workable ticket based on priority.
+
+Selection criteria (in order):
+1. Status is ready
+2. All dependencies resolved
+3. No active claim
+4. retry_count < max_retries
+5. Ordered by: priority (highest first), then created_at (oldest first)
+
+Examples:
+  wark ticket next
+  wark ticket next --project WEBAPP
+  wark ticket next --dry-run
+  wark ticket next --complexity medium`,
+	Args: cobra.NoArgs,
+	RunE: runTicketNext,
+}
+
+func runTicketNext(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	// Parse max complexity
+	maxComplexity := models.Complexity(strings.ToLower(nextComplexity))
+	if !maxComplexity.IsValid() {
+		return fmt.Errorf("invalid complexity: %s", nextComplexity)
+	}
+
+	// Get workable tickets
+	ticketRepo := db.NewTicketRepo(database.DB)
+	filter := db.TicketFilter{
+		ProjectKey: strings.ToUpper(ticketProject),
+		Limit:      100, // Get more to filter by complexity and claims
+	}
+
+	tickets, err := ticketRepo.ListWorkable(filter)
+	if err != nil {
+		return fmt.Errorf("failed to list tickets: %w", err)
+	}
+
+	// Filter by complexity and claims
+	claimRepo := db.NewClaimRepo(database.DB)
+	var nextTicket *models.Ticket
+
+	complexityOrder := map[models.Complexity]int{
+		models.ComplexityTrivial: 1,
+		models.ComplexitySmall:   2,
+		models.ComplexityMedium:  3,
+		models.ComplexityLarge:   4,
+		models.ComplexityXLarge:  5,
+	}
+	maxOrder := complexityOrder[maxComplexity]
+
+	for _, t := range tickets {
+		// Check complexity
+		if complexityOrder[t.Complexity] > maxOrder {
+			continue
+		}
+
+		// Check retry count
+		if t.RetryCount >= t.MaxRetries {
+			continue
+		}
+
+		// Check for active claim
+		hasClaim, err := claimRepo.HasActiveClaim(t.ID)
+		if err != nil {
+			continue
+		}
+		if hasClaim {
+			continue
+		}
+
+		nextTicket = t
+		break
+	}
+
+	if nextTicket == nil {
+		if IsJSON() {
+			fmt.Println("{\"ticket\": null}")
+			return nil
+		}
+		OutputLine("No workable tickets found.")
+		return nil
+	}
+
+	// If dry-run, just show the ticket
+	if nextDryRun {
+		if IsJSON() {
+			data, _ := json.MarshalIndent(map[string]interface{}{
+				"ticket":  nextTicket,
+				"dry_run": true,
+			}, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+
+		OutputLine("Next workable ticket:")
+		OutputLine("  ID:         %s", nextTicket.TicketKey)
+		OutputLine("  Title:      %s", nextTicket.Title)
+		OutputLine("  Priority:   %s", nextTicket.Priority)
+		OutputLine("  Complexity: %s", nextTicket.Complexity)
+		OutputLine("")
+		OutputLine("Use 'wark ticket claim %s' to claim this ticket.", nextTicket.TicketKey)
+		return nil
+	}
+
+	// Generate worker ID if not provided
+	workerID := claimWorkerID
+	if workerID == "" {
+		workerID = uuid.New().String()[:8]
+	}
+
+	// Create claim (default 60 minutes)
+	duration := time.Duration(60) * time.Minute
+	claim := models.NewClaim(nextTicket.ID, workerID, duration)
+	if err := claimRepo.Create(claim); err != nil {
+		return fmt.Errorf("failed to create claim: %w", err)
+	}
+
+	// Update ticket status
+	nextTicket.Status = models.StatusInProgress
+	if err := ticketRepo.Update(nextTicket); err != nil {
+		// Rollback claim
+		claimRepo.Release(claim.ID, models.ClaimStatusReleased)
+		return fmt.Errorf("failed to update ticket status: %w", err)
+	}
+
+	// Log activity
+	activityRepo := db.NewActivityRepo(database.DB)
+	activityRepo.LogActionWithDetails(nextTicket.ID, models.ActionClaimed, models.ActorTypeAgent, workerID,
+		"Claimed via 'ticket next'",
+		map[string]interface{}{
+			"worker_id":     workerID,
+			"duration_mins": 60,
+			"expires_at":    claim.ExpiresAt.Format(time.RFC3339),
+		})
+
+	// Generate branch name
+	branchName := nextTicket.BranchName
+	if branchName == "" {
+		branchName = generateBranchName(nextTicket.ProjectKey, nextTicket.Number, nextTicket.Title)
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(map[string]interface{}{
+			"ticket":      nextTicket,
+			"claim":       claim,
+			"branch":      branchName,
+			"git_command": fmt.Sprintf("git checkout -b %s", branchName),
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Claimed: %s", nextTicket.TicketKey)
+	OutputLine("Title: %s", nextTicket.Title)
+	OutputLine("Worker: %s", workerID)
+	OutputLine("Expires: %s (60 minutes)", claim.ExpiresAt.Format("2006-01-02 15:04:05"))
+	OutputLine("Branch: %s", branchName)
+	OutputLine("")
+	OutputLine("Run: git checkout -b %s", branchName)
+
+	return nil
+}
+
+// ticket branch
+var ticketBranchCmd = &cobra.Command{
+	Use:   "branch <TICKET>",
+	Short: "Get or set the branch name for a ticket",
+	Long: `Get or set the git branch name for a ticket.
+
+Auto-generation format: wark/<PROJECT>-<NUMBER>-<slug>
+
+Examples:
+  wark ticket branch WEBAPP-42
+  wark ticket branch WEBAPP-42 --set "feature/login-page"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketBranch,
+}
+
+func runTicketBranch(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	// If --set flag is used, update the branch name
+	if branchSet != "" {
+		ticketRepo := db.NewTicketRepo(database.DB)
+		ticket.BranchName = branchSet
+		if err := ticketRepo.Update(ticket); err != nil {
+			return fmt.Errorf("failed to update branch name: %w", err)
+		}
+
+		if IsJSON() {
+			data, _ := json.MarshalIndent(map[string]interface{}{
+				"ticket": ticket.TicketKey,
+				"branch": branchSet,
+				"set":    true,
+			}, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+
+		OutputLine("Branch name set: %s", branchSet)
+		return nil
+	}
+
+	// Get or generate branch name
+	branchName := ticket.BranchName
+	if branchName == "" {
+		branchName = generateBranchName(ticket.ProjectKey, ticket.Number, ticket.Title)
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(map[string]interface{}{
+			"ticket": ticket.TicketKey,
+			"branch": branchName,
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println(branchName)
+	return nil
+}
+
+// ticket log
+var ticketLogCmd = &cobra.Command{
+	Use:   "log <TICKET>",
+	Short: "View the activity log for a ticket",
+	Long: `View the activity log for a ticket.
+
+Examples:
+  wark ticket log WEBAPP-42
+  wark ticket log WEBAPP-42 --limit 0  # All history
+  wark ticket log WEBAPP-42 --action claimed,released
+  wark ticket log WEBAPP-42 --actor human
+  wark ticket log WEBAPP-42 --full`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketLog,
+}
+
+func runTicketLog(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	// Build filter
+	filter := db.ActivityFilter{
+		TicketID: &ticket.ID,
+		Limit:    logLimit,
+	}
+
+	// Parse action filter
+	if logAction != "" {
+		action := models.Action(strings.ToLower(logAction))
+		if action.IsValid() {
+			filter.Action = &action
+		}
+	}
+
+	// Parse actor filter
+	if logActor != "" {
+		actorType := models.ActorType(strings.ToLower(logActor))
+		if actorType.IsValid() {
+			filter.ActorType = &actorType
+		}
+	}
+
+	// Parse since filter
+	if logSince != "" {
+		since, err := time.Parse("2006-01-02", logSince)
+		if err != nil {
+			return fmt.Errorf("invalid date format: %s (use YYYY-MM-DD)", logSince)
+		}
+		filter.Since = &since
+	}
+
+	activityRepo := db.NewActivityRepo(database.DB)
+	logs, err := activityRepo.List(filter)
+	if err != nil {
+		return fmt.Errorf("failed to get activity log: %w", err)
+	}
+
+	totalCount, _ := activityRepo.CountByTicket(ticket.ID)
+
+	if IsJSON() || logFull {
+		data, _ := json.MarshalIndent(logs, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	if len(logs) == 0 {
+		OutputLine("No activity log entries found.")
+		return nil
+	}
+
+	// Display formatted output
+	fmt.Printf("Activity Log: %s - %s\n", ticket.TicketKey, ticket.Title)
+	fmt.Println()
+	fmt.Printf("%-20s %-18s %-20s %s\n", "TIME", "ACTION", "ACTOR", "SUMMARY")
+	fmt.Println(strings.Repeat("-", 85))
+
+	for _, log := range logs {
+		actor := string(log.ActorType)
+		if log.ActorID != "" {
+			actor = fmt.Sprintf("%s:%s", log.ActorType, log.ActorID)
+		}
+		if len(actor) > 20 {
+			actor = actor[:17] + "..."
+		}
+
+		summary := log.Summary
+		if summary == "" {
+			summary = string(log.Action)
+		}
+		if len(summary) > 40 {
+			summary = summary[:37] + "..."
+		}
+
+		fmt.Printf("%-20s %-18s %-20s %s\n",
+			log.CreatedAt.Format("2006-01-02 15:04:05"),
+			log.Action,
+			actor,
+			summary,
+		)
+	}
+
+	fmt.Println()
+	if logLimit > 0 && len(logs) < totalCount {
+		fmt.Printf("Showing %d of %d entries\n", len(logs), totalCount)
+	} else {
+		fmt.Printf("Showing %d entries\n", len(logs))
+	}
+
+	return nil
+}

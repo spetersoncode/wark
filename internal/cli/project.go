@@ -1,0 +1,352 @@
+package cli
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/diogenes-ai-code/wark/internal/db"
+	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/spf13/cobra"
+)
+
+// Project command flags
+var (
+	projectName        string
+	projectDescription string
+	projectWithStats   bool
+	projectForce       bool
+)
+
+func init() {
+	// project create
+	projectCreateCmd.Flags().StringVarP(&projectName, "name", "n", "", "Human-readable project name (required)")
+	projectCreateCmd.Flags().StringVarP(&projectDescription, "description", "d", "", "Project description")
+	projectCreateCmd.MarkFlagRequired("name")
+
+	// project list
+	projectListCmd.Flags().BoolVar(&projectWithStats, "with-stats", false, "Include ticket statistics")
+
+	// project delete
+	projectDeleteCmd.Flags().BoolVar(&projectForce, "force", false, "Skip confirmation prompt")
+
+	// Add subcommands
+	projectCmd.AddCommand(projectCreateCmd)
+	projectCmd.AddCommand(projectListCmd)
+	projectCmd.AddCommand(projectShowCmd)
+	projectCmd.AddCommand(projectDeleteCmd)
+
+	rootCmd.AddCommand(projectCmd)
+}
+
+var projectCmd = &cobra.Command{
+	Use:   "project",
+	Short: "Project management commands",
+	Long:  `Manage projects in wark. Projects are containers for tickets.`,
+}
+
+// project create
+var projectCreateCmd = &cobra.Command{
+	Use:   "create <KEY>",
+	Short: "Create a new project",
+	Long: `Create a new project with the specified key.
+
+The key must be 2-10 uppercase alphanumeric characters starting with a letter.
+
+Examples:
+  wark project create WEBAPP --name "Web Application"
+  wark project create INFRA -n "Infrastructure" -d "Cloud infrastructure"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProjectCreate,
+}
+
+func runProjectCreate(cmd *cobra.Command, args []string) error {
+	key := strings.ToUpper(args[0])
+
+	// Validate key format
+	if err := models.ValidateProjectKey(key); err != nil {
+		return fmt.Errorf("invalid project key: %w", err)
+	}
+
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	repo := db.NewProjectRepo(database.DB)
+
+	// Check if project already exists
+	exists, err := repo.Exists(key)
+	if err != nil {
+		return fmt.Errorf("failed to check project: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("project %s already exists", key)
+	}
+
+	project := &models.Project{
+		Key:         key,
+		Name:        projectName,
+		Description: projectDescription,
+	}
+
+	if err := repo.Create(project); err != nil {
+		return fmt.Errorf("failed to create project: %w", err)
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(project, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Created project: %s", project.Key)
+	OutputLine("Name: %s", project.Name)
+	if project.Description != "" {
+		OutputLine("Description: %s", project.Description)
+	}
+
+	return nil
+}
+
+// project list
+var projectListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all projects",
+	Long: `List all projects in wark.
+
+Use --with-stats to include ticket statistics for each project.`,
+	Args: cobra.NoArgs,
+	RunE: runProjectList,
+}
+
+type projectListItem struct {
+	*models.Project
+	Stats *models.ProjectStats `json:"stats,omitempty"`
+}
+
+func runProjectList(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	repo := db.NewProjectRepo(database.DB)
+	projects, err := repo.List()
+	if err != nil {
+		return fmt.Errorf("failed to list projects: %w", err)
+	}
+
+	if len(projects) == 0 {
+		if IsJSON() {
+			fmt.Println("[]")
+			return nil
+		}
+		OutputLine("No projects found. Create one with: wark project create <KEY> --name <NAME>")
+		return nil
+	}
+
+	items := make([]projectListItem, len(projects))
+	for i, p := range projects {
+		items[i] = projectListItem{Project: p}
+		if projectWithStats {
+			stats, err := repo.GetStats(p.ID)
+			if err != nil {
+				return fmt.Errorf("failed to get stats for %s: %w", p.Key, err)
+			}
+			items[i].Stats = stats
+		}
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(items, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	// Table format
+	if projectWithStats {
+		fmt.Printf("%-10s %-20s %7s %6s %s\n", "KEY", "NAME", "TICKETS", "OPEN", "CREATED")
+		fmt.Println(strings.Repeat("-", 70))
+		for _, item := range items {
+			open := item.Stats.CreatedCount + item.Stats.ReadyCount +
+				item.Stats.InProgressCount + item.Stats.BlockedCount +
+				item.Stats.NeedsHumanCount + item.Stats.ReviewCount
+			fmt.Printf("%-10s %-20s %7d %6d %s\n",
+				item.Key,
+				truncate(item.Name, 20),
+				item.Stats.TotalTickets,
+				open,
+				item.CreatedAt.Format("2006-01-02"),
+			)
+		}
+	} else {
+		fmt.Printf("%-10s %-30s %s\n", "KEY", "NAME", "CREATED")
+		fmt.Println(strings.Repeat("-", 60))
+		for _, item := range items {
+			fmt.Printf("%-10s %-30s %s\n",
+				item.Key,
+				truncate(item.Name, 30),
+				item.CreatedAt.Format("2006-01-02"),
+			)
+		}
+	}
+
+	return nil
+}
+
+// project show
+var projectShowCmd = &cobra.Command{
+	Use:   "show <KEY>",
+	Short: "Show project details",
+	Long:  `Display detailed information about a project including ticket statistics.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  runProjectShow,
+}
+
+type projectShowResult struct {
+	*models.Project
+	Stats *models.ProjectStats `json:"stats"`
+}
+
+func runProjectShow(cmd *cobra.Command, args []string) error {
+	key := strings.ToUpper(args[0])
+
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	repo := db.NewProjectRepo(database.DB)
+	project, err := repo.GetByKey(key)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+	if project == nil {
+		return fmt.Errorf("project %s not found", key)
+	}
+
+	stats, err := repo.GetStats(project.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get project stats: %w", err)
+	}
+
+	result := projectShowResult{
+		Project: project,
+		Stats:   stats,
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Printf("Project: %s\n", project.Key)
+	fmt.Printf("Name: %s\n", project.Name)
+	if project.Description != "" {
+		fmt.Printf("Description: %s\n", project.Description)
+	}
+	fmt.Printf("Created: %s\n", project.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Println()
+	fmt.Println("Ticket Summary:")
+	fmt.Printf("  Created:        %d\n", stats.CreatedCount)
+	fmt.Printf("  Ready:          %d\n", stats.ReadyCount)
+	fmt.Printf("  In Progress:    %d\n", stats.InProgressCount)
+	fmt.Printf("  Blocked:        %d\n", stats.BlockedCount)
+	fmt.Printf("  Needs Human:    %d\n", stats.NeedsHumanCount)
+	fmt.Printf("  Review:         %d\n", stats.ReviewCount)
+	fmt.Printf("  Done:           %d\n", stats.DoneCount)
+	fmt.Printf("  Cancelled:      %d\n", stats.CancelledCount)
+	fmt.Println("  " + strings.Repeat("-", 17))
+	fmt.Printf("  Total:          %d\n", stats.TotalTickets)
+
+	return nil
+}
+
+// project delete
+var projectDeleteCmd = &cobra.Command{
+	Use:   "delete <KEY>",
+	Short: "Delete a project",
+	Long: `Delete a project and all its tickets, history, and messages.
+
+This operation is irreversible. Use --force to skip the confirmation prompt.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProjectDelete,
+}
+
+type projectDeleteResult struct {
+	Deleted bool   `json:"deleted"`
+	Key     string `json:"key"`
+}
+
+func runProjectDelete(cmd *cobra.Command, args []string) error {
+	key := strings.ToUpper(args[0])
+
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	repo := db.NewProjectRepo(database.DB)
+	project, err := repo.GetByKey(key)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+	if project == nil {
+		return fmt.Errorf("project %s not found", key)
+	}
+
+	// Confirm deletion unless force flag is set
+	if !projectForce && !IsJSON() {
+		stats, _ := repo.GetStats(project.ID)
+		fmt.Printf("You are about to delete project %s (%s)\n", project.Key, project.Name)
+		if stats != nil && stats.TotalTickets > 0 {
+			fmt.Printf("This will delete %d tickets and all associated data.\n", stats.TotalTickets)
+		}
+		fmt.Print("Type the project key to confirm: ")
+
+		reader := bufio.NewReader(os.Stdin)
+		confirm, _ := reader.ReadString('\n')
+		confirm = strings.TrimSpace(confirm)
+
+		if strings.ToUpper(confirm) != key {
+			return fmt.Errorf("deletion cancelled")
+		}
+	}
+
+	if err := repo.Delete(project.ID); err != nil {
+		return fmt.Errorf("failed to delete project: %w", err)
+	}
+
+	result := projectDeleteResult{
+		Deleted: true,
+		Key:     key,
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Deleted project: %s", key)
+	return nil
+}
+
+// truncate truncates a string to the specified length, adding "..." if truncated
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}

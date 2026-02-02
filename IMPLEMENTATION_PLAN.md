@@ -110,10 +110,10 @@
 
 ---
 
-## Phase 5: CLI Commands ✅ (5.1-5.4)
+## Phase 5: CLI Commands
 
 ### 5.1 Root Command (`internal/cli/`) ✅
-- [x] `root.go` - Base command skeleton
+- [x] `root.go` - Base command with global flags
 - [x] Global flags (`--db`, `--json`, `--quiet`, `--verbose`)
 - [x] Version command
 - [x] Help customization
@@ -145,19 +145,19 @@
 - [x] `wark ticket branch <TICKET> [--set]`
 - [x] `wark ticket log <TICKET> [--limit] [--action] [--actor] [--since] [--full]`
 
-### 5.5 Inbox Commands
-- [ ] `wark inbox list [--pending] [--all] [--project] [--type]`
-- [ ] `wark inbox show <MESSAGE_ID>`
-- [ ] `wark inbox send <TICKET> --type "<message>"`
-- [ ] `wark inbox respond <MESSAGE_ID> "<response>"`
+### 5.5 Inbox Commands ✅
+- [x] `wark inbox list [--pending] [--all] [--project] [--type]`
+- [x] `wark inbox show <MESSAGE_ID>`
+- [x] `wark inbox send <TICKET> --type "<message>"`
+- [x] `wark inbox respond <MESSAGE_ID> "<response>"`
 
-### 5.6 Claim Commands
-- [ ] `wark claim list [--all] [--expired]`
-- [ ] `wark claim show <TICKET>`
-- [ ] `wark claim expire [--all] [--ticket]`
+### 5.6 Claim Commands ✅
+- [x] `wark claim list [--all] [--expired]`
+- [x] `wark claim show <TICKET>`
+- [x] `wark claim expire [--all] [--ticket]`
 
-### 5.7 Status Command
-- [ ] `wark status [--project]` - Quick overview dashboard
+### 5.7 Status Command ✅
+- [x] `wark status [--project]` - Quick overview dashboard
 
 ### 5.8 JSON Output ✅
 - [x] Implement `--json` flag for all commands
@@ -269,4 +269,4 @@
 
 ---
 
-*Last updated: 2026-02-02*
+*Last updated: 2026-02-02 (Phase 5.5-5.7 complete)*

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, Filter, ListTodo, RefreshCw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Filter, ListTodo, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
@@ -175,10 +175,10 @@ export default function Tickets() {
 	}, [fetchData]);
 
 	// Auto-refresh every 10 seconds when tab is visible
-	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchData, [fetchData]);
+	const { refresh } = useAutoRefresh(fetchData, [fetchData]);
 
 	// Register "r" keyboard shortcut for refresh
-	useRefreshShortcut(handleRefresh);
+	useRefreshShortcut(refresh);
 
 	// Stable compare function for sorting
 	const compareTickets = useCallback(
@@ -335,19 +335,8 @@ export default function Tickets() {
 
 	return (
 		<div className="space-y-4">
-			{/* Header with refresh */}
-			<div className="flex items-center justify-between">
-				<h2 className="text-2xl font-bold">Tickets</h2>
-				<button
-					type="button"
-					onClick={handleRefresh}
-					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
-				>
-					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-					Refresh
-				</button>
-			</div>
+			{/* Header */}
+			<h2 className="text-2xl font-bold">Tickets</h2>
 
 			{/* Filter Controls */}
 			<div className="flex items-center gap-4 flex-wrap p-3 bg-[var(--card)] border border-[var(--border)] rounded-lg">

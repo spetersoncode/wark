@@ -5,7 +5,6 @@ import {
 	HelpCircle,
 	Info,
 	Loader2,
-	RefreshCw,
 	Scale,
 	Send,
 } from "lucide-react";
@@ -106,10 +105,10 @@ export default function Inbox() {
 	}, [fetchMessages]);
 
 	// Auto-refresh every 10 seconds when tab is visible
-	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchMessages, [fetchMessages]);
+	const { refresh } = useAutoRefresh(fetchMessages, [fetchMessages]);
 
 	// Register "r" keyboard shortcut for refresh
-	useRefreshShortcut(handleRefresh);
+	useRefreshShortcut(refresh);
 
 	if (loading) {
 		return <InboxSkeleton />;
@@ -141,24 +140,13 @@ export default function Inbox() {
 	return (
 		<div className="space-y-4">
 			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-4">
-					<h2 className="text-2xl font-bold">Inbox</h2>
-					{pendingCount > 0 && (
-						<span className="text-sm px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-							{pendingCount} pending
-						</span>
-					)}
-				</div>
-				<button
-					type="button"
-					onClick={handleRefresh}
-					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
-				>
-					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-					Refresh
-				</button>
+			<div className="flex items-center gap-4">
+				<h2 className="text-2xl font-bold">Inbox</h2>
+				{pendingCount > 0 && (
+					<span className="text-sm px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+						{pendingCount} pending
+					</span>
+				)}
 			</div>
 
 			{/* Messages list */}

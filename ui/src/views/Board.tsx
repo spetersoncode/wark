@@ -1,4 +1,4 @@
-import { CircleCheck, CircleDot, Eye, Filter, RefreshCw, UserRound, X } from "lucide-react";
+import { CircleCheck, CircleDot, Eye, Filter, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { KanbanCard, KanbanColumn } from "@/components/board";
@@ -13,7 +13,6 @@ import {
 	type TicketStatus,
 } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/hooks";
-import { cn } from "@/lib/utils";
 
 /**
  * Column configuration - no longer includes "blocked" as a separate column.
@@ -140,7 +139,7 @@ export default function Board() {
 	}, [fetchData]);
 
 	// Auto-refresh every 10 seconds when tab is visible
-	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchData, [fetchData]);
+	useAutoRefresh(fetchData, [fetchData]);
 
 	// Apply client-side complexity filter (API doesn't support it)
 	const filteredTickets = filterComplexity
@@ -179,7 +178,7 @@ export default function Board() {
 				</div>
 				<button
 					type="button"
-					onClick={handleRefresh}
+					onClick={() => fetchData()}
 					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
 				>
 					Retry
@@ -191,27 +190,16 @@ export default function Board() {
 	return (
 		<div className="space-y-4">
 			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-4">
-					<h2 className="text-2xl font-bold">Board</h2>
-					{filterStatus && (
-						<Link
-							to="/board"
-							className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
-						>
-							Clear status filter
-						</Link>
-					)}
-				</div>
-				<button
-					type="button"
-					onClick={handleRefresh}
-					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
-				>
-					<RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
-					Refresh
-				</button>
+			<div className="flex items-center gap-4">
+				<h2 className="text-2xl font-bold">Board</h2>
+				{filterStatus && (
+					<Link
+						to="/board"
+						className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+					>
+						Clear status filter
+					</Link>
+				)}
 			</div>
 
 			{/* Filter Controls */}

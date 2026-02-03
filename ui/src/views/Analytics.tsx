@@ -1,5 +1,6 @@
 import { BarChart3, Clock, RefreshCw, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
 	ApiError,
 	getAnalytics,
@@ -329,30 +330,48 @@ function MetricCard({
 function SimpleTrendChart({ data }: { data: Array<{ date: string; count: number }> }) {
 	if (data.length === 0) return null;
 
-	const maxCount = Math.max(...data.map((d) => d.count), 1);
+	const total = data.reduce((sum, d) => sum + d.count, 0);
+
+	// Format date for display (e.g., "Jan 15" from "2026-01-15")
+	const chartData = data.map((d) => ({
+		...d,
+		displayDate: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+	}));
 
 	return (
 		<div className="space-y-2">
-			<div className="flex items-end gap-1 h-32">
-				{data.map((point) => (
-					<div
-						key={point.date}
-						className="flex-1 flex flex-col items-center justify-end group"
-						title={`${point.date}: ${point.count}`}
-					>
-						<div
-							className="w-full bg-[var(--primary)] rounded-t min-h-[2px] transition-all group-hover:bg-[var(--primary)]/80"
-							style={{ height: `${(point.count / maxCount) * 100}%` }}
-						/>
-					</div>
-				))}
-			</div>
-			<div className="flex justify-between text-xs text-[var(--muted-foreground)]">
-				<span>{data[0]?.date}</span>
-				<span>{data[data.length - 1]?.date}</span>
-			</div>
+			<ResponsiveContainer width="100%" height={160}>
+				<BarChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+					<XAxis
+						dataKey="displayDate"
+						tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+						tickLine={false}
+						axisLine={{ stroke: "var(--border)" }}
+						interval="preserveStartEnd"
+					/>
+					<YAxis
+						tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+						tickLine={false}
+						axisLine={false}
+						allowDecimals={false}
+					/>
+					<Tooltip
+						content={({ active, payload }) => {
+							if (!active || !payload?.length) return null;
+							const item = payload[0].payload as { date: string; count: number };
+							return (
+								<div className="bg-[var(--card)] border border-[var(--border)] rounded px-2 py-1 text-sm shadow-lg">
+									<p className="font-medium">{item.date}</p>
+									<p className="text-[var(--muted-foreground)]">{item.count} completed</p>
+								</div>
+							);
+						}}
+					/>
+					<Bar dataKey="count" fill="var(--primary)" radius={[2, 2, 0, 0]} />
+				</BarChart>
+			</ResponsiveContainer>
 			<p className="text-sm text-center text-[var(--muted-foreground)]">
-				Total: {data.reduce((sum, d) => sum + d.count, 0)} completed
+				Total: {total} completed
 			</p>
 		</div>
 	);

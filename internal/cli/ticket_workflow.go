@@ -302,15 +302,20 @@ func runTicketRelease(cmd *cobra.Command, args []string) error {
 	activityRepo.LogActionWithDetails(ticket.ID, models.ActionReleased, models.ActorTypeAgent, claim.WorkerID,
 		summary,
 		map[string]interface{}{
-			"reason":      releaseReason,
-			"retry_count": ticket.RetryCount,
+			"reason":         releaseReason,
+			"retry_count":    ticket.RetryCount,
+			"previous_status": string(models.StatusInProgress),
+			"new_status":     string(ticket.Status),
 		})
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":      ticket.TicketKey,
-			"released":    true,
-			"retry_count": ticket.RetryCount,
+			"ticket":          ticket.TicketKey,
+			"released":        true,
+			"status":          ticket.Status,
+			"previous_status": models.StatusInProgress,
+			"status_changed":  true,
+			"retry_count":     ticket.RetryCount,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil

@@ -215,7 +215,7 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 	OutputLine("Claimed: %s", nextTicket.TicketKey)
 	OutputLine("Title: %s", nextTicket.Title)
 	OutputLine("Worker: %s", workerID)
-	OutputLine("Expires: %s (%d minutes)", claim.ExpiresAt.Format("2006-01-02 15:04:05"), durationMins)
+	OutputLine("Expires: %s (%d minutes)", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), durationMins)
 	OutputLine("Branch: %s", branchName)
 	OutputLine("")
 	OutputLine("Run: git checkout -b %s", branchName)
@@ -393,7 +393,7 @@ func runTicketLog(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("%-20s %-18s %-20s %s\n",
-			log.CreatedAt.Format("2006-01-02 15:04:05"),
+			log.CreatedAt.Local().Format("2006-01-02 15:04:05"),
 			log.Action,
 			actor,
 			summary,

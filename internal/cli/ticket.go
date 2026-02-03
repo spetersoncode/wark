@@ -559,10 +559,10 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Retries:     %d/%d\n", ticket.RetryCount, ticket.MaxRetries)
 	fmt.Println()
-	fmt.Printf("Created:     %s\n", ticket.CreatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("Updated:     %s\n", ticket.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Created:     %s\n", ticket.CreatedAt.Local().Format("2006-01-02 15:04:05"))
+	fmt.Printf("Updated:     %s\n", ticket.UpdatedAt.Local().Format("2006-01-02 15:04:05"))
 	if ticket.CompletedAt != nil {
-		fmt.Printf("Completed:   %s\n", ticket.CompletedAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("Completed:   %s\n", ticket.CompletedAt.Local().Format("2006-01-02 15:04:05"))
 	}
 
 	if claim != nil {
@@ -571,8 +571,8 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		fmt.Println("Current Claim:")
 		fmt.Println(strings.Repeat("-", 65))
 		fmt.Printf("Worker ID:   %s\n", claim.WorkerID)
-		fmt.Printf("Claimed At:  %s\n", claim.ClaimedAt.Format("2006-01-02 15:04:05"))
-		fmt.Printf("Expires At:  %s\n", claim.ExpiresAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("Claimed At:  %s\n", claim.ClaimedAt.Local().Format("2006-01-02 15:04:05"))
+		fmt.Printf("Expires At:  %s\n", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"))
 		remaining := claim.TimeRemaining()
 		if remaining > 0 {
 			fmt.Printf("Remaining:   %s\n", remaining.Round(time.Second))
@@ -654,7 +654,7 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 				summary = string(h.Action)
 			}
 			fmt.Printf("  %s  %-18s %-20s %s\n",
-				h.CreatedAt.Format("2006-01-02 15:04"),
+				h.CreatedAt.Local().Format("2006-01-02 15:04"),
 				h.Action,
 				actor,
 				summary,

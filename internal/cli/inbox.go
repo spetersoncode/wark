@@ -272,6 +272,7 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 	}
 
 	// Release any active claim
+	activityRepo := db.NewActivityRepo(database.DB)
 	claimReleased := false
 	if claim != nil {
 		if err := claimRepo.Release(claim.ID, models.ClaimStatusReleased); err != nil {
@@ -279,11 +280,17 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 			VerboseOutput("Warning: failed to release claim: %v\n", err)
 		} else {
 			claimReleased = true
+			// Log the claim release as a separate activity for visibility
+			activityRepo.LogActionWithDetails(ticket.ID, models.ActionReleased, models.ActorTypeAgent, claim.WorkerID,
+				"Claim released (escalation)",
+				map[string]interface{}{
+					"worker_id": claim.WorkerID,
+					"reason":    "escalation",
+				})
 		}
 	}
 
 	// Log activity to ticket history (includes status transition info)
-	activityRepo := db.NewActivityRepo(database.DB)
 	summary := fmt.Sprintf("Sent %s message", msgType)
 	if statusChanged {
 		summary = fmt.Sprintf("Escalated: %s → %s", previousStatus, ticket.Status)

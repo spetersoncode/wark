@@ -324,3 +324,111 @@ func TestClaimExpirer_RunDaemon_WithCallback(t *testing.T) {
 	assert.Equal(t, context.Canceled, err)
 	assert.True(t, callbackCalled)
 }
+
+// TestClaimExpirer_ActivityLogging verifies that claim expiration logs activity entries
+func TestClaimExpirer_ActivityLogging(t *testing.T) {
+	database, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "EXPLOG", Name: "Expiration Logging Test"}
+	require.NoError(t, projectRepo.Create(project))
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	claimRepo := db.NewClaimRepo(database.DB)
+	activityRepo := db.NewActivityRepo(database.DB)
+
+	// Create ticket with expired claim
+	ticket := &models.Ticket{
+		ProjectID:  project.ID,
+		Title:      "Test Expiration Logging",
+		Status:     models.StatusInProgress,
+		MaxRetries: 3,
+	}
+	require.NoError(t, ticketRepo.Create(ticket))
+
+	claim := &models.Claim{
+		TicketID:  ticket.ID,
+		WorkerID:  "expire-test-worker",
+		ClaimedAt: time.Now().Add(-2 * time.Hour),
+		ExpiresAt: time.Now().Add(-1 * time.Hour), // Expired
+		Status:    models.ClaimStatusActive,
+	}
+	require.NoError(t, claimRepo.Create(claim))
+
+	// Run expiration
+	expirer := NewClaimExpirer(database.DB)
+	result, err := expirer.ExpireAll(false)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Expired)
+
+	// Verify activity was logged
+	logs, err := activityRepo.ListByTicket(ticket.ID, 10)
+	require.NoError(t, err)
+
+	expireFound := false
+	for _, log := range logs {
+		if log.Action == models.ActionExpired {
+			expireFound = true
+			assert.Equal(t, models.ActorTypeSystem, log.ActorType)
+			assert.Contains(t, log.Summary, "expired")
+		}
+	}
+	assert.True(t, expireFound, "expiration activity should be logged")
+}
+
+// TestClaimExpirer_ActivityLogging_Escalation verifies that escalation logs activity entries
+func TestClaimExpirer_ActivityLogging_Escalation(t *testing.T) {
+	database, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "ESCLOG", Name: "Escalation Logging Test"}
+	require.NoError(t, projectRepo.Create(project))
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	claimRepo := db.NewClaimRepo(database.DB)
+	activityRepo := db.NewActivityRepo(database.DB)
+
+	// Create ticket at max retries - will escalate on expiration
+	ticket := &models.Ticket{
+		ProjectID:  project.ID,
+		Title:      "Test Escalation Logging",
+		Status:     models.StatusInProgress,
+		RetryCount: 2, // At 2, max is 3, so next expiration escalates
+		MaxRetries: 3,
+	}
+	require.NoError(t, ticketRepo.Create(ticket))
+
+	claim := &models.Claim{
+		TicketID:  ticket.ID,
+		WorkerID:  "escalate-test-worker",
+		ClaimedAt: time.Now().Add(-2 * time.Hour),
+		ExpiresAt: time.Now().Add(-1 * time.Hour), // Expired
+		Status:    models.ClaimStatusActive,
+	}
+	require.NoError(t, claimRepo.Create(claim))
+
+	// Run expiration
+	expirer := NewClaimExpirer(database.DB)
+	result, err := expirer.ExpireAll(false)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Escalated)
+
+	// Verify activity was logged with escalation info
+	logs, err := activityRepo.ListByTicket(ticket.ID, 10)
+	require.NoError(t, err)
+
+	expireFound := false
+	for _, log := range logs {
+		if log.Action == models.ActionExpired {
+			expireFound = true
+			assert.Equal(t, models.ActorTypeSystem, log.ActorType)
+			assert.Contains(t, log.Summary, "escalated")
+			assert.Contains(t, log.Summary, "human")
+		}
+	}
+	assert.True(t, expireFound, "expiration with escalation activity should be logged")
+}

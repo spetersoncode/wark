@@ -292,3 +292,62 @@ func TestClaimTimeRemaining(t *testing.T) {
 	remaining = claim.TimeRemaining()
 	assert.Equal(t, time.Duration(0), remaining)
 }
+
+// TestClaimReleaseActivityLog verifies that releasing a claim logs an activity entry
+func TestClaimReleaseActivityLog(t *testing.T) {
+	database, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project and ticket
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "ACTLOG", Name: "Activity Log Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Test Activity Logging",
+		Status:    models.StatusReady,
+	}
+	err = ticketRepo.Create(ticket)
+	require.NoError(t, err)
+
+	// Claim the ticket via CLI (which logs activity)
+	_, err = runCmd(t, dbPath, "ticket", "claim", "ACTLOG-1", "--worker-id", "test-worker")
+	require.NoError(t, err)
+
+	// Verify claim activity was logged
+	activityRepo := db.NewActivityRepo(database.DB)
+	logs, err := activityRepo.ListByTicket(ticket.ID, 10)
+	require.NoError(t, err)
+
+	claimFound := false
+	for _, log := range logs {
+		if log.Action == models.ActionClaimed {
+			claimFound = true
+			assert.Equal(t, "test-worker", log.ActorID)
+			assert.Equal(t, models.ActorTypeAgent, log.ActorType)
+		}
+	}
+	assert.True(t, claimFound, "claim activity should be logged")
+
+	// Release the ticket via CLI
+	_, err = runCmd(t, dbPath, "ticket", "release", "ACTLOG-1", "--reason", "Testing release logging")
+	require.NoError(t, err)
+
+	// Verify release activity was logged
+	logs, err = activityRepo.ListByTicket(ticket.ID, 10)
+	require.NoError(t, err)
+
+	releaseFound := false
+	for _, log := range logs {
+		if log.Action == models.ActionReleased {
+			releaseFound = true
+			assert.Equal(t, "test-worker", log.ActorID)
+			assert.Equal(t, models.ActorTypeAgent, log.ActorType)
+			assert.Contains(t, log.Summary, "Testing release logging")
+		}
+	}
+	assert.True(t, releaseFound, "release activity should be logged")
+}

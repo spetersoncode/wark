@@ -180,6 +180,26 @@ func (r *TasksRepo) GetByID(ctx context.Context, taskID int64) (*models.TicketTa
 	return r.scanOne(r.db.QueryRowContext(ctx, query, taskID))
 }
 
+// GetByPosition retrieves a task by ticket ID and position.
+func (r *TasksRepo) GetByPosition(ctx context.Context, ticketID int64, position int) (*models.TicketTask, error) {
+	query := `
+		SELECT id, ticket_id, position, description, complete, created_at, updated_at
+		FROM ticket_tasks
+		WHERE ticket_id = ? AND position = ?
+	`
+	return r.scanOne(r.db.QueryRowContext(ctx, query, ticketID, position))
+}
+
+// CountIncomplete returns the count of incomplete tasks for a ticket.
+func (r *TasksRepo) CountIncomplete(ctx context.Context, ticketID int64) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ticket_tasks WHERE ticket_id = ? AND complete = FALSE", ticketID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count incomplete tasks: %w", err)
+	}
+	return count, nil
+}
+
 func (r *TasksRepo) scanOne(row *sql.Row) (*models.TicketTask, error) {
 	var t models.TicketTask
 	err := row.Scan(&t.ID, &t.TicketID, &t.Position, &t.Description, &t.Complete, &t.CreatedAt, &t.UpdatedAt)

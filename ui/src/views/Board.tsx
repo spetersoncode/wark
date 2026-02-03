@@ -1,16 +1,16 @@
 import {
-	AlertTriangle,
-	CheckCircle,
+	CircleCheck,
 	CircleDot,
-	Clock,
 	Eye,
 	Filter,
 	RefreshCw,
+	UserRound,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { BoardSkeleton } from "../components/skeletons";
+import { KanbanCard, KanbanColumn, ClosedColumn } from "@/components/board";
+import { BoardSkeleton } from "@/components/skeletons";
 import {
 	listProjects,
 	listTickets,
@@ -19,40 +19,43 @@ import {
 	type TicketComplexity,
 	type TicketPriority,
 	type TicketStatus,
-} from "../lib/api";
-import { useAutoRefresh } from "../lib/hooks";
-import { cn, getPriorityColor } from "../lib/utils";
+} from "@/lib/api";
+import { useAutoRefresh } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 
-const STATUSES: { key: TicketStatus; label: string; icon: React.ReactNode; color: string }[] = [
+/**
+ * Column configuration - no longer includes "blocked" as a separate column.
+ * Blocked tickets appear in Ready with a blocked badge.
+ */
+const COLUMNS: {
+	key: TicketStatus;
+	label: string;
+	icon: React.ReactNode;
+	borderColor: string;
+}[] = [
 	{
 		key: "ready",
 		label: "Ready",
-		icon: <CheckCircle className="w-4 h-4" />,
-		color: "border-green-500",
+		icon: <CircleCheck className="size-4" />,
+		borderColor: "border-l-[var(--status-ready)]",
 	},
 	{
 		key: "in_progress",
-		label: "In Progress",
-		icon: <Clock className="w-4 h-4" />,
-		color: "border-blue-500",
+		label: "Active",
+		icon: <CircleDot className="size-4" />,
+		borderColor: "border-l-[var(--status-in-progress)]",
 	},
 	{
 		key: "human",
 		label: "Human",
-		icon: <AlertTriangle className="w-4 h-4" />,
-		color: "border-purple-500",
+		icon: <UserRound className="size-4" />,
+		borderColor: "border-l-[var(--status-human)]",
 	},
 	{
 		key: "review",
 		label: "Review",
-		icon: <Eye className="w-4 h-4" />,
-		color: "border-yellow-500",
-	},
-	{
-		key: "closed",
-		label: "Closed",
-		icon: <CircleDot className="w-4 h-4" />,
-		color: "border-gray-500",
+		icon: <Eye className="size-4" />,
+		borderColor: "border-l-[var(--status-review)]",
 	},
 ];
 
@@ -152,15 +155,28 @@ export default function Board() {
 		? tickets.filter((t) => t.complexity === filterComplexity)
 		: tickets;
 
-	const ticketsByStatus = STATUSES.reduce(
+	// Group tickets by status, with blocked tickets going to ready column
+	const ticketsByStatus = COLUMNS.reduce(
 		(acc, { key }) => {
-			acc[key] = filteredTickets.filter((t) => t.status === key);
+			if (key === "ready") {
+				// Ready column includes both ready and blocked tickets
+				acc[key] = filteredTickets.filter(
+					(t) => t.status === "ready" || t.status === "blocked"
+				);
+			} else {
+				acc[key] = filteredTickets.filter((t) => t.status === key);
+			}
 			return acc;
 		},
 		{} as Record<TicketStatus, Ticket[]>,
 	);
 
-	const visibleStatuses = filterStatus ? STATUSES.filter((s) => s.key === filterStatus) : STATUSES;
+	// Closed tickets are shown in a separate compact column
+	const closedTickets = filteredTickets.filter((t) => t.status === "closed");
+
+	const visibleColumns = filterStatus
+		? COLUMNS.filter((c) => c.key === filterStatus)
+		: COLUMNS;
 
 	if (loading) {
 		return <BoardSkeleton />;
@@ -168,8 +184,19 @@ export default function Board() {
 
 	if (error) {
 		return (
-			<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-				{error}
+			<div className="flex items-center gap-3 p-4 border border-[var(--error)]/20 bg-[var(--error)]/5 rounded-md text-[var(--error)]">
+				<span className="text-lg">⚠</span>
+				<div className="flex-1">
+					<p className="font-medium">Failed to load board</p>
+					<p className="text-sm opacity-80">{error}</p>
+				</div>
+				<button
+					type="button"
+					onClick={handleRefresh}
+					className="px-3 py-1.5 text-sm rounded-md hover:bg-[var(--error)]/10 transition-colors"
+				>
+					Retry
+				</button>
 			</div>
 		);
 	}
@@ -183,7 +210,7 @@ export default function Board() {
 					{filterStatus && (
 						<Link
 							to="/board"
-							className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+							className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
 						>
 							Clear status filter
 						</Link>
@@ -193,17 +220,17 @@ export default function Board() {
 					type="button"
 					onClick={handleRefresh}
 					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50"
 				>
-					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+					<RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
 					Refresh
 				</button>
 			</div>
 
 			{/* Filter Controls */}
 			<div className="flex items-center gap-4 flex-wrap p-3 bg-[var(--card)] border border-[var(--border)] rounded-lg">
-				<div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
-					<Filter className="w-4 h-4" />
+				<div className="flex items-center gap-2 text-sm text-[var(--foreground-muted)]">
+					<Filter className="size-4" />
 					<span>Filters:</span>
 				</div>
 
@@ -211,7 +238,7 @@ export default function Board() {
 				<select
 					value={filterProject || ""}
 					onChange={(e) => setFilter("project", e.target.value || null)}
-					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
 				>
 					<option value="">All Projects</option>
 					{projects.map((p) => (
@@ -225,7 +252,7 @@ export default function Board() {
 				<select
 					value={filterPriority || ""}
 					onChange={(e) => setFilter("priority", e.target.value || null)}
-					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
 				>
 					<option value="">All Priorities</option>
 					{PRIORITIES.map((p) => (
@@ -239,7 +266,7 @@ export default function Board() {
 				<select
 					value={filterComplexity || ""}
 					onChange={(e) => setFilter("complexity", e.target.value || null)}
-					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
 				>
 					<option value="">All Complexities</option>
 					{COMPLEXITIES.map((c) => (
@@ -254,16 +281,16 @@ export default function Board() {
 					<button
 						type="button"
 						onClick={clearFilters}
-						className="flex items-center gap-1 px-2 py-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded-md transition-colors"
+						className="flex items-center gap-1 px-2 py-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--accent-muted)] rounded-md transition-colors"
 					>
-						<X className="w-3 h-3" />
+						<X className="size-3" />
 						Clear filters
 					</button>
 				)}
 
 				{/* Active filter count */}
 				{hasActiveFilters && (
-					<span className="text-xs text-[var(--muted-foreground)]">
+					<span className="text-xs text-[var(--foreground-muted)]">
 						{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} shown
 					</span>
 				)}
@@ -271,88 +298,28 @@ export default function Board() {
 
 			{/* Kanban columns */}
 			<div className="flex gap-4 overflow-x-auto pb-4">
-				{visibleStatuses.map(({ key, label, icon, color }) => (
-					<div
+				{visibleColumns.map(({ key, label, icon, borderColor }) => (
+					<KanbanColumn
 						key={key}
-						className={cn(
-							"flex-shrink-0 w-72 bg-[var(--card)] border border-[var(--border)] rounded-lg",
-							"border-t-4",
-							color,
-						)}
+						title={label}
+						count={ticketsByStatus[key]?.length || 0}
+						icon={icon}
+						borderColor={borderColor}
+						isEmpty={!ticketsByStatus[key]?.length}
 					>
-						{/* Column header */}
-						<div className="p-3 border-b border-[var(--border)] flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								{icon}
-								<span className="font-medium">{label}</span>
-							</div>
-							<span className="text-sm text-[var(--muted-foreground)]">
-								{ticketsByStatus[key]?.length || 0}
-							</span>
-						</div>
-
-						{/* Column content */}
-						<div className="p-2 space-y-2 max-h-[calc(100vh-16rem)] overflow-y-auto">
-							{ticketsByStatus[key]?.length === 0 ? (
-								<p className="text-sm text-[var(--muted-foreground)] text-center py-4">
-									No tickets
-								</p>
-							) : (
-								<>
-									{(key === "closed"
-										? ticketsByStatus[key]?.slice(0, 10)
-										: ticketsByStatus[key]
-									)?.map((ticket) => (
-										<TicketCard key={ticket.id} ticket={ticket} />
-									))}
-									{key === "closed" && ticketsByStatus[key]?.length > 10 && (
-										<Link
-											to="/tickets?status=closed"
-											className="block text-center py-2 text-sm text-[var(--primary)] hover:underline"
-										>
-											View all {ticketsByStatus[key].length} closed →
-										</Link>
-									)}
-								</>
-							)}
-						</div>
-					</div>
+						{ticketsByStatus[key]?.map((ticket) => (
+							<KanbanCard
+								key={ticket.id}
+								ticket={ticket}
+								showBlockedBadge={ticket.status === "blocked"}
+							/>
+						))}
+					</KanbanColumn>
 				))}
+
+				{/* Closed column - compact list view */}
+				{!filterStatus && <ClosedColumn tickets={closedTickets} />}
 			</div>
 		</div>
-	);
-}
-
-function TicketCard({ ticket }: { ticket: Ticket }) {
-	return (
-		<Link
-			to={`/tickets/${ticket.ticket_key}`}
-			className="block p-3 bg-[var(--background)] border border-[var(--border)] rounded-md hover:border-[var(--primary)] transition-colors"
-		>
-			<div className="flex items-start justify-between gap-2 mb-2">
-				<span className="font-mono text-xs text-[var(--muted-foreground)]">
-					{ticket.ticket_key}
-				</span>
-				<span
-					className={cn(
-						"text-xs px-1.5 py-0.5 rounded font-medium",
-						getPriorityColor(ticket.priority),
-					)}
-				>
-					{ticket.priority}
-				</span>
-			</div>
-			<p className="text-sm font-medium line-clamp-2">{ticket.title}</p>
-			{ticket.human_flag_reason && (
-				<p className="text-xs text-purple-600 dark:text-purple-400 mt-1 truncate">
-					⚠ {ticket.human_flag_reason}
-				</p>
-			)}
-			{ticket.branch_name && (
-				<p className="text-xs text-[var(--muted-foreground)] mt-1 truncate font-mono">
-					{ticket.branch_name}
-				</p>
-			)}
-		</Link>
 	);
 }

@@ -237,21 +237,21 @@ export function KanbanCardSkeleton() {
 }
 
 /**
- * Skeleton for a single kanban column
+ * Skeleton for a single kanban column - uses subtle left border
  */
 export function KanbanColumnSkeleton({
 	cardCount = 3,
-	color = "border-gray-500",
+	borderColor = "border-l-gray-500",
 }: {
 	cardCount?: number;
-	color?: string;
+	borderColor?: string;
 }) {
 	return (
 		<div
 			className={cn(
 				"flex-shrink-0 w-72 bg-[var(--card)] border border-[var(--border)] rounded-lg",
-				"border-t-4",
-				color,
+				"border-l-2",
+				borderColor,
 			)}
 		>
 			{/* Column header */}
@@ -274,15 +274,48 @@ export function KanbanColumnSkeleton({
 }
 
 /**
+ * Skeleton for the compact closed column
+ */
+export function ClosedColumnSkeleton({ itemCount = 5 }: { itemCount?: number }) {
+	return (
+		<div
+			className={cn(
+				"flex-shrink-0 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg",
+				"border-l-2 border-l-[var(--status-closed)]",
+			)}
+		>
+			{/* Column header */}
+			<div className="p-3 border-b border-[var(--border)] flex items-center justify-between">
+				<div className="flex items-center gap-2">
+					<Skeleton className="h-4 w-4" />
+					<Skeleton className="h-4 w-16" />
+				</div>
+				<Skeleton className="h-4 w-4" />
+			</div>
+
+			{/* Compact list */}
+			<div className="p-2 space-y-1">
+				{Array.from({ length: itemCount }, (_, i) => `skeleton-closed-${i}`).map((key) => (
+					<div key={key} className="flex items-center gap-2 px-2 py-1.5">
+						<Skeleton className="h-2.5 w-2.5 rounded-full" />
+						<Skeleton className="h-3 w-16 font-mono" />
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+/**
  * Full board skeleton with multiple columns
+ * Matches the redesigned board: 4 main columns + compact closed column
  */
 export function BoardSkeleton() {
 	const columns = [
-		{ color: "border-green-500", cards: 3 },
-		{ color: "border-blue-500", cards: 4 },
-		{ color: "border-purple-500", cards: 2 },
-		{ color: "border-yellow-500", cards: 2 },
-		{ color: "border-gray-500", cards: 3 },
+		{ borderColor: "border-l-[var(--status-ready)]", cards: 3 },
+		{ borderColor: "border-l-[var(--status-in-progress)]", cards: 2 },
+		{ borderColor: "border-l-[var(--status-human)]", cards: 1 },
+		{ borderColor: "border-l-[var(--status-review)]", cards: 2 },
 	];
 
 	return (
@@ -304,8 +337,10 @@ export function BoardSkeleton() {
 			{/* Kanban columns */}
 			<div className="flex gap-4 overflow-x-auto pb-4">
 				{columns.map((col) => (
-					<KanbanColumnSkeleton key={col.color} color={col.color} cardCount={col.cards} />
+					<KanbanColumnSkeleton key={col.borderColor} borderColor={col.borderColor} cardCount={col.cards} />
 				))}
+				{/* Compact closed column */}
+				<ClosedColumnSkeleton itemCount={6} />
 			</div>
 		</div>
 	);

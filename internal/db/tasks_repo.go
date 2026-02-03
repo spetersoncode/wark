@@ -119,6 +119,30 @@ func (r *TasksRepo) CompleteTask(ctx context.Context, taskID int64) error {
 	return nil
 }
 
+// UncompleteTask marks a task as incomplete.
+func (r *TasksRepo) UncompleteTask(ctx context.Context, taskID int64) error {
+	if taskID <= 0 {
+		return fmt.Errorf("task_id is required")
+	}
+
+	now := time.Now()
+	query := `UPDATE ticket_tasks SET complete = FALSE, updated_at = ? WHERE id = ?`
+	result, err := r.db.ExecContext(ctx, query, now, taskID)
+	if err != nil {
+		return fmt.Errorf("failed to uncomplete task: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("task not found")
+	}
+
+	return nil
+}
+
 // RemoveTask removes a task and reorders remaining tasks.
 func (r *TasksRepo) RemoveTask(ctx context.Context, taskID int64) error {
 	if taskID <= 0 {

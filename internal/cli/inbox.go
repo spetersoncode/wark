@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/spf13/cobra"
@@ -99,7 +99,7 @@ func runInboxList(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%-5s %-12s %-11s %-9s %s\n", "ID", "TICKET", "TYPE", "AGE", "MESSAGE")
 	fmt.Println(strings.Repeat("-", 80))
 	for _, m := range messages {
-		age := formatAge(m.CreatedAt)
+		age := common.FormatAge(m.CreatedAt)
 		status := ""
 		if m.RespondedAt != nil {
 			status = " ✓"
@@ -446,25 +446,6 @@ func runInboxRespond(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-// formatAge returns a human-readable age string (e.g., "2h ago", "3d ago")
-func formatAge(t time.Time) string {
-	duration := time.Since(t)
-
-	if duration < time.Minute {
-		return "just now"
-	}
-	if duration < time.Hour {
-		mins := int(duration.Minutes())
-		return fmt.Sprintf("%dm ago", mins)
-	}
-	if duration < 24*time.Hour {
-		hours := int(duration.Hours())
-		return fmt.Sprintf("%dh ago", hours)
-	}
-	days := int(duration.Hours() / 24)
-	return fmt.Sprintf("%dd ago", days)
 }
 
 // parseID parses a string as an int64 ID

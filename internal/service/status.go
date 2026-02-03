@@ -2,10 +2,10 @@
 package service
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
+	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 )
@@ -159,7 +159,7 @@ func (s *StatusService) GetSummary(projectKey string) (*StatusSummary, error) {
 			summary.RecentActivity = append(summary.RecentActivity, ActivityItem{
 				TicketKey: a.TicketKey,
 				Action:    string(a.Action),
-				Age:       FormatAge(a.CreatedAt),
+				Age:       common.FormatAge(a.CreatedAt),
 				Summary:   activitySummary,
 			})
 		}
@@ -168,21 +168,3 @@ func (s *StatusService) GetSummary(projectKey string) (*StatusSummary, error) {
 	return summary, nil
 }
 
-// FormatAge returns a human-readable age string for a timestamp.
-func FormatAge(t time.Time) string {
-	duration := time.Since(t)
-
-	if duration < time.Minute {
-		return "just now"
-	}
-	if duration < time.Hour {
-		mins := int(duration.Minutes())
-		return fmt.Sprintf("%dm ago", mins)
-	}
-	if duration < 24*time.Hour {
-		hours := int(duration.Hours())
-		return fmt.Sprintf("%dh ago", hours)
-	}
-	days := int(duration.Hours() / 24)
-	return fmt.Sprintf("%dd ago", days)
-}

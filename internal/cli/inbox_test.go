@@ -2,7 +2,6 @@ package cli
 
 import (
 	"testing"
-	"time"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
@@ -156,27 +155,6 @@ func TestInboxCountPending(t *testing.T) {
 	count, err = inboxRepo.CountPending()
 	require.NoError(t, err)
 	assert.Equal(t, 4, count)
-}
-
-func TestFormatAge(t *testing.T) {
-	tests := []struct {
-		name     string
-		duration time.Duration
-		want     string
-	}{
-		{"just now", 30 * time.Second, "just now"},
-		{"minutes", 5 * time.Minute, "5m ago"},
-		{"hours", 3 * time.Hour, "3h ago"},
-		{"days", 48 * time.Hour, "2d ago"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			timestamp := time.Now().Add(-tt.duration)
-			got := formatAge(timestamp)
-			assert.Equal(t, tt.want, got)
-		})
-	}
 }
 
 func TestParseID(t *testing.T) {

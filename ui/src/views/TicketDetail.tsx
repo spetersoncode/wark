@@ -1,34 +1,17 @@
 import {
 	AlertTriangle,
 	ArrowLeft,
-	Check,
-	CheckCircle,
 	Clock,
 	GitBranch,
 	Hand,
 	Play,
 	RefreshCw,
-	RotateCcw,
 	User,
-	X,
-	XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
-import {
-	type ActivityLog,
-	acceptTicket,
-	type Claim,
-	claimTicket,
-	closeTicket,
-	completeTicket,
-	getTicket,
-	rejectTicket,
-	releaseTicket,
-	reopenTicket,
-	type Ticket,
-} from "../lib/api";
+import { type ActivityLog, type Claim, getTicket, type Ticket } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn, formatRelativeTime, getPriorityColor, getStatusColor } from "../lib/utils";
 
@@ -42,7 +25,6 @@ export default function TicketDetail() {
 	const [history, setHistory] = useState<ActivityLog[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [actionLoading, setActionLoading] = useState<string | null>(null);
 
 	const fetchTicket = useCallback(async () => {
 		if (!key) return;
@@ -69,18 +51,6 @@ export default function TicketDetail() {
 	// Auto-refresh every 10 seconds when tab is visible
 	useAutoRefresh(fetchTicket, [fetchTicket]);
 
-	async function handleAction(action: string, fn: () => Promise<unknown>) {
-		setActionLoading(action);
-		try {
-			await fn();
-			await fetchTicket();
-		} catch (e) {
-			setError(e instanceof Error ? e.message : `Failed to ${action}`);
-		} finally {
-			setActionLoading(null);
-		}
-	}
-
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center h-64">
@@ -106,15 +76,6 @@ export default function TicketDetail() {
 			</div>
 		);
 	}
-
-	const isActive = claim?.status === "active";
-	const canClaim = ticket.status === "ready" && !isActive;
-	const canRelease = isActive;
-	const canComplete = ticket.status === "in_progress" && isActive;
-	const canAccept = ticket.status === "review";
-	const canReject = ticket.status === "review";
-	const canClose = ticket.status !== "closed";
-	const canReopen = ticket.status === "closed";
 
 	return (
 		<div className="space-y-6">
@@ -159,88 +120,6 @@ export default function TicketDetail() {
 				>
 					<RefreshCw className="w-5 h-5" />
 				</button>
-			</div>
-
-			{/* Actions */}
-			<div className="flex flex-wrap gap-2">
-				{canClaim && (
-					<ActionButton
-						onClick={() => handleAction("claim", () => claimTicket(ticket.ticket_key))}
-						loading={actionLoading === "claim"}
-						icon={<Hand className="w-4 h-4" />}
-					>
-						Claim
-					</ActionButton>
-				)}
-				{canRelease && (
-					<ActionButton
-						onClick={() => handleAction("release", () => releaseTicket(ticket.ticket_key))}
-						loading={actionLoading === "release"}
-						icon={<X className="w-4 h-4" />}
-						variant="secondary"
-					>
-						Release
-					</ActionButton>
-				)}
-				{canComplete && (
-					<ActionButton
-						onClick={() => handleAction("complete", () => completeTicket(ticket.ticket_key))}
-						loading={actionLoading === "complete"}
-						icon={<CheckCircle className="w-4 h-4" />}
-						variant="success"
-					>
-						Complete
-					</ActionButton>
-				)}
-				{canAccept && (
-					<ActionButton
-						onClick={() => handleAction("accept", () => acceptTicket(ticket.ticket_key))}
-						loading={actionLoading === "accept"}
-						icon={<Check className="w-4 h-4" />}
-						variant="success"
-					>
-						Accept
-					</ActionButton>
-				)}
-				{canReject && (
-					<ActionButton
-						onClick={() => {
-							const reason = window.prompt("Rejection reason:");
-							if (reason) {
-								handleAction("reject", () => rejectTicket(ticket.ticket_key, reason));
-							}
-						}}
-						loading={actionLoading === "reject"}
-						icon={<XCircle className="w-4 h-4" />}
-						variant="danger"
-					>
-						Reject
-					</ActionButton>
-				)}
-				{canClose && (
-					<ActionButton
-						onClick={() => {
-							const reason = window.prompt("Close reason (optional):");
-							handleAction("close", () =>
-								closeTicket(ticket.ticket_key, "completed", reason || undefined),
-							);
-						}}
-						loading={actionLoading === "close"}
-						icon={<XCircle className="w-4 h-4" />}
-						variant="secondary"
-					>
-						Close
-					</ActionButton>
-				)}
-				{canReopen && (
-					<ActionButton
-						onClick={() => handleAction("reopen", () => reopenTicket(ticket.ticket_key))}
-						loading={actionLoading === "reopen"}
-						icon={<RotateCcw className="w-4 h-4" />}
-					>
-						Reopen
-					</ActionButton>
-				)}
 			</div>
 
 			{/* Info grid */}
@@ -405,41 +284,5 @@ export default function TicketDetail() {
 				</div>
 			</div>
 		</div>
-	);
-}
-
-function ActionButton({
-	children,
-	onClick,
-	loading,
-	icon,
-	variant = "primary",
-}: {
-	children: React.ReactNode;
-	onClick: () => void;
-	loading: boolean;
-	icon: React.ReactNode;
-	variant?: "primary" | "secondary" | "success" | "danger";
-}) {
-	const variantClasses = {
-		primary: "bg-[var(--primary)] text-[var(--primary-foreground)]",
-		secondary: "bg-[var(--secondary)] text-[var(--secondary-foreground)]",
-		success: "bg-green-600 text-white",
-		danger: "bg-red-600 text-white",
-	};
-
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			disabled={loading}
-			className={cn(
-				"flex items-center gap-2 px-4 py-2 text-sm rounded-md transition-opacity disabled:opacity-50",
-				variantClasses[variant],
-			)}
-		>
-			{loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : icon}
-			{children}
-		</button>
 	);
 }

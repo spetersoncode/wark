@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -61,10 +62,13 @@ Examples:
 }
 
 type claimResult struct {
-	Ticket   *models.Ticket `json:"ticket"`
-	Claim    *models.Claim  `json:"claim"`
-	Branch   string         `json:"branch"`
-	GitCmd   string         `json:"git_command"`
+	Ticket        *models.Ticket     `json:"ticket"`
+	Claim         *models.Claim      `json:"claim"`
+	Branch        string             `json:"branch"`
+	GitCmd        string             `json:"git_command"`
+	NextTask      *models.TicketTask `json:"next_task,omitempty"`
+	TasksComplete int                `json:"tasks_complete,omitempty"`
+	TasksTotal    int                `json:"tasks_total,omitempty"`
 }
 
 func runTicketClaim(cmd *cobra.Command, args []string) error {
@@ -191,6 +195,23 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 		GitCmd: fmt.Sprintf("git checkout -b %s", branchName),
 	}
 
+	// Get task info if ticket has tasks
+	tasksRepo := db.NewTasksRepo(database.DB)
+	ctx := context.Background()
+	taskCounts, err := tasksRepo.GetTaskCounts(ctx, ticket.ID)
+	if err != nil {
+		VerboseOutput("Warning: failed to get task counts: %v\n", err)
+	} else if taskCounts.Total > 0 {
+		result.TasksComplete = taskCounts.Completed
+		result.TasksTotal = taskCounts.Total
+		nextTask, err := tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
+		if err != nil {
+			VerboseOutput("Warning: failed to get next task: %v\n", err)
+		} else if nextTask != nil {
+			result.NextTask = nextTask
+		}
+	}
+
 	if IsJSON() {
 		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
@@ -201,6 +222,16 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	OutputLine("Worker: %s", workerID)
 	OutputLine("Expires: %s (%d minutes)", claim.ExpiresAt.Format("2006-01-02 15:04:05"), claimDuration)
 	OutputLine("Branch: %s", branchName)
+
+	// Show task progress if ticket has tasks
+	if result.TasksTotal > 0 {
+		OutputLine("")
+		OutputLine("Tasks: %d/%d complete", result.TasksComplete, result.TasksTotal)
+		if result.NextTask != nil {
+			OutputLine("Next task: %s", result.NextTask.Description)
+		}
+	}
+
 	OutputLine("")
 	OutputLine("Run: %s", result.GitCmd)
 
@@ -333,7 +364,92 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 	workerID := ""
 	if claim != nil {
 		workerID = claim.WorkerID
-		// Complete the claim
+	}
+
+	// Check if ticket has tasks
+	ctx := context.Background()
+	tasksRepo := db.NewTasksRepo(database.DB)
+	taskCounts, err := tasksRepo.GetTaskCounts(ctx, ticket.ID)
+	if err != nil {
+		return ErrDatabase(err, "failed to get task counts")
+	}
+
+	activityRepo := db.NewActivityRepo(database.DB)
+	ticketRepo := db.NewTicketRepo(database.DB)
+
+	// Handle tickets with tasks
+	if taskCounts.Total > 0 {
+		nextTask, err := tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
+		if err != nil {
+			return ErrDatabase(err, "failed to get next task")
+		}
+
+		if nextTask != nil {
+			// Mark the current task as complete
+			if err := tasksRepo.CompleteTask(ctx, nextTask.ID); err != nil {
+				return ErrDatabase(err, "failed to complete task")
+			}
+
+			// Log task completion
+			activityRepo.LogActionWithDetails(ticket.ID, models.ActionTaskCompleted, models.ActorTypeAgent, workerID,
+				fmt.Sprintf("Completed task %d/%d: %s", nextTask.Position+1, taskCounts.Total, truncate(nextTask.Description, 50)),
+				map[string]interface{}{
+					"task_id":       nextTask.ID,
+					"task_position": nextTask.Position,
+					"summary":       completeSummary,
+				})
+
+			// Check for more incomplete tasks
+			nextNextTask, err := tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
+			if err != nil {
+				return ErrDatabase(err, "failed to check remaining tasks")
+			}
+
+			if nextNextTask != nil {
+				// More tasks remain: release claim, set ticket back to ready
+				if claim != nil {
+					claimRepo.Release(claim.ID, models.ClaimStatusReleased)
+				}
+
+				// Set status back to ready for next claim, increment retry count
+				ticket.Status = models.StatusReady
+				ticket.RetryCount++
+				if err := ticketRepo.Update(ticket); err != nil {
+					return ErrDatabase(err, "failed to update ticket")
+				}
+
+				completedCount := taskCounts.Completed + 1
+
+				if IsJSON() {
+					data, _ := json.MarshalIndent(map[string]interface{}{
+						"ticket":          ticket.TicketKey,
+						"status":          ticket.Status,
+						"task_completed":  true,
+						"tasks_complete":  completedCount,
+						"tasks_total":     taskCounts.Total,
+						"next_task":       nextNextTask,
+						"all_tasks_done":  false,
+					}, "", "  ")
+					fmt.Println(string(data))
+					return nil
+				}
+
+				OutputLine("Task completed: %s", truncate(nextTask.Description, 60))
+				OutputLine("Progress: %d/%d tasks complete", completedCount, taskCounts.Total)
+				OutputLine("")
+				OutputLine("Next task: %s", nextNextTask.Description)
+				OutputLine("")
+				OutputLine("Ticket released for next task pickup.")
+
+				return nil
+			}
+
+			// All tasks complete - fall through to normal completion
+		}
+	}
+
+	// Complete the claim (no more tasks or ticket has no tasks)
+	if claim != nil {
 		claimRepo.Release(claim.ID, models.ClaimStatusCompleted)
 	}
 
@@ -347,7 +463,6 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Update ticket
-	ticketRepo := db.NewTicketRepo(database.DB)
 	ticket.Status = finalStatus
 	ticket.Resolution = resolution
 	if finalStatus == models.StatusClosed {
@@ -359,17 +474,23 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
 	action := models.ActionCompleted
 	summary := "Work completed"
 	if completeSummary != "" {
 		summary = completeSummary
 	}
+	if taskCounts.Total > 0 {
+		summary = fmt.Sprintf("All %d tasks completed", taskCounts.Total)
+		if completeSummary != "" {
+			summary = fmt.Sprintf("%s - %s", summary, completeSummary)
+		}
+	}
 	activityRepo.LogActionWithDetails(ticket.ID, action, models.ActorTypeAgent, workerID,
 		summary,
 		map[string]interface{}{
-			"summary":     completeSummary,
-			"auto_accept": autoAccept,
+			"summary":      completeSummary,
+			"auto_accept":  autoAccept,
+			"tasks_total":  taskCounts.Total,
 		})
 
 	if autoAccept {
@@ -386,16 +507,25 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 	}
 
 	if IsJSON() {
-		data, _ := json.MarshalIndent(map[string]interface{}{
+		result := map[string]interface{}{
 			"ticket":    ticket.TicketKey,
 			"status":    ticket.Status,
 			"completed": true,
-		}, "", "  ")
+		}
+		if taskCounts.Total > 0 {
+			result["tasks_complete"] = taskCounts.Total
+			result["tasks_total"] = taskCounts.Total
+			result["all_tasks_done"] = true
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
 	OutputLine("Completed: %s", ticket.TicketKey)
+	if taskCounts.Total > 0 {
+		OutputLine("Tasks: %d/%d complete", taskCounts.Total, taskCounts.Total)
+	}
 	OutputLine("Status: %s", ticket.Status)
 
 	return nil

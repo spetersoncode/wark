@@ -255,11 +255,13 @@ func TestTicketEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var resp TicketResponse
+		var resp struct {
+			Ticket TicketResponse `json:"ticket"`
+		}
 		err := json.Unmarshal(rec.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		assert.Equal(t, "TEST-1", resp.Key)
-		assert.Equal(t, "Test Ticket", resp.Title)
+		assert.Equal(t, "TEST-1", resp.Ticket.Key)
+		assert.Equal(t, "Test Ticket", resp.Ticket.Title)
 	})
 
 	t.Run("get ticket not found", func(t *testing.T) {

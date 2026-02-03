@@ -325,6 +325,13 @@ Examples:
 	RunE: runTicketList,
 }
 
+// ticketListResult is used for JSON output with task info
+type ticketListResult struct {
+	*models.Ticket
+	TasksComplete int `json:"tasks_complete,omitempty"`
+	TasksTotal    int `json:"tasks_total,omitempty"`
+}
+
 func runTicketList(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
@@ -393,9 +400,38 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Get task counts for workable tickets
+	var taskCountsMap map[int64]*db.TaskCounts
+	if ticketWorkable && len(tickets) > 0 {
+		tasksRepo := db.NewTasksRepo(database.DB)
+		ticketIDs := make([]int64, len(tickets))
+		for i, t := range tickets {
+			ticketIDs[i] = t.ID
+		}
+		taskCountsMap, err = tasksRepo.GetTaskCountsForTickets(context.Background(), ticketIDs)
+		if err != nil {
+			VerboseOutput("Warning: failed to get task counts: %v\n", err)
+			taskCountsMap = make(map[int64]*db.TaskCounts)
+		}
+	}
+
 	if IsJSON() {
-		data, _ := json.MarshalIndent(tickets, "", "  ")
-		fmt.Println(string(data))
+		if ticketWorkable && len(taskCountsMap) > 0 {
+			// Include task counts in JSON output
+			results := make([]ticketListResult, len(tickets))
+			for i, t := range tickets {
+				results[i] = ticketListResult{Ticket: t}
+				if counts, ok := taskCountsMap[t.ID]; ok && counts.Total > 0 {
+					results[i].TasksComplete = counts.Completed
+					results[i].TasksTotal = counts.Total
+				}
+			}
+			data, _ := json.MarshalIndent(results, "", "  ")
+			fmt.Println(string(data))
+		} else {
+			data, _ := json.MarshalIndent(tickets, "", "  ")
+			fmt.Println(string(data))
+		}
 		return nil
 	}
 
@@ -408,12 +444,22 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		if t.Status == models.StatusDraft {
 			statusDisplay = "📝 draft"
 		}
+
+		// Add task progress indicator for workable tickets
+		titleDisplay := truncate(t.Title, 40)
+		if ticketWorkable {
+			if counts, ok := taskCountsMap[t.ID]; ok && counts.Total > 0 {
+				taskIndicator := fmt.Sprintf(" (task %d/%d)", counts.Completed+1, counts.Total)
+				titleDisplay = truncate(t.Title, 40-len(taskIndicator)) + taskIndicator
+			}
+		}
+
 		fmt.Printf("%-12s %-12s %-8s %-8s %s\n",
 			t.TicketKey,
 			statusDisplay,
 			t.Priority,
 			t.Complexity,
-			truncate(t.Title, 40),
+			titleDisplay,
 		)
 	}
 

@@ -1,10 +1,22 @@
 import { Monitor, Moon, Sun } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "./ui/button";
+import { useEffect, useState } from "react";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "./ui/select";
 
 type Theme = "light" | "dark" | "system";
 
 const STORAGE_KEY = "wark-theme";
+
+const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
+	{ value: "light", label: "Light", icon: Sun },
+	{ value: "dark", label: "Dark", icon: Moon },
+	{ value: "system", label: "System", icon: Monitor },
+];
 
 /**
  * Gets the system's preferred color scheme.
@@ -41,9 +53,9 @@ function getStoredTheme(): Theme {
 }
 
 /**
- * ThemeToggle - Cycles through light/dark/system modes.
+ * ThemeToggle - Dropdown selector for light/dark/system modes.
  *
- * Click to cycle: light → dark → system → light...
+ * Shows current theme with icon, dropdown reveals all options.
  */
 export function ThemeToggle() {
 	const [theme, setTheme] = useState<Theme>(getStoredTheme);
@@ -65,31 +77,28 @@ export function ThemeToggle() {
 		return () => mediaQuery.removeEventListener("change", handler);
 	}, [theme]);
 
-	const cycleTheme = useCallback(() => {
-		setTheme((current) => {
-			switch (current) {
-				case "light":
-					return "dark";
-				case "dark":
-					return "system";
-				case "system":
-					return "light";
-			}
-		});
-	}, []);
-
-	const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
-	const label = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System";
+	const currentOption = THEME_OPTIONS.find((opt) => opt.value === theme) ?? THEME_OPTIONS[2];
+	const CurrentIcon = currentOption.icon;
 
 	return (
-		<Button
-			variant="ghost"
-			size="icon"
-			onClick={cycleTheme}
-			title={`Theme: ${label} (click to change)`}
-			aria-label={`Current theme: ${label}. Click to change.`}
-		>
-			<Icon className="size-4" />
-		</Button>
+		<Select value={theme} onValueChange={(value: Theme) => setTheme(value)}>
+			<SelectTrigger
+				size="sm"
+				className="h-8 w-8 border-none bg-transparent px-0 shadow-none hover:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0 [&>svg:last-child]:hidden"
+				aria-label={`Theme: ${currentOption.label}`}
+			>
+				<SelectValue>
+					<CurrentIcon className="size-4" />
+				</SelectValue>
+			</SelectTrigger>
+			<SelectContent align="end">
+				{THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+					<SelectItem key={value} value={value}>
+						<Icon className="size-4" />
+						<span>{label}</span>
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	);
 }

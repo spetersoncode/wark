@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -433,9 +434,12 @@ Examples:
 
 type ticketShowResult struct {
 	*models.Ticket
-	Dependencies []*models.Ticket       `json:"dependencies,omitempty"`
-	Dependents   []*models.Ticket       `json:"dependents,omitempty"`
-	History      []*models.ActivityLog  `json:"history,omitempty"`
+	Dependencies   []*models.Ticket       `json:"dependencies,omitempty"`
+	Dependents     []*models.Ticket       `json:"dependents,omitempty"`
+	History        []*models.ActivityLog  `json:"history,omitempty"`
+	Tasks          []*models.TicketTask   `json:"tasks,omitempty"`
+	TasksComplete  int                    `json:"tasks_complete,omitempty"`
+	TasksTotal     int                    `json:"tasks_total,omitempty"`
 }
 
 func runTicketShow(cmd *cobra.Command, args []string) error {
@@ -467,11 +471,33 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		return ErrDatabase(err, "failed to get history")
 	}
 
+	// Fetch tasks
+	tasksRepo := db.NewTasksRepo(database.DB)
+	tasks, err := tasksRepo.ListTasks(context.Background(), ticket.ID)
+	if err != nil {
+		return ErrDatabase(err, "failed to get tasks")
+	}
+
+	// Count completed tasks
+	tasksComplete := 0
+	for _, t := range tasks {
+		if t.Complete {
+			tasksComplete++
+		}
+	}
+
 	result := ticketShowResult{
 		Ticket:       ticket,
 		Dependencies: dependencies,
 		Dependents:   dependents,
 		History:      history,
+	}
+
+	// Only include task fields if there are tasks
+	if len(tasks) > 0 {
+		result.Tasks = tasks
+		result.TasksComplete = tasksComplete
+		result.TasksTotal = len(tasks)
 	}
 
 	if IsJSON() {
@@ -505,6 +531,25 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		fmt.Println("Description:")
 		fmt.Println(strings.Repeat("-", 65))
 		fmt.Println(ticket.Description)
+	}
+
+	if len(tasks) > 0 {
+		fmt.Println()
+		fmt.Println(strings.Repeat("-", 65))
+		fmt.Printf("Tasks (%d/%d complete):\n", tasksComplete, len(tasks))
+		fmt.Println(strings.Repeat("-", 65))
+		foundNext := false
+		for _, task := range tasks {
+			checkmark := "[ ]"
+			suffix := ""
+			if task.Complete {
+				checkmark = "[x]"
+			} else if !foundNext {
+				suffix = "  <-- NEXT"
+				foundNext = true
+			}
+			fmt.Printf("  %s %d. %s%s\n", checkmark, task.Position+1, task.Description, suffix)
+		}
 	}
 
 	if len(dependencies) > 0 {

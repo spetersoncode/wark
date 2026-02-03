@@ -485,6 +485,9 @@ func (s *Server) handleRespondInbox(w http.ResponseWriter, r *http.Request) {
 			"Responded to message via web UI",
 			map[string]interface{}{
 				"inbox_message_id": id,
+				"message_type":     string(message.MessageType),
+				"message":          message.Content,
+				"response":         req.Response,
 			})
 	}
 

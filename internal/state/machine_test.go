@@ -874,12 +874,37 @@ func TestLogic_CanClaim(t *testing.T) {
 		assert.Empty(t, reason)
 	})
 
-	t.Run("cannot claim non-ready ticket", func(t *testing.T) {
+	t.Run("can claim review ticket", func(t *testing.T) {
+		ticket := &models.Ticket{ID: 1, Status: models.StatusReview}
+		logic := NewLogic(
+			&mockDependencyChecker{hasUnresolved: false},
+			nil,
+			&mockClaimChecker{hasActive: false},
+		)
+		canClaim, reason := logic.CanClaim(ticket)
+		assert.True(t, canClaim)
+		assert.Empty(t, reason)
+	})
+
+	t.Run("can claim review ticket even with unresolved deps", func(t *testing.T) {
+		// Review tickets have already passed the dependency check, so we don't check deps
+		ticket := &models.Ticket{ID: 1, Status: models.StatusReview}
+		logic := NewLogic(
+			&mockDependencyChecker{hasUnresolved: true},
+			nil,
+			&mockClaimChecker{hasActive: false},
+		)
+		canClaim, reason := logic.CanClaim(ticket)
+		assert.True(t, canClaim)
+		assert.Empty(t, reason)
+	})
+
+	t.Run("cannot claim in_progress ticket", func(t *testing.T) {
 		ticket := &models.Ticket{ID: 1, Status: models.StatusInProgress}
 		logic := NewLogic(nil, nil, nil)
 		canClaim, reason := logic.CanClaim(ticket)
 		assert.False(t, canClaim)
-		assert.Contains(t, reason, "ready")
+		assert.Contains(t, reason, "ready or review")
 	})
 
 	t.Run("cannot claim blocked ticket", func(t *testing.T) {
@@ -887,7 +912,7 @@ func TestLogic_CanClaim(t *testing.T) {
 		logic := NewLogic(nil, nil, nil)
 		canClaim, reason := logic.CanClaim(ticket)
 		assert.False(t, canClaim)
-		assert.Contains(t, reason, "ready")
+		assert.Contains(t, reason, "ready or review")
 	})
 
 	t.Run("cannot claim with active claim", func(t *testing.T) {
@@ -902,7 +927,19 @@ func TestLogic_CanClaim(t *testing.T) {
 		assert.Contains(t, reason, "already has an active claim")
 	})
 
-	t.Run("cannot claim with unresolved deps", func(t *testing.T) {
+	t.Run("cannot claim review with active claim", func(t *testing.T) {
+		ticket := &models.Ticket{ID: 1, Status: models.StatusReview}
+		logic := NewLogic(
+			nil,
+			nil,
+			&mockClaimChecker{hasActive: true},
+		)
+		canClaim, reason := logic.CanClaim(ticket)
+		assert.False(t, canClaim)
+		assert.Contains(t, reason, "already has an active claim")
+	})
+
+	t.Run("cannot claim ready with unresolved deps", func(t *testing.T) {
 		ticket := &models.Ticket{ID: 1, Status: models.StatusReady}
 		logic := NewLogic(
 			&mockDependencyChecker{hasUnresolved: true},

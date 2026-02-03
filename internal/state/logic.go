@@ -290,15 +290,15 @@ const (
 	EventReopened           Event = "reopened"
 )
 
-// CanClaim checks if a ticket can be claimed by a worker.
+// CanClaim checks if a ticket can be claimed by a worker or reviewer.
 func (l *Logic) CanClaim(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
 		return false, "ticket is nil"
 	}
 
-	// Must be in ready status
-	if ticket.Status != models.StatusReady {
-		return false, "ticket must be in ready status to be claimed"
+	// Must be in ready or review status
+	if ticket.Status != models.StatusReady && ticket.Status != models.StatusReview {
+		return false, "ticket must be in ready or review status to be claimed"
 	}
 
 	// Check for existing active claim
@@ -310,13 +310,15 @@ func (l *Logic) CanClaim(ticket *models.Ticket) (bool, string) {
 		return false, "ticket already has an active claim"
 	}
 
-	// Check dependencies (should be resolved since it's ready, but double-check)
-	resolved, err := l.CheckDependencies(ticket)
-	if err != nil {
-		return false, "failed to check dependencies"
-	}
-	if !resolved {
-		return false, "ticket has unresolved dependencies"
+	// Check dependencies (only for ready tickets, review tickets are past this)
+	if ticket.Status == models.StatusReady {
+		resolved, err := l.CheckDependencies(ticket)
+		if err != nil {
+			return false, "failed to check dependencies"
+		}
+		if !resolved {
+			return false, "ticket has unresolved dependencies"
+		}
 	}
 
 	return true, ""

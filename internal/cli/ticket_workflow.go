@@ -79,12 +79,22 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 		return err // Already wrapped with proper error type
 	}
 
-	// Check if ticket can be claimed
-	machine := state.NewMachine()
-	if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
+	// Check if ticket can be claimed (ready or review status)
+	isReviewClaim := ticket.Status == models.StatusReview
+	if !isReviewClaim {
+		// For ready tickets, validate the state transition
+		machine := state.NewMachine()
+		if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
+			return ErrStateErrorWithSuggestion(
+				fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
+				"cannot claim ticket: %s", err,
+			)
+		}
+	} else if ticket.Status != models.StatusReview {
+		// Not ready and not review - can't claim
 		return ErrStateErrorWithSuggestion(
 			fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
-			"cannot claim ticket: %s", err,
+			"cannot claim ticket: must be in ready or review status (current: %s)", ticket.Status,
 		)
 	}
 
@@ -102,17 +112,19 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Check for unresolved dependencies
-	depRepo := db.NewDependencyRepo(database.DB)
-	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
-	if err != nil {
-		return ErrDatabase(err, "failed to check dependencies")
-	}
-	if hasUnresolved {
-		return ErrStateErrorWithSuggestion(
-			fmt.Sprintf("Run 'wark ticket show %s' to see blocking dependencies.", ticket.TicketKey),
-			"ticket has unresolved dependencies",
-		)
+	// Check for unresolved dependencies (only for ready tickets, not review)
+	if !isReviewClaim {
+		depRepo := db.NewDependencyRepo(database.DB)
+		hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
+		if err != nil {
+			return ErrDatabase(err, "failed to check dependencies")
+		}
+		if hasUnresolved {
+			return ErrStateErrorWithSuggestion(
+				fmt.Sprintf("Run 'wark ticket show %s' to see blocking dependencies.", ticket.TicketKey),
+				"ticket has unresolved dependencies",
+			)
+		}
 	}
 
 	// Generate worker ID if not provided
@@ -135,23 +147,30 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 		return ErrDatabase(err, "failed to create claim")
 	}
 
-	// Update ticket status
+	// Update ticket status (only for ready tickets, review stays at review)
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusInProgress
-	if err := ticketRepo.Update(ticket); err != nil {
-		// Rollback claim
-		claimRepo.Release(claim.ID, models.ClaimStatusReleased)
-		return ErrDatabase(err, "failed to update ticket status")
+	if !isReviewClaim {
+		ticket.Status = models.StatusInProgress
+		if err := ticketRepo.Update(ticket); err != nil {
+			// Rollback claim
+			claimRepo.Release(claim.ID, models.ClaimStatusReleased)
+			return ErrDatabase(err, "failed to update ticket status")
+		}
 	}
 
 	// Log activity
 	activityRepo := db.NewActivityRepo(database.DB)
+	claimType := "Claimed"
+	if isReviewClaim {
+		claimType = "Claimed for review"
+	}
 	activityRepo.LogActionWithDetails(ticket.ID, models.ActionClaimed, models.ActorTypeAgent, workerID,
-		fmt.Sprintf("Claimed (expires in %dm)", claimDuration),
+		fmt.Sprintf("%s (expires in %dm)", claimType, claimDuration),
 		map[string]interface{}{
 			"worker_id":      workerID,
 			"duration_mins":  claimDuration,
 			"expires_at":     claim.ExpiresAt.Format(time.RFC3339),
+			"review_claim":   isReviewClaim,
 		})
 
 	// Generate branch name if needed

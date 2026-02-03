@@ -20,6 +20,12 @@ var (
 	projectForce       bool
 )
 
+// Edit command flags (separate from create to allow empty values)
+var (
+	projectEditName        string
+	projectEditDescription string
+)
+
 func init() {
 	// project create
 	projectCreateCmd.Flags().StringVarP(&projectName, "name", "n", "", "Human-readable project name (required)")
@@ -29,6 +35,10 @@ func init() {
 	// project list
 	projectListCmd.Flags().BoolVar(&projectWithStats, "with-stats", false, "Include ticket statistics")
 
+	// project edit
+	projectEditCmd.Flags().StringVarP(&projectEditName, "name", "n", "", "Update project name")
+	projectEditCmd.Flags().StringVarP(&projectEditDescription, "description", "d", "", "Update project description")
+
 	// project delete
 	projectDeleteCmd.Flags().BoolVar(&projectForce, "force", false, "Skip confirmation prompt")
 
@@ -36,6 +46,7 @@ func init() {
 	projectCmd.AddCommand(projectCreateCmd)
 	projectCmd.AddCommand(projectListCmd)
 	projectCmd.AddCommand(projectShowCmd)
+	projectCmd.AddCommand(projectEditCmd)
 	projectCmd.AddCommand(projectDeleteCmd)
 
 	rootCmd.AddCommand(projectCmd)
@@ -270,6 +281,84 @@ func runProjectShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Closed (other): %d\n", stats.ClosedOtherCount)
 	fmt.Println("  " + strings.Repeat("-", 17))
 	fmt.Printf("  Total:          %d\n", stats.TotalTickets)
+
+	return nil
+}
+
+// project edit
+var projectEditCmd = &cobra.Command{
+	Use:   "edit <KEY>",
+	Short: "Edit project properties",
+	Long: `Edit a project's name or description.
+
+At least one of --name or --description must be provided.
+
+Examples:
+  wark project edit WARK --description "New description"
+  wark project edit POD --name "Podcast Episodes"
+  wark project edit MYAPP -n "My App" -d "Updated description"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProjectEdit,
+}
+
+func runProjectEdit(cmd *cobra.Command, args []string) error {
+	key := strings.ToUpper(args[0])
+
+	// Check if at least one flag was provided
+	nameChanged := cmd.Flags().Changed("name")
+	descChanged := cmd.Flags().Changed("description")
+
+	if !nameChanged && !descChanged {
+		return ErrInvalidArgsWithSuggestion(
+			"Use --name/-n to update the name or --description/-d to update the description.",
+			"at least one of --name or --description must be provided",
+		)
+	}
+
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
+	}
+	defer database.Close()
+
+	repo := db.NewProjectRepo(database.DB)
+	project, err := repo.GetByKey(key)
+	if err != nil {
+		return ErrDatabase(err, "failed to get project")
+	}
+	if project == nil {
+		return ErrNotFoundWithSuggestion(SuggestListProjects, "project %s not found", key)
+	}
+
+	// Apply changes
+	if nameChanged {
+		if projectEditName == "" {
+			return ErrInvalidArgsWithSuggestion(
+				"Project name cannot be empty.",
+				"invalid name",
+			)
+		}
+		project.Name = projectEditName
+	}
+	if descChanged {
+		project.Description = projectEditDescription
+	}
+
+	if err := repo.Update(project); err != nil {
+		return ErrDatabase(err, "failed to update project")
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(project, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Updated project: %s", project.Key)
+	OutputLine("Name: %s", project.Name)
+	if project.Description != "" {
+		OutputLine("Description: %s", project.Description)
+	}
 
 	return nil
 }

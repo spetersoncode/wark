@@ -337,7 +337,11 @@ export function BoardSkeleton() {
 			{/* Kanban columns */}
 			<div className="flex gap-4 overflow-x-auto pb-4">
 				{columns.map((col) => (
-					<KanbanColumnSkeleton key={col.borderColor} borderColor={col.borderColor} cardCount={col.cards} />
+					<KanbanColumnSkeleton
+						key={col.borderColor}
+						borderColor={col.borderColor}
+						cardCount={col.cards}
+					/>
 				))}
 				{/* Compact closed column */}
 				<ClosedColumnSkeleton itemCount={6} />
@@ -407,32 +411,48 @@ export function InboxSkeleton() {
 }
 
 /**
+ * Skeleton for compact activity item with colored dot (TicketDetail redesign)
+ */
+export function ActivityItemCompactSkeleton() {
+	return (
+		<li className="flex items-start gap-3 py-1">
+			<Skeleton className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" />
+			<div className="flex-1 flex items-baseline gap-2">
+				<Skeleton className="h-4 w-16" />
+				<Skeleton className="h-3 w-20" />
+				<Skeleton className="h-3 w-32" />
+			</div>
+			<Skeleton className="h-3 w-8 flex-shrink-0" />
+		</li>
+	);
+}
+
+/**
  * Skeleton for ticket detail page
  */
 export function TicketDetailSkeleton() {
 	return (
-		<div className="space-y-6">
-			{/* Header */}
-			<div className="flex items-center gap-4">
-				<Skeleton className="h-9 w-9 rounded-md" />
-				<div className="flex-1">
-					<div className="flex items-center gap-3 mb-1">
-						<Skeleton className="h-4 w-20 font-mono" />
-						<Skeleton className="h-5 w-20 rounded-md" />
-						<Skeleton className="h-5 w-16 rounded-md" />
-					</div>
-					<Skeleton className="h-8 w-96" />
+		<div className="space-y-6 max-w-5xl">
+			{/* Breadcrumb back link */}
+			<Skeleton className="h-4 w-20" />
+
+			{/* Title block */}
+			<div className="space-y-3">
+				<div className="flex items-center gap-3">
+					<Skeleton className="h-4 w-20 font-mono" />
+					<Skeleton className="h-5 w-20 rounded-full" />
+					<Skeleton className="h-5 w-16 rounded" />
 				</div>
-				<Skeleton className="h-9 w-9 rounded-md" />
+				<Skeleton className="h-8 w-3/4" />
 			</div>
 
-			{/* Info grid */}
+			{/* 2-column layout */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-				{/* Main content */}
+				{/* Main content - Description (wider) */}
 				<div className="lg:col-span-2 space-y-6">
 					{/* Description */}
 					<section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-						<Skeleton className="h-6 w-28 mb-3" />
+						<Skeleton className="h-4 w-24 mb-3" />
 						<div className="space-y-2">
 							<Skeleton className="h-4 w-full" />
 							<Skeleton className="h-4 w-full" />
@@ -441,42 +461,44 @@ export function TicketDetailSkeleton() {
 						</div>
 					</section>
 
-					{/* Activity history */}
+					{/* Activity timeline */}
 					<section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-						<Skeleton className="h-6 w-20 mb-3" />
-						<ul className="space-y-3">
-							<ActivityTimelineSkeleton />
-							<ActivityTimelineSkeleton />
-							<ActivityTimelineSkeleton />
-							<ActivityTimelineSkeleton />
+						<Skeleton className="h-4 w-16 mb-3" />
+						<ul className="space-y-2">
+							<ActivityItemCompactSkeleton />
+							<ActivityItemCompactSkeleton />
+							<ActivityItemCompactSkeleton />
+							<ActivityItemCompactSkeleton />
 						</ul>
 					</section>
 				</div>
 
-				{/* Sidebar */}
-				<div className="space-y-6">
+				{/* Sidebar - Details (narrower) */}
+				<div className="space-y-4">
 					{/* Details */}
 					<section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-						<Skeleton className="h-6 w-16 mb-3" />
+						<Skeleton className="h-4 w-16 mb-3" />
 						<div className="space-y-2">
 							<div className="flex justify-between">
 								<Skeleton className="h-4 w-20" />
-								<Skeleton className="h-4 w-16" />
+								<Skeleton className="h-4 w-12" />
 							</div>
 							<div className="flex justify-between">
 								<Skeleton className="h-4 w-14" />
-								<Skeleton className="h-4 w-12" />
+								<Skeleton className="h-4 w-10" />
 							</div>
+						</div>
+						{/* Branch */}
+						<div className="mt-3 pt-3 border-t border-[var(--border)]">
+							<Skeleton className="h-3 w-12 mb-1.5" />
+							<Skeleton className="h-4 w-full" />
 						</div>
 					</section>
 
 					{/* Dependencies */}
 					<section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-						<Skeleton className="h-6 w-32 mb-3" />
-						<div className="space-y-2">
-							<Skeleton className="h-10 w-full rounded-md" />
-							<Skeleton className="h-10 w-full rounded-md" />
-						</div>
+						<Skeleton className="h-4 w-24 mb-3" />
+						<Skeleton className="h-4 w-12" />
 					</section>
 				</div>
 			</div>

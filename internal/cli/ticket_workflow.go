@@ -550,22 +550,11 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate reason code
-	validReasons := map[string]bool{
-		"irreconcilable_conflict": true,
-		"unclear_requirements":    true,
-		"decision_needed":         true,
-		"access_required":         true,
-		"blocked_external":        true,
-		"risk_assessment":         true,
-		"out_of_scope":            true,
-		"other":                   true,
+	parsedReason, err := models.ParseFlagReason(flagReason)
+	if err != nil {
+		return ErrInvalidArgs("%s", err)
 	}
-	if !validReasons[flagReason] {
-		return ErrInvalidArgsWithSuggestion(
-			"Valid reasons: irreconcilable_conflict, unclear_requirements, decision_needed, access_required, blocked_external, risk_assessment, out_of_scope, other",
-			"invalid reason code: %s", flagReason,
-		)
-	}
+	flagReason = string(parsedReason) // Use normalized value
 
 	// Check if ticket can be escalated to human
 	if !state.CanBeEscalated(ticket.Status) {

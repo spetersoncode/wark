@@ -800,7 +800,7 @@ func TestCmdTicketFlagInvalidReason(t *testing.T) {
 
 	_, err := runCmd(t, dbPath, "ticket", "flag", "INVF-1", "--reason", "not_a_valid_reason", "Some message")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid reason")
+	assert.Contains(t, err.Error(), "invalid flag reason")
 }
 
 func TestCmdTicketCompleteBlockedByIncompleteTasks(t *testing.T) {

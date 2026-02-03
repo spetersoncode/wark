@@ -3,11 +3,13 @@
 
 BINARY_NAME := wark
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+GIT_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 GO_VERSION := $(shell go version | cut -d' ' -f3)
 
-# Build flags
-LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
+# Build flags - inject version info into cli package
+CLI_PKG := github.com/diogenes-ai-code/wark/internal/cli
+LDFLAGS := -ldflags "-X $(CLI_PKG).Version=$(VERSION) -X $(CLI_PKG).GitCommit=$(GIT_COMMIT) -X $(CLI_PKG).BuildDate=$(BUILD_TIME)"
 
 # Directories
 BUILD_DIR := ./build
@@ -130,6 +132,7 @@ run: build
 ## version: Show version info
 version:
 	@echo "Version: $(VERSION)"
+	@echo "Git Commit: $(GIT_COMMIT)"
 	@echo "Build Time: $(BUILD_TIME)"
 	@echo "Go Version: $(GO_VERSION)"
 

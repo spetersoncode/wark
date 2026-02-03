@@ -18,6 +18,7 @@ var versionCmd = &cobra.Command{
 
 type versionInfo struct {
 	Version   string `json:"version"`
+	GitCommit string `json:"git_commit"`
 	BuildDate string `json:"build_date"`
 	GoVersion string `json:"go_version"`
 	Platform  string `json:"platform"`
@@ -28,6 +29,7 @@ type versionInfo struct {
 func runVersion(cmd *cobra.Command, args []string) error {
 	info := versionInfo{
 		Version:   Version,
+		GitCommit: GitCommit,
 		BuildDate: BuildDate,
 		GoVersion: runtime.Version(),
 		Platform:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
@@ -60,8 +62,10 @@ func runVersion(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("wark version %s\n", info.Version)
-	fmt.Printf("Built: %s\n", info.BuildDate)
+	// Compact format matching --version: wark v0.1.0 (9f61316, 2026-02-02)
+	fmt.Printf("wark %s (%s, %s)\n", info.Version, shortCommit(), shortDate())
+
+	// Additional details in verbose mode or always for version subcommand
 	fmt.Printf("Go: %s\n", info.GoVersion)
 	fmt.Printf("Platform: %s\n", info.Platform)
 

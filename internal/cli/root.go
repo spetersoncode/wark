@@ -8,11 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version information (set at build time)
+// Version information (set at build time via ldflags)
 var (
-	Version   = "0.1.0"
+	Version   = "dev"
+	GitCommit = "unknown"
 	BuildDate = "unknown"
-	GoVersion = "unknown"
 )
 
 // Global flags
@@ -49,6 +49,7 @@ claim-based work distribution, and human-in-the-loop support.
 
 Use "wark init" to initialize a new wark database.
 Use "wark --help" to see all available commands.`,
+	Version:       Version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 }
@@ -69,8 +70,27 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 
+	// Set version template for --version flag
+	rootCmd.SetVersionTemplate(fmt.Sprintf("wark %s (%s, %s)\n", Version, shortCommit(), shortDate()))
+
 	// Add commands
 	rootCmd.AddCommand(versionCmd)
+}
+
+// shortCommit returns the first 7 characters of the git commit hash
+func shortCommit() string {
+	if len(GitCommit) >= 7 {
+		return GitCommit[:7]
+	}
+	return GitCommit
+}
+
+// shortDate returns just the date portion of BuildDate (YYYY-MM-DD)
+func shortDate() string {
+	if len(BuildDate) >= 10 {
+		return BuildDate[:10]
+	}
+	return BuildDate
 }
 
 // Execute runs the root command

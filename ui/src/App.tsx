@@ -9,6 +9,7 @@ import {
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ColorSwatches } from "./components/ColorSwatches";
 import { SearchBar } from "./components/SearchBar";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { cn } from "./lib/utils";
 import {
 	Analytics,
@@ -62,7 +63,10 @@ function App() {
 							))}
 						</nav>
 					</div>
-					<SearchBar />
+					<div className="flex items-center gap-2">
+						<SearchBar />
+						<ThemeToggle />
+					</div>
 				</div>
 			</header>
 

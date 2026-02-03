@@ -77,13 +77,13 @@ install: build
 	@sudo install -m 755 $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
 	@echo "Installed: $(INSTALL_DIR)/$(BINARY_NAME)"
 
-## install-user: Install wark to ~/bin (no sudo required)
+## install-user: Install wark to ~/go/bin (standard Go bin, no sudo required)
 install-user: build
-	@echo "Installing $(BINARY_NAME) to ~/bin..."
-	@mkdir -p ~/bin
-	@install -m 755 $(BUILD_DIR)/$(BINARY_NAME) ~/bin/$(BINARY_NAME)
-	@echo "Installed: ~/bin/$(BINARY_NAME)"
-	@echo "Make sure ~/bin is in your PATH"
+	@echo "Installing $(BINARY_NAME) to ~/go/bin..."
+	@mkdir -p ~/go/bin
+	@install -m 755 $(BUILD_DIR)/$(BINARY_NAME) ~/go/bin/$(BINARY_NAME)
+	@echo "Installed: ~/go/bin/$(BINARY_NAME)"
+	@echo "Make sure ~/go/bin is in your PATH"
 
 ## uninstall: Remove wark from /usr/local/bin
 uninstall:

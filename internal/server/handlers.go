@@ -466,48 +466,25 @@ func (s *Server) handleRespondInbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := db.NewInboxRepo(s.config.DB)
-
-	// Check message exists
-	message, err := repo.GetByID(id)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if message == nil {
-		writeError(w, http.StatusNotFound, "message not found")
-		return
-	}
-
-	if err := repo.Respond(id, req.Response); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Transition ticket from human → ready and clear flag
+	// Use InboxService for the respond operation
+	inboxRepo := db.NewInboxRepo(s.config.DB)
 	ticketRepo := db.NewTicketRepo(s.config.DB)
-	ticket, err := ticketRepo.GetByID(message.TicketID)
-	if err == nil && ticket != nil && ticket.Status == models.StatusHuman {
-		ticket.Status = models.StatusReady
-		ticket.RetryCount = 0
-		ticket.HumanFlagReason = "" // Clear the flag reason
-		ticketRepo.Update(ticket)
+	claimRepo := db.NewClaimRepo(s.config.DB)
+	activityRepo := db.NewActivityRepo(s.config.DB)
 
-		// Log activity
-		activityRepo := db.NewActivityRepo(s.config.DB)
-		activityRepo.LogActionWithDetails(message.TicketID, models.ActionHumanResponded, models.ActorTypeHuman, "",
-			"Responded to message via web UI",
-			map[string]interface{}{
-				"inbox_message_id": id,
-				"message_type":     string(message.MessageType),
-				"message":          message.Content,
-				"response":         req.Response,
-			})
+	inboxService := service.NewInboxService(inboxRepo, ticketRepo, claimRepo, activityRepo)
+	result, err := inboxService.Respond(id, req.Response)
+	if err != nil {
+		// Convert shared errors to appropriate HTTP responses
+		if sharedErr, ok := err.(*errors.Error); ok {
+			writeSharedError(w, sharedErr)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	// Return updated message
-	message, _ = repo.GetByID(id)
-	writeJSON(w, http.StatusOK, inboxToResponse(message))
+	writeJSON(w, http.StatusOK, inboxToResponse(result.Message))
 }
 
 // Claim handlers

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -251,7 +252,7 @@ func TestFormatAge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FormatAge(tt.time)
+			result := common.FormatAge(tt.time)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

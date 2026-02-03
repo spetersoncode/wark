@@ -24,6 +24,7 @@ var (
 	ticketProject     string
 	ticketStatus      []string
 	ticketWorkable    bool
+	ticketReviewable  bool
 	ticketLimit       int
 	ticketAddDep      []string
 	ticketRemoveDep   []string
@@ -47,6 +48,7 @@ func init() {
 	ticketListCmd.Flags().StringVar(&ticketPriority, "priority", "", "Filter by priority")
 	ticketListCmd.Flags().StringVar(&ticketComplexity, "complexity", "", "Filter by complexity")
 	ticketListCmd.Flags().BoolVarP(&ticketWorkable, "workable", "w", false, "Show only workable tickets")
+	ticketListCmd.Flags().BoolVarP(&ticketReviewable, "reviewable", "r", false, "Show only tickets in review status")
 	ticketListCmd.Flags().IntVarP(&ticketLimit, "limit", "l", 50, "Max tickets to show")
 
 	// ticket edit
@@ -316,6 +318,7 @@ Examples:
   wark ticket list --project WEBAPP
   wark ticket list --status ready,in_progress
   wark ticket list --workable
+  wark ticket list --reviewable
   wark ticket list --priority high,highest`,
 	Args: cobra.NoArgs,
 	RunE: runTicketList,
@@ -344,8 +347,12 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 			Limit:      ticketLimit,
 		}
 
-		// Parse status filter
-		if len(ticketStatus) > 0 {
+		// Handle --reviewable flag (filter to review status)
+		if ticketReviewable {
+			reviewStatus := models.StatusReview
+			filter.Status = &reviewStatus
+		} else if len(ticketStatus) > 0 {
+			// Parse status filter
 			// For now, filter the first status (TODO: support multiple)
 			status := models.Status(strings.ToLower(ticketStatus[0]))
 			if status.IsValid() {

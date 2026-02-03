@@ -90,6 +90,7 @@ func resetGlobalFlags() {
 	ticketProject = ""
 	ticketStatus = nil
 	ticketWorkable = false
+	ticketReviewable = false
 	ticketLimit = 50
 	ticketAddDep = nil
 	ticketRemoveDep = nil
@@ -103,8 +104,6 @@ func resetGlobalFlags() {
 	flagReason = ""
 
 	// Inbox command flags
-	inboxPending = true
-	inboxAll = false
 	inboxProject = ""
 	inboxType = ""
 
@@ -478,6 +477,39 @@ func TestCmdTicketListWorkable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output, "Ready Ticket")
 	assert.NotContains(t, output, "Blocked Ticket")
+}
+
+func TestCmdTicketListReviewable(t *testing.T) {
+	database, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	_, _ = runCmd(t, dbPath, "project", "create", "REV", "--name", "Reviewable")
+
+	// Create ticket and move to review status via workflow
+	_, _ = runCmd(t, dbPath, "ticket", "create", "REV", "--title", "Review Ticket")
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "REV-1", "--worker-id", "agent")
+	_, _ = runCmd(t, dbPath, "ticket", "complete", "REV-1") // Goes to review
+
+	// Create a ready ticket (not in review)
+	_, _ = runCmd(t, dbPath, "ticket", "create", "REV", "--title", "Ready Ticket")
+
+	// Create an in_progress ticket directly
+	projectRepo := db.NewProjectRepo(database.DB)
+	project, _ := projectRepo.GetByKey("REV")
+	ticketRepo := db.NewTicketRepo(database.DB)
+	inProgressTicket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "In Progress Ticket",
+		Status:    models.StatusInProgress,
+	}
+	ticketRepo.Create(inProgressTicket)
+
+	// Only review tickets should show with --reviewable
+	output, err := runCmd(t, dbPath, "ticket", "list", "--reviewable")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Review Ticket")
+	assert.NotContains(t, output, "Ready Ticket")
+	assert.NotContains(t, output, "In Progress Ticket")
 }
 
 func TestCmdTicketListEmpty(t *testing.T) {

@@ -1,6 +1,11 @@
 // Package models defines the domain models for wark.
 package models
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Status represents the state of a ticket in its lifecycle.
 // State machine redesign (WARK-12, WARK-21):
 // - draft: being planned, not ready for AI to work on
@@ -29,6 +34,19 @@ func (s Status) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// ParseStatus parses a string into a Status, normalizing input.
+// Accepts both hyphenated (in-progress) and underscored (in_progress) forms.
+func ParseStatus(s string) (Status, error) {
+	// Normalize: lowercase, trim whitespace, convert hyphens to underscores
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	status := Status(normalized)
+	if !status.IsValid() {
+		return "", fmt.Errorf("invalid status %q (valid: draft, blocked, ready, in_progress, human, review, closed)", s)
+	}
+	return status, nil
 }
 
 // IsTerminal returns true if the status is a terminal state.
@@ -72,6 +90,19 @@ func (r Resolution) IsValid() bool {
 	return false
 }
 
+// ParseResolution parses a string into a Resolution, normalizing input.
+// Accepts both hyphenated (wont-do) and underscored (wont_do) forms.
+func ParseResolution(s string) (Resolution, error) {
+	// Normalize: lowercase, trim whitespace, convert hyphens to underscores
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	resolution := Resolution(normalized)
+	if !resolution.IsValid() {
+		return "", fmt.Errorf("invalid resolution %q (valid: completed, wont_do, duplicate, invalid, obsolete)", s)
+	}
+	return resolution, nil
+}
+
 // IsSuccessful returns true if this resolution indicates successful completion.
 func (r Resolution) IsSuccessful() bool {
 	return r == ResolutionCompleted
@@ -95,6 +126,16 @@ func (p Priority) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// ParsePriority parses a string into a Priority, normalizing input.
+func ParsePriority(s string) (Priority, error) {
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	priority := Priority(normalized)
+	if !priority.IsValid() {
+		return "", fmt.Errorf("invalid priority %q (valid: highest, high, medium, low, lowest)", s)
+	}
+	return priority, nil
 }
 
 // Order returns the sort order for the priority (lower is more important).
@@ -133,6 +174,16 @@ func (c Complexity) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// ParseComplexity parses a string into a Complexity, normalizing input.
+func ParseComplexity(s string) (Complexity, error) {
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	complexity := Complexity(normalized)
+	if !complexity.IsValid() {
+		return "", fmt.Errorf("invalid complexity %q (valid: trivial, small, medium, large, xlarge)", s)
+	}
+	return complexity, nil
 }
 
 // ShouldDecompose returns true if tickets of this complexity should be decomposed.
@@ -182,6 +233,16 @@ func (mt MessageType) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// ParseMessageType parses a string into a MessageType, normalizing input.
+func ParseMessageType(s string) (MessageType, error) {
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	msgType := MessageType(normalized)
+	if !msgType.IsValid() {
+		return "", fmt.Errorf("invalid message type %q (valid: question, decision, review, escalation, info)", s)
+	}
+	return msgType, nil
 }
 
 // RequiresResponse returns true if this message type typically requires a human response.
@@ -260,4 +321,44 @@ func (a Action) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// FlagReason represents the reason for flagging a ticket for human attention.
+type FlagReason string
+
+const (
+	FlagReasonIrreconcilableConflict FlagReason = "irreconcilable_conflict"
+	FlagReasonUnclearRequirements    FlagReason = "unclear_requirements"
+	FlagReasonDecisionNeeded         FlagReason = "decision_needed"
+	FlagReasonAccessRequired         FlagReason = "access_required"
+	FlagReasonBlockedExternal        FlagReason = "blocked_external"
+	FlagReasonRiskAssessment         FlagReason = "risk_assessment"
+	FlagReasonOutOfScope             FlagReason = "out_of_scope"
+	FlagReasonMaxRetriesExceeded     FlagReason = "max_retries_exceeded"
+	FlagReasonOther                  FlagReason = "other"
+)
+
+// IsValid returns true if the flag reason is valid.
+func (fr FlagReason) IsValid() bool {
+	switch fr {
+	case FlagReasonIrreconcilableConflict, FlagReasonUnclearRequirements,
+		FlagReasonDecisionNeeded, FlagReasonAccessRequired,
+		FlagReasonBlockedExternal, FlagReasonRiskAssessment,
+		FlagReasonOutOfScope, FlagReasonMaxRetriesExceeded, FlagReasonOther:
+		return true
+	}
+	return false
+}
+
+// ParseFlagReason parses a string into a FlagReason, normalizing input.
+// Accepts both hyphenated and underscored forms.
+func ParseFlagReason(s string) (FlagReason, error) {
+	// Normalize: lowercase, trim whitespace, convert hyphens to underscores
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	reason := FlagReason(normalized)
+	if !reason.IsValid() {
+		return "", fmt.Errorf("invalid flag reason %q (valid: irreconcilable_conflict, unclear_requirements, decision_needed, access_required, blocked_external, risk_assessment, out_of_scope, max_retries_exceeded, other)", s)
+	}
+	return reason, nil
 }

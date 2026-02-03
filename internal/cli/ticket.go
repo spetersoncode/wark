@@ -207,15 +207,15 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Parse priority
-	priority := models.Priority(strings.ToLower(ticketPriority))
-	if !priority.IsValid() {
-		return ErrInvalidArgs("invalid priority: %s (must be highest, high, medium, low, or lowest)", ticketPriority)
+	priority, err := models.ParsePriority(ticketPriority)
+	if err != nil {
+		return ErrInvalidArgs("%s", err)
 	}
 
 	// Parse complexity
-	complexity := models.Complexity(strings.ToLower(ticketComplexity))
-	if !complexity.IsValid() {
-		return ErrInvalidArgs("invalid complexity: %s (must be trivial, small, medium, large, or xlarge)", ticketComplexity)
+	complexity, err := models.ParseComplexity(ticketComplexity)
+	if err != nil {
+		return ErrInvalidArgs("%s", err)
 	}
 
 	// Determine initial status: draft if --draft flag, otherwise ready
@@ -363,26 +363,21 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		} else if len(ticketStatus) > 0 {
 			// Parse status filter
 			// For now, filter the first status (TODO: support multiple)
-			// Normalize hyphens to underscores (e.g., "in-progress" -> "in_progress")
-			statusStr := strings.ReplaceAll(strings.ToLower(ticketStatus[0]), "-", "_")
-			status := models.Status(statusStr)
-			if status.IsValid() {
+			if status, err := models.ParseStatus(ticketStatus[0]); err == nil {
 				filter.Status = &status
 			}
 		}
 
 		// Parse priority filter
 		if ticketPriority != "" {
-			priority := models.Priority(strings.ToLower(ticketPriority))
-			if priority.IsValid() {
+			if priority, err := models.ParsePriority(ticketPriority); err == nil {
 				filter.Priority = &priority
 			}
 		}
 
 		// Parse complexity filter
 		if ticketComplexity != "" {
-			complexity := models.Complexity(strings.ToLower(ticketComplexity))
-			if complexity.IsValid() {
+			if complexity, err := models.ParseComplexity(ticketComplexity); err == nil {
 				filter.Complexity = &complexity
 			}
 		}
@@ -731,9 +726,9 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 
 	// Update priority
 	if cmd.Flags().Changed("priority") && ticketPriority != "" {
-		priority := models.Priority(strings.ToLower(ticketPriority))
-		if !priority.IsValid() {
-			return ErrInvalidArgs("invalid priority: %s (must be highest, high, medium, low, or lowest)", ticketPriority)
+		priority, err := models.ParsePriority(ticketPriority)
+		if err != nil {
+			return ErrInvalidArgs("%s", err)
 		}
 		oldPriority := ticket.Priority
 		ticket.Priority = priority
@@ -745,9 +740,9 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 
 	// Update complexity
 	if cmd.Flags().Changed("complexity") && ticketComplexity != "" {
-		complexity := models.Complexity(strings.ToLower(ticketComplexity))
-		if !complexity.IsValid() {
-			return ErrInvalidArgs("invalid complexity: %s (must be trivial, small, medium, large, or xlarge)", ticketComplexity)
+		complexity, err := models.ParseComplexity(ticketComplexity)
+		if err != nil {
+			return ErrInvalidArgs("%s", err)
 		}
 		oldComplexity := ticket.Complexity
 		ticket.Complexity = complexity

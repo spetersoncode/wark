@@ -701,6 +701,52 @@ func TestCmdTicketReleaseNotClaimed(t *testing.T) {
 	assert.Contains(t, err.Error(), "not in progress")
 }
 
+func TestCmdTicketReleaseJSON(t *testing.T) {
+	_, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	_, _ = runCmd(t, dbPath, "project", "create", "RELJSON", "--name", "Release JSON")
+	_, _ = runCmd(t, dbPath, "ticket", "create", "RELJSON", "--title", "Release JSON Test")
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "RELJSON-1", "--worker-id", "agent")
+
+	var result map[string]interface{}
+	err := runCmdJSON(t, dbPath, &result, "ticket", "release", "RELJSON-1", "--reason", "Testing JSON")
+	require.NoError(t, err)
+
+	// Verify JSON output includes status change info
+	assert.Equal(t, "RELJSON-1", result["ticket"])
+	assert.Equal(t, true, result["released"])
+	assert.Equal(t, "ready", result["status"])
+	assert.Equal(t, "in_progress", result["previous_status"])
+	assert.Equal(t, true, result["status_changed"])
+	assert.Equal(t, float64(1), result["retry_count"])
+}
+
+func TestCmdTicketReleaseStatusTransition(t *testing.T) {
+	_, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	_, _ = runCmd(t, dbPath, "project", "create", "RELST", "--name", "Release Status")
+	_, _ = runCmd(t, dbPath, "ticket", "create", "RELST", "--title", "Status Transition Test")
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "RELST-1", "--worker-id", "agent")
+
+	// Verify ticket is in_progress after claim
+	var ticketBefore map[string]interface{}
+	err := runCmdJSON(t, dbPath, &ticketBefore, "ticket", "show", "RELST-1")
+	require.NoError(t, err)
+	assert.Equal(t, "in_progress", ticketBefore["status"])
+
+	// Release the ticket
+	_, err = runCmd(t, dbPath, "ticket", "release", "RELST-1")
+	require.NoError(t, err)
+
+	// Verify ticket is now ready
+	var ticketAfter map[string]interface{}
+	err = runCmdJSON(t, dbPath, &ticketAfter, "ticket", "show", "RELST-1")
+	require.NoError(t, err)
+	assert.Equal(t, "ready", ticketAfter["status"])
+}
+
 func TestCmdTicketComplete(t *testing.T) {
 	_, dbPath, cleanup := testDB(t)
 	defer cleanup()

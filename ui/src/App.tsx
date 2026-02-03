@@ -9,7 +9,7 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ColorSwatches } from "./components/ColorSwatches";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SearchBar } from "./components/SearchBar";
@@ -62,7 +62,7 @@ function App() {
 			<header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-sm">
 				<div className="container mx-auto px-4 h-14 flex items-center justify-between">
 					<div className="flex items-center gap-8">
-						<h1 className="text-xl font-bold">wark</h1>
+						<Link to="/" className="text-xl font-bold hover:opacity-80 transition-opacity">wark</Link>
 						{/* Desktop Navigation */}
 						<nav className="hidden md:flex items-center gap-1">
 							{NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (

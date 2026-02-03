@@ -1,6 +1,8 @@
 # Wark: Reviewer Reference
 
-> Workflow for reviewing completed tickets
+> Guidance for agent reviewers evaluating completed tickets
+
+**Your role:** Autonomously accept or reject work. Human involvement is the exception, not the rule.
 
 ## Table of Contents
 
@@ -88,6 +90,8 @@ wark ticket reject PROJ-42 --reason "Tests missing for edge cases"
 
 ## Accept vs Reject
 
+**Make the call yourself.** Your job is to autonomously accept or reject work based on your assessment.
+
 ### When to Accept
 
 - Code meets quality standards
@@ -109,6 +113,8 @@ wark ticket accept PROJ-42 --comment "Clean implementation, good test coverage"
 ```bash
 wark ticket reject PROJ-42 --reason "Missing validation for email format in login form"
 ```
+
+Rejection sends the ticket back to `ready` for another agent (or the same agent) to rework.
 
 ### When to Request Changes
 
@@ -168,7 +174,7 @@ Be clear which category each item falls into.
 
 ### 1. Review Promptly
 
-Tickets in `review` block progress. Aim to review within 24 hours.
+Tickets in `review` block progress. Process the review queue quickly.
 
 ### 2. Check the Diff, Not Just the Code
 
@@ -211,13 +217,18 @@ If you see recurring issues, consider:
 
 ### 7. Know When to Escalate
 
-Flag for human review when:
-- Changes affect security or authentication
-- Architecture decisions were made
-- You're uncertain about requirements
-- Risk is high
+**Escalate to human only when you genuinely cannot make the call:**
+
+- **Irreconcilable conflicts** — Technical disagreements you cannot resolve from available context
+- **Consequential decisions requiring human judgment** — Major business impact, significant user-facing changes where the human should weigh in
+- **Genuine ambiguity** — Requirements are unclear and you cannot reasonably interpret them
+
+**Do NOT escalate for:**
+- Security changes, auth changes, architecture decisions — assess these yourself; only escalate if you truly can't determine correctness
+- Uncertainty that can be resolved by reading the codebase, docs, or ticket history
+- "I want a human to double-check" — that's your job
 
 ```bash
-wark ticket flag PROJ-42 --reason risk_assessment \
-  "This changes the auth flow. Recommend human review before merge."
+wark ticket flag PROJ-42 --reason irreconcilable_conflict \
+  "Ticket says use PostgreSQL but ARCHITECTURE.md mandates SQLite. Cannot resolve."
 ```

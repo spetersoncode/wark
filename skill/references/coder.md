@@ -188,7 +188,7 @@ wark inbox show 12 --json                   # View specific message
 
 ### Standard Completion
 
-Submits for human review:
+Submits for agent review. An agent reviewer will check the work and accept or reject:
 
 ```bash
 wark ticket complete PROJ-42 --summary "Added login form with email/password validation, remember-me checkbox, and forgot-password link"
@@ -196,11 +196,21 @@ wark ticket complete PROJ-42 --summary "Added login form with email/password val
 
 ### Auto-Accept (Skip Review)
 
-For trivial changes only:
+Use when you're confident the work is correct and no review is needed:
 
 ```bash
 wark ticket complete PROJ-42 --summary "Fixed typo in error message" --auto-accept
 ```
+
+**When to auto-accept:**
+- Trivial, low-risk changes (typos, formatting, simple config)
+- Clear-cut implementations with high confidence
+- Changes that are easily reversible
+
+**When to go through review:**
+- Complex or high-risk changes
+- Changes touching security, auth, or critical paths
+- When you want a second opinion on your approach
 
 ### Writing Good Summaries
 

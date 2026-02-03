@@ -36,7 +36,7 @@ created → ready → in_progress → review → done → closed
 | `in_progress` | Currently being worked on (has active claim) |
 | `blocked` | Waiting for dependencies to complete |
 | `needs_human` | Waiting for human input |
-| `review` | Work complete, awaiting human acceptance |
+| `review` | Work complete, awaiting review |
 | `done` | Accepted and finished |
 | `closed` | Archived after completion |
 | `cancelled` | No longer needed |

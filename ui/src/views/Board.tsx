@@ -1,8 +1,7 @@
 import { CircleCheck, CircleDot, Eye, Filter, RefreshCw, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { KanbanCard, KanbanColumn, ClosedColumn } from "@/components/board";
-import { useRefreshShortcut } from "@/components/KeyboardShortcutsProvider";
+import { ClosedColumn, KanbanCard, KanbanColumn } from "@/components/board";
 import { BoardSkeleton } from "@/components/skeletons";
 import {
 	listProjects,
@@ -143,9 +142,6 @@ export default function Board() {
 	// Auto-refresh every 10 seconds when tab is visible
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchData, [fetchData]);
 
-	// Register "r" keyboard shortcut for refresh
-	useRefreshShortcut(handleRefresh);
-
 	// Apply client-side complexity filter (API doesn't support it)
 	const filteredTickets = filterComplexity
 		? tickets.filter((t) => t.complexity === filterComplexity)
@@ -176,16 +172,18 @@ export default function Board() {
 
 	if (error) {
 		return (
-			<div className="flex items-center gap-3 p-4 border border-[var(--error)]/20 bg-[var(--error)]/5 rounded-md text-[var(--error)]">
-				<span className="text-lg">⚠</span>
+			<div className="flex items-center gap-3 p-4 border border-error/20 bg-error/5 rounded-lg animate-in fade-in duration-200">
+				<div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0">
+					<Filter className="w-5 h-5 text-error" />
+				</div>
 				<div className="flex-1">
-					<p className="font-medium">Failed to load board</p>
-					<p className="text-sm opacity-80">{error}</p>
+					<p className="font-medium text-error">Failed to load board</p>
+					<p className="text-sm text-error/80">{error}</p>
 				</div>
 				<button
 					type="button"
 					onClick={handleRefresh}
-					className="px-3 py-1.5 text-sm rounded-md hover:bg-[var(--error)]/10 transition-colors"
+					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
 				>
 					Retry
 				</button>
@@ -212,7 +210,7 @@ export default function Board() {
 					type="button"
 					onClick={handleRefresh}
 					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50"
+					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
 				>
 					<RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
 					Refresh

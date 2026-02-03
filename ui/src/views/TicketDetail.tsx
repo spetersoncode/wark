@@ -91,15 +91,34 @@ export default function TicketDetail() {
 
 	if (error || !ticket) {
 		return (
-			<div className="space-y-4">
+			<div className="space-y-4 animate-in fade-in duration-200">
 				<Link
 					to="/tickets"
 					className="inline-flex items-center gap-1 text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
 				>
 					← Tickets
 				</Link>
-				<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-					{error || "Ticket not found"}
+				<div className="flex items-center gap-3 p-4 border border-error/20 bg-error/5 rounded-lg">
+					<div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0">
+						<AlertTriangle className="w-5 h-5 text-error" />
+					</div>
+					<div className="flex-1">
+						<p className="font-medium text-error">
+							{error ? "Failed to load ticket" : "Ticket not found"}
+						</p>
+						<p className="text-sm text-error/80">
+							{error || `The ticket "${key}" could not be found.`}
+						</p>
+					</div>
+					{error && (
+						<button
+							type="button"
+							onClick={() => fetchTicket()}
+							className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
+						>
+							Retry
+						</button>
+					)}
 				</div>
 			</div>
 		);
@@ -168,7 +187,7 @@ export default function TicketDetail() {
 						) : (
 							<ul className="space-y-2">
 								{history.map((log) => (
-									<li key={log.id} className="flex items-start gap-3 text-sm py-1">
+									<li key={log.id} className="flex items-start gap-3 text-sm py-1 stagger-item">
 										{/* Colored dot based on action type */}
 										<span
 											className={cn(

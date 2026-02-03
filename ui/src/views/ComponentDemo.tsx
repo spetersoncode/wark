@@ -1,7 +1,7 @@
 import { CheckCircle, Search } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
-import { PriorityIndicator, type Priority } from "@/components/PriorityIndicator";
-import { StatusBadge, type Status } from "@/components/StatusBadge";
+import { type Priority, PriorityIndicator } from "@/components/PriorityIndicator";
+import { type Status, StatusBadge } from "@/components/StatusBadge";
 
 const statuses: Status[] = ["ready", "in_progress", "human", "review", "blocked", "closed"];
 const priorities: Priority[] = ["highest", "high", "medium", "low", "lowest"];

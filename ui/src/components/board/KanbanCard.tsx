@@ -1,9 +1,9 @@
 import { AlertTriangle, CircleMinus, GitBranch } from "lucide-react";
 import { Link } from "react-router-dom";
-import { PriorityIndicator, type Priority } from "@/components/PriorityIndicator";
+import { type Priority, PriorityIndicator } from "@/components/PriorityIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import type { Ticket } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface KanbanCardProps {
 	ticket: Ticket;
@@ -25,8 +25,8 @@ export function KanbanCard({ ticket, showBlockedBadge = false }: KanbanCardProps
 		<Link
 			to={`/tickets/${ticket.ticket_key}`}
 			className={cn(
-				"block p-3 bg-[var(--background)] border rounded-md transition-colors group",
-				"border-[var(--border)] hover:border-[var(--border-strong)]",
+				"block p-3 bg-[var(--background)] border rounded-md group card-hover stagger-item",
+				"border-[var(--border)]",
 				hasHumanFlag && "border-l-2 border-l-[var(--status-human)]",
 			)}
 		>

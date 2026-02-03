@@ -76,7 +76,22 @@ export default function Dashboard() {
 
 	if (error) {
 		return (
-			<div className="bg-error/5 border border-error/20 rounded-lg p-4 text-error">{error}</div>
+			<div className="flex items-center gap-3 p-4 border border-error/20 bg-error/5 rounded-lg animate-in fade-in duration-200">
+				<div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0">
+					<AlertTriangle className="w-5 h-5 text-error" />
+				</div>
+				<div className="flex-1">
+					<p className="font-medium text-error">Failed to load dashboard</p>
+					<p className="text-sm text-error/80">{error}</p>
+				</div>
+				<button
+					type="button"
+					onClick={() => fetchData()}
+					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
+				>
+					Retry
+				</button>
+			</div>
 		);
 	}
 
@@ -212,7 +227,7 @@ export default function Dashboard() {
 								{status.recent_activity.map((activity, i) => (
 									<li
 										key={`${activity.ticket_key}-${i}`}
-										className="px-4 py-2.5 flex items-center gap-3 hover:bg-background-muted/50 transition-colors"
+										className="px-4 py-2.5 flex items-center gap-3 hover:bg-background-muted/50 transition-colors stagger-item"
 									>
 										<Link
 											to={`/tickets/${activity.ticket_key}`}
@@ -253,10 +268,7 @@ interface CompactStatCardProps {
 
 function CompactStatCard({ title, value, icon, colorClass, href, trend }: CompactStatCardProps) {
 	return (
-		<Link
-			to={href}
-			className="block bg-card border border-border rounded-lg p-3 hover:border-border-strong transition-colors"
-		>
+		<Link to={href} className="block bg-card border border-border rounded-lg p-3 card-hover">
 			<div className="flex items-center justify-between mb-1">
 				<span className={cn("shrink-0", colorClass)}>{icon}</span>
 				{trend && (
@@ -292,7 +304,7 @@ interface AttentionItemProps {
 
 function AttentionItem({ ticketKey, icon, type, description, meta, priority }: AttentionItemProps) {
 	return (
-		<li className="px-4 py-3 flex items-start gap-3 hover:bg-background-muted/50 transition-colors">
+		<li className="px-4 py-3 flex items-start gap-3 hover:bg-background-muted/50 transition-colors stagger-item">
 			<span className="shrink-0 mt-0.5">{icon}</span>
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2 mb-0.5">

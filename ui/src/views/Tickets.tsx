@@ -314,8 +314,21 @@ export default function Tickets() {
 
 	if (error) {
 		return (
-			<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-				{error}
+			<div className="flex items-center gap-3 p-4 border border-error/20 bg-error/5 rounded-lg animate-in fade-in duration-200">
+				<div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0">
+					<Filter className="w-5 h-5 text-error" />
+				</div>
+				<div className="flex-1">
+					<p className="font-medium text-error">Failed to load tickets</p>
+					<p className="text-sm text-error/80">{error}</p>
+				</div>
+				<button
+					type="button"
+					onClick={() => fetchData()}
+					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
+				>
+					Retry
+				</button>
 			</div>
 		);
 	}
@@ -329,7 +342,7 @@ export default function Tickets() {
 					type="button"
 					onClick={handleRefresh}
 					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
 				>
 					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
 					Refresh
@@ -421,14 +434,27 @@ export default function Tickets() {
 
 			{/* Tickets table */}
 			{tickets.length === 0 ? (
-				<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg">
-					<EmptyState
-						icon={ListTodo}
-						title={hasActiveFilters ? "No tickets match filters" : "No tickets found"}
-						description={hasActiveFilters ? "Try adjusting your filters" : undefined}
-						className="py-16"
-					/>
-				</div>
+				<EmptyState
+					icon={ListTodo}
+					title={hasActiveFilters ? "No tickets match filters" : "No tickets yet"}
+					description={
+						hasActiveFilters
+							? "Try adjusting your filters or clear them to see all tickets."
+							: "Tickets are created via the CLI. Run `wark ticket create` to add your first one."
+					}
+					variant="card"
+					action={
+						hasActiveFilters ? (
+							<button
+								type="button"
+								onClick={clearFilters}
+								className="px-4 py-2 text-sm bg-[var(--secondary)] hover:bg-[var(--accent-muted)] rounded-md transition-colors"
+							>
+								Clear filters
+							</button>
+						) : undefined
+					}
+				/>
 			) : (
 				<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
 					<div className="overflow-x-auto max-h-[calc(100vh-280px)]">

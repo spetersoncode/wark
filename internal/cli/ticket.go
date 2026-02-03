@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/spf13/cobra"
@@ -76,26 +75,14 @@ var ticketCmd = &cobra.Command{
 	Long:  `Manage tickets in wark. Tickets are units of work within projects.`,
 }
 
-// parseTicketKey parses a ticket key like "WEBAPP-42" into project key and number
+// parseTicketKey parses a ticket key like "WEBAPP-42" into project key and number.
+// Wraps common.ParseTicketKey with CLI-specific error formatting.
 func parseTicketKey(key string) (projectKey string, number int, err error) {
-	// Handle both "WEBAPP-42" and just "42" with --project flag
-	key = strings.ToUpper(strings.TrimSpace(key))
-
-	// Pattern: PROJECT-NUMBER
-	re := regexp.MustCompile(`^([A-Z][A-Z0-9]*)-(\d+)$`)
-	matches := re.FindStringSubmatch(key)
-	if matches != nil {
-		projectKey = matches[1]
-		number, _ = strconv.Atoi(matches[2])
-		return projectKey, number, nil
+	projectKey, number, err = common.ParseTicketKey(key)
+	if err != nil {
+		return "", 0, ErrInvalidArgsWithSuggestion(SuggestCheckTicketKey, "invalid ticket key: %s (expected format: PROJECT-NUMBER)", key)
 	}
-
-	// Just a number
-	if n, err := strconv.Atoi(key); err == nil {
-		return "", n, nil
-	}
-
-	return "", 0, ErrInvalidArgsWithSuggestion(SuggestCheckTicketKey, "invalid ticket key: %s (expected format: PROJECT-NUMBER)", key)
+	return projectKey, number, nil
 }
 
 // resolveTicket looks up a ticket by key

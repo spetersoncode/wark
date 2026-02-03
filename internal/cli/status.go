@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/spf13/cobra"
@@ -174,7 +175,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			result.RecentActivity = append(result.RecentActivity, &ActivitySummary{
 				TicketKey: a.TicketKey,
 				Action:    string(a.Action),
-				Age:       formatAge(a.CreatedAt),
+				Age:       common.FormatAge(a.CreatedAt),
 				Summary:   summary,
 			})
 		}

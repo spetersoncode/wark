@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 )
@@ -297,7 +298,7 @@ func (s *Server) handleGetTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectKey, number, err := parseTicketKey(ticketKey)
+	projectKey, number, err := common.ParseTicketKey(ticketKey)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -536,7 +537,7 @@ func (s *Server) handleGetClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectKey, number, err := parseTicketKey(ticketKey)
+	projectKey, number, err := common.ParseTicketKey(ticketKey)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -665,7 +666,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			result.RecentActivity = append(result.RecentActivity, ActivityItem{
 				TicketKey: a.TicketKey,
 				Action:    string(a.Action),
-				Age:       formatAge(a.CreatedAt),
+				Age:       common.FormatAge(a.CreatedAt),
 				Summary:   summary,
 			})
 		}
@@ -759,28 +760,4 @@ func activityToResponse(a *models.ActivityLog) *ActivityResponse {
 		Details:   a.Details,
 		CreatedAt: a.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}
-}
-
-// parseTicketKey parses a ticket key like "WEBAPP-42" into project key and number.
-func parseTicketKey(key string) (string, int, error) {
-	parts := strings.Split(key, "-")
-	if len(parts) != 2 {
-		return "", 0, errInvalidTicketKey
-	}
-	if parts[0] == "" {
-		return "", 0, errInvalidTicketKey
-	}
-	number, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return "", 0, errInvalidTicketKey
-	}
-	return parts[0], number, nil
-}
-
-var errInvalidTicketKey = &invalidTicketKeyError{}
-
-type invalidTicketKeyError struct{}
-
-func (e *invalidTicketKeyError) Error() string {
-	return "invalid ticket key format (expected PROJECT-NUMBER)"
 }

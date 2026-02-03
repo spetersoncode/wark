@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -618,6 +619,7 @@ func TestParseTicketKey(t *testing.T) {
 		{"TEST-1", "TEST", 1, false},
 		{"PROJECT-123", "PROJECT", 123, false},
 		{"A-42", "A", 42, false},
+		{"42", "", 42, false}, // just a number is now valid
 		{"INVALID", "", 0, true},
 		{"NO-NUMBER-HERE", "", 0, true},
 		{"", "", 0, true},
@@ -627,7 +629,7 @@ func TestParseTicketKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
-			proj, num, err := parseTicketKey(tt.key)
+			proj, num, err := common.ParseTicketKey(tt.key)
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -655,7 +657,7 @@ func TestFormatAge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatAge(tt.time)
+			result := common.FormatAge(tt.time)
 			assert.Contains(t, result, tt.contains)
 		})
 	}

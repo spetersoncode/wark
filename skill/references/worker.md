@@ -135,6 +135,19 @@ wark ticket complete PROJ-42 --summary "What you did"
 - If ticket has incomplete tasks → completes current task, releases claim
 - If all tasks done (or no tasks) → ticket moves to `review`
 
+### Auto-Accept (Skip Review)
+
+When work is done and deliverables are delivered, skip the review stage:
+
+```bash
+wark ticket complete PROJ-42 --auto-accept --summary "What you did"
+```
+
+Use `--auto-accept` when:
+- All tasks completed successfully
+- Deliverables uploaded/delivered
+- No human review needed
+
 ### Include Deliverables in Summary
 
 Be specific about what was produced:

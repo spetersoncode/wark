@@ -1,7 +1,19 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, Filter, ListTodo, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { EmptyState } from "../components/EmptyState";
+import { PriorityIndicator } from "../components/PriorityIndicator";
+import { StatusBadge } from "../components/StatusBadge";
 import { TicketsListSkeleton } from "../components/skeletons";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "../components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import {
 	ApiError,
 	listProjects,
@@ -15,7 +27,14 @@ import {
 import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
 
-type SortField = "ticket_key" | "title" | "status" | "priority" | "complexity" | "created_at";
+type SortField =
+	| "ticket_key"
+	| "title"
+	| "status"
+	| "priority"
+	| "complexity"
+	| "project"
+	| "created_at";
 type SortDirection = "asc" | "desc";
 
 const STATUS_ORDER: Record<TicketStatus, number> = {
@@ -43,15 +62,6 @@ const COMPLEXITY_ORDER: Record<TicketComplexity, number> = {
 	xlarge: 4,
 };
 
-const STATUS_STYLES: Record<TicketStatus, string> = {
-	blocked: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-	ready: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-	in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-	human: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-	review: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-	closed: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500",
-};
-
 const STATUSES: { value: TicketStatus; label: string }[] = [
 	{ value: "blocked", label: "Blocked" },
 	{ value: "ready", label: "Ready" },
@@ -77,14 +87,6 @@ const COMPLEXITIES: { value: TicketComplexity; label: string }[] = [
 	{ value: "xlarge", label: "X-Large" },
 ];
 
-const PRIORITY_STYLES: Record<TicketPriority, string> = {
-	highest: "text-red-600 dark:text-red-400",
-	high: "text-orange-600 dark:text-orange-400",
-	medium: "text-yellow-600 dark:text-yellow-400",
-	low: "text-blue-600 dark:text-blue-400",
-	lowest: "text-gray-600 dark:text-gray-400",
-};
-
 export default function Tickets() {
 	const [searchParams, setSearchParams] = useSearchParams();
 
@@ -105,6 +107,9 @@ export default function Tickets() {
 	const [loading, setLoading] = useState(true);
 	const [sortField, setSortField] = useState<SortField>("created_at");
 	const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+	// Build a map of project keys to names for display
+	const projectMap = new Map(projects.map((p) => [p.key, p.name]));
 
 	// Update a single filter in URL params
 	const setFilter = useCallback(
@@ -199,6 +204,9 @@ export default function Tickets() {
 			case "complexity":
 				comparison = COMPLEXITY_ORDER[a.complexity] - COMPLEXITY_ORDER[b.complexity];
 				break;
+			case "project":
+				comparison = a.project_key.localeCompare(b.project_key);
+				break;
 			case "created_at":
 				comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 				break;
@@ -220,9 +228,9 @@ export default function Tickets() {
 	}) {
 		const isActive = sortField === field;
 		return (
-			<th
+			<TableHead
 				className={cn(
-					"px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)] cursor-pointer select-none hover:text-[var(--foreground)] transition-colors",
+					"cursor-pointer select-none hover:text-foreground transition-colors",
 					className,
 				)}
 				onClick={() => handleSort(field)}
@@ -239,7 +247,7 @@ export default function Tickets() {
 						<ArrowUpDown className="w-4 h-4 opacity-40" />
 					)}
 				</div>
-			</th>
+			</TableHead>
 		);
 	}
 
@@ -365,24 +373,31 @@ export default function Tickets() {
 
 			{/* Tickets table */}
 			{tickets.length === 0 ? (
-				<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-8 text-center">
-					<ListTodo className="w-12 h-12 mx-auto mb-4 text-[var(--muted-foreground)]" />
-					<p className="text-[var(--muted-foreground)]">No tickets found</p>
+				<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg">
+					<EmptyState
+						icon={ListTodo}
+						title={hasActiveFilters ? "No tickets match filters" : "No tickets found"}
+						description={hasActiveFilters ? "Try adjusting your filters" : undefined}
+						className="py-16"
+					/>
 				</div>
 			) : (
 				<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
-					<div className="overflow-x-auto">
-						<table className="w-full">
-							<thead className="bg-[var(--secondary)] border-b border-[var(--border)]">
-								<tr>
+					<div className="overflow-x-auto max-h-[calc(100vh-280px)]">
+						<Table>
+							<TableHeader className="bg-[var(--secondary)] sticky top-0 z-10">
+								<TableRow className="hover:bg-transparent">
 									<SortHeader field="ticket_key" className="w-28">
 										Key
 									</SortHeader>
 									<SortHeader field="title">Title</SortHeader>
-									<SortHeader field="status" className="w-28">
+									<SortHeader field="project" className="w-32">
+										Project
+									</SortHeader>
+									<SortHeader field="status" className="w-32">
 										Status
 									</SortHeader>
-									<SortHeader field="priority" className="w-24">
+									<SortHeader field="priority" className="w-28">
 										Priority
 									</SortHeader>
 									<SortHeader field="complexity" className="w-24">
@@ -391,57 +406,61 @@ export default function Tickets() {
 									<SortHeader field="created_at" className="w-28">
 										Created
 									</SortHeader>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-[var(--border)]">
+								</TableRow>
+							</TableHeader>
+							<TableBody>
 								{sortedTickets.map((ticket) => (
-									<tr key={ticket.id} className="hover:bg-[var(--accent)] transition-colors">
-										<td className="px-4 py-3">
+									<TableRow key={ticket.id} className="hover:bg-muted/50 transition-colors">
+										<TableCell className="py-4">
 											<Link
 												to={`/tickets/${ticket.ticket_key}`}
 												className="font-mono text-sm text-[var(--primary)] hover:underline"
 											>
 												{ticket.ticket_key}
 											</Link>
-										</td>
-										<td className="px-4 py-3">
-											<Link
-												to={`/tickets/${ticket.ticket_key}`}
-												className="hover:text-[var(--primary)] transition-colors"
-											>
-												{ticket.title}
-											</Link>
-										</td>
-										<td className="px-4 py-3">
-											<span
-												className={cn(
-													"inline-flex px-2 py-0.5 text-xs font-medium rounded-full",
-													STATUS_STYLES[ticket.status],
-												)}
-											>
-												{ticket.status.replace("_", " ")}
+										</TableCell>
+										<TableCell className="py-4 max-w-[300px]">
+											<Tooltip delayDuration={300}>
+												<TooltipTrigger asChild>
+													<Link
+														to={`/tickets/${ticket.ticket_key}`}
+														className="block truncate hover:text-[var(--primary)] transition-colors"
+													>
+														{ticket.title}
+													</Link>
+												</TooltipTrigger>
+												<TooltipContent side="top" className="max-w-md">
+													{ticket.title}
+												</TooltipContent>
+											</Tooltip>
+										</TableCell>
+										<TableCell className="py-4">
+											<span className="text-sm text-muted-foreground">
+												{projectMap.get(ticket.project_key) || ticket.project_key}
 											</span>
-										</td>
-										<td className="px-4 py-3">
-											<span
-												className={cn(
-													"text-sm font-medium capitalize",
-													PRIORITY_STYLES[ticket.priority],
-												)}
-											>
-												{ticket.priority}
-											</span>
-										</td>
-										<td className="px-4 py-3 text-sm text-[var(--muted-foreground)] capitalize">
+										</TableCell>
+										<TableCell className="py-4">
+											<StatusBadge status={ticket.status} />
+										</TableCell>
+										<TableCell className="py-4">
+											<PriorityIndicator priority={ticket.priority} variant="full" />
+										</TableCell>
+										<TableCell className="py-4 text-sm text-muted-foreground capitalize">
 											{ticket.complexity === "xlarge" ? "X-Large" : ticket.complexity}
-										</td>
-										<td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+										</TableCell>
+										<TableCell className="py-4 text-sm text-muted-foreground">
 											{formatDate(ticket.created_at)}
-										</td>
-									</tr>
+										</TableCell>
+									</TableRow>
 								))}
-							</tbody>
-						</table>
+							</TableBody>
+						</Table>
+					</div>
+					{/* Footer with count */}
+					<div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--secondary)]">
+						<span className="text-sm text-muted-foreground">
+							Showing {tickets.length} ticket{tickets.length !== 1 ? "s" : ""}
+						</span>
 					</div>
 				</div>
 			)}

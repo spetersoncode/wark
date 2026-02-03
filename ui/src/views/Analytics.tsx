@@ -1,4 +1,4 @@
-import { BarChart3, Clock, RefreshCw, TrendingUp, Users } from "lucide-react";
+import { BarChart3, Clock, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useRefreshShortcut } from "../components/KeyboardShortcutsProvider";
@@ -10,6 +10,7 @@ import {
 	listProjects,
 	type ProjectWithStats,
 } from "../lib/api";
+import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
 
 export default function Analytics() {
@@ -18,7 +19,6 @@ export default function Analytics() {
 	const [selectedProject, setSelectedProject] = useState<string>("");
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
 
 	const fetchData = useCallback(async () => {
 		try {
@@ -37,7 +37,6 @@ export default function Analytics() {
 			}
 		} finally {
 			setLoading(false);
-			setRefreshing(false);
 		}
 	}, [selectedProject]);
 
@@ -45,13 +44,11 @@ export default function Analytics() {
 		fetchData();
 	}, [fetchData]);
 
-	function handleRefresh() {
-		setRefreshing(true);
-		fetchData();
-	}
+	// Auto-refresh every 10 seconds when tab is visible
+	const { refresh } = useAutoRefresh(fetchData, [fetchData]);
 
 	// Register "r" keyboard shortcut for refresh
-	useRefreshShortcut(handleRefresh);
+	useRefreshShortcut(refresh);
 
 	function handleProjectChange(e: React.ChangeEvent<HTMLSelectElement>) {
 		setSelectedProject(e.target.value);
@@ -74,7 +71,7 @@ export default function Analytics() {
 				</div>
 				<button
 					type="button"
-					onClick={handleRefresh}
+					onClick={refresh}
 					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
 				>
 					Retry
@@ -90,29 +87,18 @@ export default function Analytics() {
 			{/* Header with filters */}
 			<div className="flex items-center justify-between">
 				<h2 className="text-2xl font-bold">Analytics</h2>
-				<div className="flex items-center gap-4">
-					<select
-						value={selectedProject}
-						onChange={handleProjectChange}
-						className="px-3 py-2 text-sm rounded-md bg-[var(--card)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-					>
-						<option value="">All Projects</option>
-						{projects.map((p) => (
-							<option key={p.key} value={p.key}>
-								{p.name}
-							</option>
-						))}
-					</select>
-					<button
-						type="button"
-						onClick={handleRefresh}
-						disabled={refreshing}
-						className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
-					>
-						<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-						Refresh
-					</button>
-				</div>
+				<select
+					value={selectedProject}
+					onChange={handleProjectChange}
+					className="px-3 py-2 text-sm rounded-md bg-[var(--card)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+				>
+					<option value="">All Projects</option>
+					{projects.map((p) => (
+						<option key={p.key} value={p.key}>
+							{p.name}
+						</option>
+					))}
+				</select>
 			</div>
 
 			{/* Success Metrics */}

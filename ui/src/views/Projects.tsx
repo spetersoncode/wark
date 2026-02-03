@@ -1,11 +1,10 @@
-import { AlertTriangle, FolderKanban, RefreshCw } from "lucide-react";
+import { AlertTriangle, FolderKanban } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { ProjectsSkeleton } from "../components/skeletons";
 import { ApiError, listProjects, type ProjectWithStats } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
-import { cn } from "../lib/utils";
 
 export default function Projects() {
 	const [projects, setProjects] = useState<ProjectWithStats[]>([]);
@@ -34,7 +33,7 @@ export default function Projects() {
 	}, [fetchProjects]);
 
 	// Auto-refresh every 10 seconds when tab is visible
-	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchProjects, [fetchProjects]);
+	useAutoRefresh(fetchProjects, [fetchProjects]);
 
 	if (loading) {
 		return <ProjectsSkeleton />;
@@ -63,19 +62,8 @@ export default function Projects() {
 
 	return (
 		<div className="space-y-8">
-			{/* Header with refresh */}
-			<div className="flex items-center justify-between">
-				<h2 className="text-2xl font-bold">Projects</h2>
-				<button
-					type="button"
-					onClick={handleRefresh}
-					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
-				>
-					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-					Refresh
-				</button>
-			</div>
+			{/* Header */}
+			<h2 className="text-2xl font-bold">Projects</h2>
 
 			{/* Projects list */}
 			{projects.length === 0 ? (

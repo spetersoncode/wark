@@ -98,13 +98,13 @@ func TestGetDefaultClaimDuration(t *testing.T) {
 	globalConfig = &config.Config{ClaimDuration: 90}
 	assert.Equal(t, 90, GetDefaultClaimDuration())
 
-	// Test with zero config (should return default 60)
+	// Test with zero config (should return default 30)
 	globalConfig = &config.Config{ClaimDuration: 0}
-	assert.Equal(t, 60, GetDefaultClaimDuration())
+	assert.Equal(t, 30, GetDefaultClaimDuration())
 
 	// Test with nil config
 	globalConfig = nil
-	assert.Equal(t, 60, GetDefaultClaimDuration())
+	assert.Equal(t, 30, GetDefaultClaimDuration())
 }
 
 func TestGetProjectWithDefault(t *testing.T) {

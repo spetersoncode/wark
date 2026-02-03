@@ -152,7 +152,7 @@ func GetDefaultClaimDuration() int {
 	if globalConfig != nil && globalConfig.ClaimDuration > 0 {
 		return globalConfig.ClaimDuration
 	}
-	return 60
+	return 30
 }
 
 // GetConfig returns the global configuration.

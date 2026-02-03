@@ -230,47 +230,6 @@ export const updateTicket = (
 		body: JSON.stringify(data),
 	});
 
-// Ticket workflow actions
-export const claimTicket = (key: string, workerId?: string, durationMins?: number) =>
-	fetchApi<{ ticket: Ticket; claim: Claim }>(`/tickets/${key}/claim`, {
-		method: "POST",
-		body: JSON.stringify({ worker_id: workerId, duration_mins: durationMins }),
-	});
-
-export const releaseTicket = (key: string, reason?: string) =>
-	fetchApi<Ticket>(`/tickets/${key}/release`, {
-		method: "POST",
-		body: JSON.stringify({ reason }),
-	});
-
-export const completeTicket = (key: string, summary?: string, autoAccept?: boolean) =>
-	fetchApi<Ticket>(`/tickets/${key}/complete`, {
-		method: "POST",
-		body: JSON.stringify({ summary, auto_accept: autoAccept }),
-	});
-
-export const acceptTicket = (key: string) =>
-	fetchApi<Ticket>(`/tickets/${key}/accept`, {
-		method: "POST",
-	});
-
-export const rejectTicket = (key: string, reason: string) =>
-	fetchApi<Ticket>(`/tickets/${key}/reject`, {
-		method: "POST",
-		body: JSON.stringify({ reason }),
-	});
-
-export const closeTicket = (key: string, resolution: Resolution, reason?: string) =>
-	fetchApi<Ticket>(`/tickets/${key}/close`, {
-		method: "POST",
-		body: JSON.stringify({ resolution, reason }),
-	});
-
-export const reopenTicket = (key: string) =>
-	fetchApi<Ticket>(`/tickets/${key}/reopen`, {
-		method: "POST",
-	});
-
 // Inbox
 export interface InboxListParams {
 	pending?: boolean;

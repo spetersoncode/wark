@@ -190,7 +190,7 @@ export default function Analytics() {
 
 			{/* Current WIP */}
 			<Section title="Work in Progress" icon={<Clock className="w-5 h-5" />}>
-				{analytics.wip.length > 0 ? (
+				{analytics.wip?.length > 0 ? (
 					<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
 						<table className="w-full">
 							<thead>
@@ -237,7 +237,7 @@ export default function Analytics() {
 
 			{/* Cycle Time by Complexity */}
 			<Section title="Cycle Time by Complexity" icon={<Clock className="w-5 h-5" />}>
-				{analytics.cycle_time.length > 0 ? (
+				{analytics.cycle_time?.length > 0 ? (
 					<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
 						<table className="w-full">
 							<thead>

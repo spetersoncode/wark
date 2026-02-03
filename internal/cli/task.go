@@ -26,7 +26,8 @@ func init() {
 	// Add task as subcommand of ticket
 	taskCmd.AddCommand(taskAddCmd)
 	taskCmd.AddCommand(taskListCmd)
-	taskCmd.AddCommand(taskToggleCmd)
+	taskCmd.AddCommand(taskCompleteCmd)
+	taskCmd.AddCommand(taskClearCmd)
 	taskCmd.AddCommand(taskRemoveCmd)
 
 	ticketCmd.AddCommand(taskCmd)
@@ -190,27 +191,27 @@ func runTaskList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// task toggle
-var taskToggleCmd = &cobra.Command{
-	Use:   "toggle <TICKET> [POSITION]",
-	Short: "Toggle a task's completion status",
-	Long: `Toggle a task between complete and incomplete. If no position is given, 
-toggles the first incomplete task.
+// task complete
+var taskCompleteCmd = &cobra.Command{
+	Use:   "complete <TICKET> [POSITION]",
+	Short: "Mark a task as complete",
+	Long: `Mark a task as complete. If no position is given, completes the next incomplete task.
+Idempotent: calling on an already complete task is a no-op.
 
 Examples:
-  wark ticket task toggle WEBAPP-42      # Toggle next incomplete task (marks complete)
-  wark ticket task toggle WEBAPP-42 2    # Toggle task at position 2`,
+  wark ticket task complete WEBAPP-42      # Complete next incomplete task
+  wark ticket task complete WEBAPP-42 2    # Complete task at position 2`,
 	Args: cobra.RangeArgs(1, 2),
-	RunE: runTaskToggle,
+	RunE: runTaskComplete,
 }
 
-type taskToggleResult struct {
+type taskCompleteResult struct {
 	Task            *models.TicketTask `json:"task"`
-	Action          string             `json:"action"`
+	AlreadyComplete bool               `json:"already_complete"`
 	IncompleteCount int                `json:"incomplete_count"`
 }
 
-func runTaskToggle(cmd *cobra.Command, args []string) error {
+func runTaskComplete(cmd *cobra.Command, args []string) error {
 	ticketKey := args[0]
 
 	database, err := db.Open(GetDBPath())
@@ -230,7 +231,7 @@ func runTaskToggle(cmd *cobra.Command, args []string) error {
 	var task *models.TicketTask
 
 	if len(args) == 2 {
-		// Position provided - toggle that specific task
+		// Position provided - complete that specific task
 		position, err := strconv.Atoi(args[1])
 		if err != nil {
 			return ErrInvalidArgs("invalid position: %s (must be a number)", args[1])
@@ -244,7 +245,7 @@ func runTaskToggle(cmd *cobra.Command, args []string) error {
 			return ErrNotFound("no task at position %d for %s", position, ticket.TicketKey)
 		}
 	} else {
-		// No position, get next incomplete (same as old complete behavior)
+		// No position, get next incomplete
 		task, err = tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
 		if err != nil {
 			return ErrDatabase(err, "failed to get next incomplete task")
@@ -254,35 +255,25 @@ func runTaskToggle(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Toggle the task
-	var action string
-	if task.Complete {
-		// Mark incomplete
-		if err := tasksRepo.UncompleteTask(ctx, task.ID); err != nil {
-			return ErrDatabase(err, "failed to mark task incomplete")
-		}
-		task.Complete = false
-		action = "incomplete"
-	} else {
-		// Mark complete
+	// Check if already complete (idempotent)
+	alreadyComplete := task.Complete
+	if !alreadyComplete {
 		if err := tasksRepo.CompleteTask(ctx, task.ID); err != nil {
 			return ErrDatabase(err, "failed to mark task complete")
 		}
 		task.Complete = true
-		action = "complete"
 	}
 
 	// Get remaining incomplete count
 	incompleteCount, err := tasksRepo.CountIncomplete(ctx, ticket.ID)
 	if err != nil {
-		// Non-fatal, just warn in verbose mode
 		VerboseOutput("Warning: failed to count incomplete tasks: %v\n", err)
 		incompleteCount = -1
 	}
 
-	result := taskToggleResult{
+	result := taskCompleteResult{
 		Task:            task,
-		Action:          action,
+		AlreadyComplete: alreadyComplete,
 		IncompleteCount: incompleteCount,
 	}
 
@@ -292,10 +283,10 @@ func runTaskToggle(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if action == "complete" {
-		OutputLine("Marked complete: [%d] %s", task.Position, task.Description)
+	if alreadyComplete {
+		OutputLine("Already complete: [%d] %s", task.Position, task.Description)
 	} else {
-		OutputLine("Marked incomplete: [%d] %s", task.Position, task.Description)
+		OutputLine("Marked complete: [%d] %s", task.Position, task.Description)
 	}
 
 	if incompleteCount >= 0 {
@@ -304,6 +295,95 @@ func runTaskToggle(cmd *cobra.Command, args []string) error {
 		} else {
 			OutputLine("Remaining: %d incomplete task(s)", incompleteCount)
 		}
+	}
+
+	return nil
+}
+
+// task clear
+var taskClearCmd = &cobra.Command{
+	Use:   "clear <TICKET> <POSITION>",
+	Short: "Mark a task as incomplete",
+	Long: `Mark a task as incomplete (clear its completion status).
+Idempotent: calling on an already incomplete task is a no-op.
+
+Examples:
+  wark ticket task clear WEBAPP-42 2    # Clear completion on task at position 2`,
+	Args: cobra.ExactArgs(2),
+	RunE: runTaskClear,
+}
+
+type taskClearResult struct {
+	Task            *models.TicketTask `json:"task"`
+	AlreadyClear    bool               `json:"already_clear"`
+	IncompleteCount int                `json:"incomplete_count"`
+}
+
+func runTaskClear(cmd *cobra.Command, args []string) error {
+	ticketKey := args[0]
+	position, err := strconv.Atoi(args[1])
+	if err != nil {
+		return ErrInvalidArgs("invalid position: %s (must be a number)", args[1])
+	}
+
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, ticketKey, "")
+	if err != nil {
+		return err
+	}
+
+	tasksRepo := db.NewTasksRepo(database.DB)
+	ctx := context.Background()
+
+	task, err := tasksRepo.GetByPosition(ctx, ticket.ID, position)
+	if err != nil {
+		return ErrDatabase(err, "failed to get task")
+	}
+	if task == nil {
+		return ErrNotFound("no task at position %d for %s", position, ticket.TicketKey)
+	}
+
+	// Check if already incomplete (idempotent)
+	alreadyClear := !task.Complete
+	if !alreadyClear {
+		if err := tasksRepo.UncompleteTask(ctx, task.ID); err != nil {
+			return ErrDatabase(err, "failed to mark task incomplete")
+		}
+		task.Complete = false
+	}
+
+	// Get incomplete count
+	incompleteCount, err := tasksRepo.CountIncomplete(ctx, ticket.ID)
+	if err != nil {
+		VerboseOutput("Warning: failed to count incomplete tasks: %v\n", err)
+		incompleteCount = -1
+	}
+
+	result := taskClearResult{
+		Task:            task,
+		AlreadyClear:    alreadyClear,
+		IncompleteCount: incompleteCount,
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	if alreadyClear {
+		OutputLine("Already incomplete: [%d] %s", task.Position, task.Description)
+	} else {
+		OutputLine("Marked incomplete: [%d] %s", task.Position, task.Description)
+	}
+
+	if incompleteCount >= 0 {
+		OutputLine("Incomplete tasks: %d", incompleteCount)
 	}
 
 	return nil

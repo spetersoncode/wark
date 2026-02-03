@@ -21,21 +21,24 @@ UI_EMBED := ./internal/server/ui
 # Go settings
 GOFLAGS := -trimpath
 
-.PHONY: all build build-all build-ui copy-ui test install uninstall clean clean-ui fmt lint vet dev help
+.PHONY: all build build-all build-go build-ui copy-ui test install uninstall clean clean-ui fmt lint vet dev help
 
 # Default target
-all: build-all
+all: build
 
-## build: Build the wark binary (without UI rebuild)
-build:
+## build: Build everything (UI + Go binary) - the default for production builds
+build: build-ui copy-ui build-go
+	@echo "Full build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+
+## build-all: Alias for build (backwards compatibility)
+build-all: build
+
+## build-go: Build only the Go binary (for quick iteration during development)
+build-go:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
 	go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/wark
 	@echo "Built: $(BUILD_DIR)/$(BINARY_NAME)"
-
-## build-all: Build UI and Go binary together
-build-all: build-ui copy-ui build
-	@echo "Full build complete: $(BUILD_DIR)/$(BINARY_NAME)"
 
 ## build-ui: Build the frontend (Vite + React)
 build-ui:
@@ -125,8 +128,8 @@ deps:
 	go mod download
 	go mod tidy
 
-## run: Build and run wark with arguments
-run: build
+## run: Quick build and run wark with arguments (Go only, for development)
+run: build-go
 	$(BUILD_DIR)/$(BINARY_NAME) $(ARGS)
 
 ## version: Show version info

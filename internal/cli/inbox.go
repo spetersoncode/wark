@@ -259,6 +259,18 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create message: %w", err)
 	}
 
+	// Transition ticket to human status if the message requires a response
+	// (question, decision, escalation types require human input)
+	statusChanged := false
+	if inboxMsg.RequiresResponse() {
+		ticketRepo := db.NewTicketRepo(database.DB)
+		ticket.Status = models.StatusHuman
+		if err := ticketRepo.Update(ticket); err != nil {
+			return fmt.Errorf("failed to update ticket status: %w", err)
+		}
+		statusChanged = true
+	}
+
 	// Log activity to ticket history
 	activityRepo := db.NewActivityRepo(database.DB)
 	if err := activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
@@ -267,17 +279,23 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 			"message_type":     string(msgType),
 			"inbox_message_id": inboxMsg.ID,
 			"message":          message,
+			"status_changed":   statusChanged,
 		}); err != nil {
 		return fmt.Errorf("failed to log activity: %w", err)
 	}
 
 	if IsJSON() {
-		data, _ := json.MarshalIndent(map[string]interface{}{
-			"id":         inboxMsg.ID,
-			"ticket":     ticket.TicketKey,
-			"type":       msgType,
-			"created_at": inboxMsg.CreatedAt,
-		}, "", "  ")
+		result := map[string]interface{}{
+			"id":             inboxMsg.ID,
+			"ticket":         ticket.TicketKey,
+			"type":           msgType,
+			"created_at":     inboxMsg.CreatedAt,
+			"status_changed": statusChanged,
+		}
+		if statusChanged {
+			result["new_status"] = ticket.Status
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
@@ -285,6 +303,9 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 	OutputLine("Message sent: #%d", inboxMsg.ID)
 	OutputLine("Ticket: %s", ticket.TicketKey)
 	OutputLine("Type: %s", msgType)
+	if statusChanged {
+		OutputLine("Ticket status: %s → %s", models.StatusInProgress, ticket.Status)
+	}
 
 	return nil
 }

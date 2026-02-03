@@ -231,3 +231,134 @@ func TestInboxMessageTypes(t *testing.T) {
 	assert.False(t, models.MessageTypeInfo.RequiresResponse())
 	assert.False(t, models.MessageTypeReview.RequiresResponse())
 }
+
+func TestInboxRespondLogsActivityToTicket(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project and ticket
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TEST", Name: "Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Test Ticket",
+		Status:    models.StatusHuman,
+	}
+	err = ticketRepo.Create(ticket)
+	require.NoError(t, err)
+
+	// Create inbox message
+	inboxRepo := db.NewInboxRepo(database.DB)
+	message := models.NewInboxMessage(ticket.ID, models.MessageTypeQuestion, "Which API should I use?", "agent-123")
+	err = inboxRepo.Create(message)
+	require.NoError(t, err)
+
+	// Respond to the message
+	response := "Use the REST API for simplicity"
+	err = inboxRepo.Respond(message.ID, response)
+	require.NoError(t, err)
+
+	// Log activity (simulating what runInboxRespond does)
+	activityRepo := db.NewActivityRepo(database.DB)
+	err = activityRepo.LogActionWithDetails(ticket.ID, models.ActionHumanResponded, models.ActorTypeHuman, "",
+		"Responded to message",
+		map[string]interface{}{
+			"inbox_message_id": message.ID,
+			"response":         response,
+		})
+	require.NoError(t, err)
+
+	// Verify activity was logged
+	activities, err := activityRepo.ListByTicket(ticket.ID, 10)
+	require.NoError(t, err)
+	require.NotEmpty(t, activities, "expected at least one activity log entry")
+
+	// Find the human_responded activity
+	var foundActivity *models.ActivityLog
+	for _, a := range activities {
+		if a.Action == models.ActionHumanResponded {
+			foundActivity = a
+			break
+		}
+	}
+
+	require.NotNil(t, foundActivity, "expected to find human_responded activity")
+	assert.Equal(t, models.ActorTypeHuman, foundActivity.ActorType)
+	assert.Equal(t, "Responded to message", foundActivity.Summary)
+
+	// Verify details contain the response
+	details, err := foundActivity.GetDetails()
+	require.NoError(t, err)
+	require.NotNil(t, details)
+	assert.Equal(t, float64(message.ID), details["inbox_message_id"]) // JSON numbers are float64
+	assert.Equal(t, response, details["response"])
+}
+
+func TestInboxRespondActivityIncludesMessageContent(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project and ticket
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TEST", Name: "Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Test Ticket",
+		Status:    models.StatusHuman,
+	}
+	err = ticketRepo.Create(ticket)
+	require.NoError(t, err)
+
+	// Create inbox message
+	inboxRepo := db.NewInboxRepo(database.DB)
+	originalQuestion := "Should I use PostgreSQL or SQLite?"
+	message := models.NewInboxMessage(ticket.ID, models.MessageTypeQuestion, originalQuestion, "agent-456")
+	err = inboxRepo.Create(message)
+	require.NoError(t, err)
+
+	// Respond to the message
+	response := "Use SQLite for simplicity"
+	err = inboxRepo.Respond(message.ID, response)
+	require.NoError(t, err)
+
+	// Log activity with message content included (enhanced version)
+	activityRepo := db.NewActivityRepo(database.DB)
+	err = activityRepo.LogActionWithDetails(ticket.ID, models.ActionHumanResponded, models.ActorTypeHuman, "",
+		"Responded to message",
+		map[string]interface{}{
+			"inbox_message_id": message.ID,
+			"message_type":     string(message.MessageType),
+			"message":          originalQuestion,
+			"response":         response,
+		})
+	require.NoError(t, err)
+
+	// Verify activity was logged with full context
+	activities, err := activityRepo.ListByTicket(ticket.ID, 10)
+	require.NoError(t, err)
+
+	var foundActivity *models.ActivityLog
+	for _, a := range activities {
+		if a.Action == models.ActionHumanResponded {
+			foundActivity = a
+			break
+		}
+	}
+
+	require.NotNil(t, foundActivity)
+	details, err := foundActivity.GetDetails()
+	require.NoError(t, err)
+
+	// Verify all expected fields are present
+	assert.Equal(t, originalQuestion, details["message"])
+	assert.Equal(t, response, details["response"])
+	assert.Equal(t, "question", details["message_type"])
+}

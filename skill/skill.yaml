@@ -1,3 +1,28 @@
 name: wark
-description: Local task management for AI agents. Claim work, do work, complete work.
-version: 1.0.0
+description: Local-first task management for AI agent orchestration
+version: "0.1.0"
+
+metadata:
+  openclaw:
+    emoji: "🦞"
+    requires:
+      bins:
+        - wark
+    category: productivity
+    tags:
+      - task-management
+      - agent-orchestration
+      - workflow
+
+# Skill capabilities
+capabilities:
+  - claim-based-work-distribution
+  - dependency-tracking
+  - human-escalation
+  - activity-logging
+  - json-output
+
+# Documentation reference
+documentation:
+  skill_doc: SKILL.md
+  cli_reference: ../docs/CLI_COMMAND_REFERENCE.md

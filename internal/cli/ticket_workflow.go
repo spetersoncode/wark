@@ -123,7 +123,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 
 	OutputLine("Claimed: %s", result.Ticket.TicketKey)
 	OutputLine("Worker: %s", workerID)
-	OutputLine("Expires: %s (%d minutes)", result.Claim.ExpiresAt.Format("2006-01-02 15:04:05"), claimDuration)
+	OutputLine("Expires: %s (%d minutes)", result.Claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), claimDuration)
 	OutputLine("Branch: %s", result.Branch)
 
 	// Show task progress if ticket has tasks

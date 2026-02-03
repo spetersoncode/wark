@@ -198,7 +198,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 				truncate(item.Name, 20),
 				item.Stats.TotalTickets,
 				open,
-				item.CreatedAt.Format("2006-01-02"),
+				item.CreatedAt.Local().Format("2006-01-02"),
 			)
 		}
 	} else {
@@ -208,7 +208,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 			fmt.Printf("%-10s %-30s %s\n",
 				item.Key,
 				truncate(item.Name, 30),
-				item.CreatedAt.Format("2006-01-02"),
+				item.CreatedAt.Local().Format("2006-01-02"),
 			)
 		}
 	}
@@ -269,7 +269,7 @@ func runProjectShow(cmd *cobra.Command, args []string) error {
 	if project.Description != "" {
 		fmt.Printf("Description: %s\n", project.Description)
 	}
-	fmt.Printf("Created: %s\n", project.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Created: %s\n", project.CreatedAt.Local().Format("2006-01-02 15:04:05"))
 	fmt.Println()
 	fmt.Println("Ticket Summary:")
 	fmt.Printf("  Blocked:        %d\n", stats.BlockedCount)

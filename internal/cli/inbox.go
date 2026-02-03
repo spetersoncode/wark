@@ -7,7 +7,9 @@ import (
 
 	"github.com/diogenes-ai-code/wark/internal/common"
 	"github.com/diogenes-ai-code/wark/internal/db"
+	"github.com/diogenes-ai-code/wark/internal/errors"
 	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/diogenes-ai-code/wark/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -166,11 +168,11 @@ func runInboxShow(cmd *cobra.Command, args []string) error {
 	if message.FromAgent != "" {
 		fmt.Printf("From Agent: %s\n", message.FromAgent)
 	}
-	fmt.Printf("Created:    %s\n", message.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Created:    %s\n", message.CreatedAt.Local().Format("2006-01-02 15:04:05"))
 
 	status := "Pending response"
 	if message.RespondedAt != nil {
-		status = fmt.Sprintf("Responded on %s", message.RespondedAt.Format("2006-01-02 15:04:05"))
+		status = fmt.Sprintf("Responded on %s", message.RespondedAt.Local().Format("2006-01-02 15:04:05"))
 	}
 	fmt.Printf("Status:     %s\n", status)
 
@@ -242,103 +244,49 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid message type: %s", inboxType)
 	}
 
-	// Get active claim (needed for worker ID and release)
-	claimRepo := db.NewClaimRepo(database.DB)
-	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
-
-	// Get worker ID from current claim if not provided
-	workerID := claimWorkerID
-	if workerID == "" && claim != nil {
-		workerID = claim.WorkerID
-	}
-
-	// Create inbox message
+	// Use InboxService for the send operation
 	inboxRepo := db.NewInboxRepo(database.DB)
-	inboxMsg := models.NewInboxMessage(ticket.ID, msgType, message, workerID)
-	if err := inboxRepo.Create(inboxMsg); err != nil {
-		return fmt.Errorf("failed to create message: %w", err)
-	}
-
-	// Transition ticket to human status (escalation flow)
-	previousStatus := ticket.Status
-	statusChanged := false
-	if ticket.Status != models.StatusHuman && ticket.Status != models.StatusClosed {
-		ticketRepo := db.NewTicketRepo(database.DB)
-		ticket.Status = models.StatusHuman
-		if err := ticketRepo.Update(ticket); err != nil {
-			return fmt.Errorf("failed to update ticket status: %w", err)
-		}
-		statusChanged = true
-	}
-
-	// Release any active claim
+	ticketRepo := db.NewTicketRepo(database.DB)
+	claimRepo := db.NewClaimRepo(database.DB)
 	activityRepo := db.NewActivityRepo(database.DB)
-	claimReleased := false
-	if claim != nil {
-		if err := claimRepo.Release(claim.ID, models.ClaimStatusReleased); err != nil {
-			// Log warning but don't fail - message was already sent
-			VerboseOutput("Warning: failed to release claim: %v\n", err)
-		} else {
-			claimReleased = true
-			// Log the claim release as a separate activity for visibility
-			activityRepo.LogActionWithDetails(ticket.ID, models.ActionReleased, models.ActorTypeAgent, claim.WorkerID,
-				"Claim released (escalation)",
-				map[string]interface{}{
-					"worker_id": claim.WorkerID,
-					"reason":    "escalation",
-				})
-		}
-	}
 
-	// Log activity to ticket history (includes status transition info)
-	summary := fmt.Sprintf("Sent %s message", msgType)
-	if statusChanged {
-		summary = fmt.Sprintf("Escalated: %s → %s", previousStatus, ticket.Status)
-	}
-	activityDetails := map[string]interface{}{
-		"message_type":     string(msgType),
-		"inbox_message_id": inboxMsg.ID,
-		"message":          message,
-	}
-	if statusChanged {
-		activityDetails["previous_status"] = string(previousStatus)
-		activityDetails["new_status"] = string(ticket.Status)
-	}
-	if claimReleased {
-		activityDetails["claim_released"] = true
-	}
-	if err := activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
-		summary, activityDetails); err != nil {
-		return fmt.Errorf("failed to log activity: %w", err)
+	inboxService := service.NewInboxService(inboxRepo, ticketRepo, claimRepo, activityRepo)
+	result, err := inboxService.Send(ticket.ID, msgType, message, claimWorkerID)
+	if err != nil {
+		// Convert shared errors to CLI-friendly messages
+		if sharedErr, ok := err.(*errors.Error); ok {
+			return fmt.Errorf("%s", sharedErr.Message)
+		}
+		return err
 	}
 
 	if IsJSON() {
-		result := map[string]interface{}{
-			"id":             inboxMsg.ID,
+		jsonResult := map[string]interface{}{
+			"id":             result.Message.ID,
 			"ticket":         ticket.TicketKey,
 			"type":           msgType,
-			"created_at":     inboxMsg.CreatedAt,
-			"status_changed": statusChanged,
+			"created_at":     result.Message.CreatedAt,
+			"status_changed": result.StatusChanged,
 		}
-		if statusChanged {
-			result["previous_status"] = string(previousStatus)
-			result["new_status"] = string(ticket.Status)
+		if result.StatusChanged {
+			jsonResult["previous_status"] = string(result.PreviousStatus)
+			jsonResult["new_status"] = string(result.NewStatus)
 		}
-		if claimReleased {
-			result["claim_released"] = true
+		if result.ClaimReleased {
+			jsonResult["claim_released"] = true
 		}
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, _ := json.MarshalIndent(jsonResult, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Message sent: #%d", inboxMsg.ID)
+	OutputLine("Message sent: #%d", result.Message.ID)
 	OutputLine("Ticket: %s", ticket.TicketKey)
 	OutputLine("Type: %s", msgType)
-	if statusChanged {
-		OutputLine("Status: %s → %s", previousStatus, ticket.Status)
+	if result.StatusChanged {
+		OutputLine("Status: %s → %s", result.PreviousStatus, result.NewStatus)
 	}
-	if claimReleased {
+	if result.ClaimReleased {
 		OutputLine("Claim released")
 	}
 
@@ -374,74 +322,41 @@ func runInboxRespond(cmd *cobra.Command, args []string) error {
 	}
 	defer database.Close()
 
+	// Use InboxService for the respond operation
 	inboxRepo := db.NewInboxRepo(database.DB)
-	message, err := inboxRepo.GetByID(msgID)
-	if err != nil {
-		return fmt.Errorf("failed to get message: %w", err)
-	}
-	if message == nil {
-		return fmt.Errorf("message #%d not found", msgID)
-	}
-
-	if message.RespondedAt != nil {
-		return fmt.Errorf("message #%d has already been responded to", msgID)
-	}
-
-	// Record response
-	if err := inboxRepo.Respond(msgID, response); err != nil {
-		return fmt.Errorf("failed to record response: %w", err)
-	}
-
-	// Update ticket status if it was human
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket, err := ticketRepo.GetByID(message.TicketID)
-	if err != nil {
-		return fmt.Errorf("failed to get ticket: %w", err)
-	}
-
-	statusChanged := false
-	if ticket != nil && ticket.Status == models.StatusHuman {
-		ticket.Status = models.StatusReady
-		ticket.RetryCount = 0          // Reset retry count on human response
-		ticket.HumanFlagReason = ""    // Clear the flag reason
-		if err := ticketRepo.Update(ticket); err != nil {
-			return fmt.Errorf("failed to update ticket: %w", err)
-		}
-		statusChanged = true
-	}
-
-	// Log activity to ticket history
+	claimRepo := db.NewClaimRepo(database.DB)
 	activityRepo := db.NewActivityRepo(database.DB)
-	if err := activityRepo.LogActionWithDetails(message.TicketID, models.ActionHumanResponded, models.ActorTypeHuman, "",
-		"Responded to message",
-		map[string]interface{}{
-			"inbox_message_id": msgID,
-			"message_type":     string(message.MessageType),
-			"message":          message.Content,
-			"response":         response,
-		}); err != nil {
-		return fmt.Errorf("failed to log activity: %w", err)
+
+	inboxService := service.NewInboxService(inboxRepo, ticketRepo, claimRepo, activityRepo)
+	result, err := inboxService.Respond(msgID, response)
+	if err != nil {
+		// Convert shared errors to CLI-friendly messages
+		if sharedErr, ok := err.(*errors.Error); ok {
+			return fmt.Errorf("%s", sharedErr.Message)
+		}
+		return err
 	}
 
 	if IsJSON() {
-		result := map[string]interface{}{
+		jsonResult := map[string]interface{}{
 			"message_id":     msgID,
-			"ticket":         message.TicketKey,
+			"ticket":         result.Message.TicketKey,
 			"responded":      true,
-			"status_changed": statusChanged,
+			"status_changed": result.TicketUpdated,
 		}
-		if statusChanged {
-			result["new_status"] = ticket.Status
+		if result.TicketUpdated {
+			jsonResult["new_status"] = result.NewStatus
 		}
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, _ := json.MarshalIndent(jsonResult, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
 	OutputLine("Responded to message #%d", msgID)
-	OutputLine("Ticket: %s", message.TicketKey)
-	if statusChanged {
-		OutputLine("Ticket status: %s → %s", models.StatusHuman, ticket.Status)
+	OutputLine("Ticket: %s", result.Message.TicketKey)
+	if result.TicketUpdated {
+		OutputLine("Ticket status: %s → %s", models.StatusHuman, result.NewStatus)
 		OutputLine("Retry count reset to 0")
 	}
 

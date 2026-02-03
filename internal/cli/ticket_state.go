@@ -116,7 +116,9 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 var ticketRejectCmd = &cobra.Command{
 	Use:   "reject <TICKET>",
 	Short: "Reject completed work",
-	Long: `Reject completed work and move the ticket from review back to in_progress status.
+	Long: `Reject completed work and move the ticket from review back to ready status.
+
+This releases any active claims on the ticket, allowing it to be picked up fresh.
 
 Example:
   wark ticket reject WEBAPP-42 --reason "Tests are failing"`,
@@ -141,15 +143,22 @@ func runTicketReject(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("ticket is not in review (current status: %s)", ticket.Status)
 	}
 
-	// Validate transition (reject goes back to in_progress, not ready)
+	// Validate transition (reject goes back to ready for fresh pickup)
 	machine := state.NewMachine()
-	if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, rejectReason, nil); err != nil {
+	if err := machine.CanTransition(ticket, models.StatusReady, state.TransitionTypeManual, rejectReason, nil); err != nil {
 		return fmt.Errorf("cannot reject ticket: %w", err)
+	}
+
+	// Release any active claim so ticket can be picked up fresh
+	claimRepo := db.NewClaimRepo(database.DB)
+	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
+	if claim != nil {
+		claimRepo.Release(claim.ID, models.ClaimStatusReleased)
 	}
 
 	// Update ticket
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusInProgress
+	ticket.Status = models.StatusReady
 	ticket.RetryCount++
 	if err := ticketRepo.Update(ticket); err != nil {
 		return fmt.Errorf("failed to update ticket: %w", err)

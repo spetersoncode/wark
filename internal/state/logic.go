@@ -258,7 +258,7 @@ func (l *Logic) GetNextStatus(ticket *models.Ticket, event Event) (models.Status
 
 	case EventRejected:
 		if ticket.Status == models.StatusReview {
-			return models.StatusInProgress, nil, true
+			return models.StatusReady, nil, true
 		}
 
 	case EventHumanResponded:
@@ -350,7 +350,7 @@ func (l *Logic) CanAccept(ticket *models.Ticket) (bool, string) {
 	return true, ""
 }
 
-// CanReject checks if a ticket can be rejected (moved back to in_progress).
+// CanReject checks if a ticket can be rejected (moved back to ready).
 func (l *Logic) CanReject(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
 		return false, "ticket is nil"

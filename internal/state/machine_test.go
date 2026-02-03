@@ -145,9 +145,9 @@ func TestMachine_CanTransition(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:      "review to in_progress (reject with reason)",
+			name:      "review to ready (reject with reason)",
 			from:      models.StatusReview,
-			to:        models.StatusInProgress,
+			to:        models.StatusReady,
 			transType: TransitionTypeManual,
 			reason:    "Needs more tests",
 			wantErr:   false,
@@ -235,9 +235,9 @@ func TestMachine_CanTransition(t *testing.T) {
 			errMsg:    "not allowed",
 		},
 		{
-			name:      "review to in_progress without reason",
+			name:      "review to ready without reason",
 			from:      models.StatusReview,
-			to:        models.StatusInProgress,
+			to:        models.StatusReady,
 			transType: TransitionTypeManual,
 			reason:    "",
 			wantErr:   true,
@@ -461,7 +461,7 @@ func TestActionForTransition(t *testing.T) {
 		{"closed to blocked", models.StatusClosed, models.StatusBlocked, TransitionTypeManual, models.ActionReopened},
 		{"ready to in_progress", models.StatusReady, models.StatusInProgress, TransitionTypeManual, models.ActionClaimed},
 		{"human to in_progress", models.StatusHuman, models.StatusInProgress, TransitionTypeManual, models.ActionHumanResponded},
-		{"review to in_progress", models.StatusReview, models.StatusInProgress, TransitionTypeManual, models.ActionRejected},
+		{"review to ready", models.StatusReview, models.StatusReady, TransitionTypeManual, models.ActionRejected},
 		{"any to human", models.StatusInProgress, models.StatusHuman, TransitionTypeAuto, models.ActionEscalated},
 		{"in_progress to review", models.StatusInProgress, models.StatusReview, TransitionTypeManual, models.ActionCompleted},
 		{"review to closed", models.StatusReview, models.StatusClosed, TransitionTypeManual, models.ActionAccepted},
@@ -847,7 +847,7 @@ func TestLogic_GetNextStatus(t *testing.T) {
 		ticket := &models.Ticket{ID: 1, Status: models.StatusReview}
 		next, res, changed := logic.GetNextStatus(ticket, EventRejected)
 		assert.True(t, changed)
-		assert.Equal(t, models.StatusInProgress, next)
+		assert.Equal(t, models.StatusReady, next)
 		assert.Nil(t, res)
 	})
 

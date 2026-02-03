@@ -27,7 +27,7 @@
 //   - in_progress → review (complete)
 //   - human → in_progress (resume after human input)
 //   - human → closed (human resolves)
-//   - review → in_progress (reject)
+//   - review → ready (reject)
 //   - review → closed (accept)
 //   - {any except closed} → closed (cancel with resolution)
 //
@@ -191,13 +191,13 @@ var validTransitions = []TransitionRule{
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Human resolved the ticket",
 	},
-	// review → in_progress (reject)
+	// review → ready (reject)
 	{
 		From:          models.StatusReview,
-		To:            models.StatusInProgress,
+		To:            models.StatusReady,
 		AllowedTypes:  []TransitionType{TransitionTypeManual},
 		RequireReason: true,
-		Description:   "Work rejected, needs revision",
+		Description:   "Work rejected, returned to queue",
 	},
 	// review → closed (accept)
 	{
@@ -381,6 +381,8 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 				return models.ActionExpired
 			}
 			return models.ActionReleased
+		case models.StatusReview:
+			return models.ActionRejected
 		case models.StatusClosed:
 			return models.ActionReopened
 		}
@@ -400,9 +402,6 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 	case models.StatusInProgress:
 		if from == models.StatusHuman {
 			return models.ActionHumanResponded
-		}
-		if from == models.StatusReview {
-			return models.ActionRejected
 		}
 		return models.ActionClaimed
 	case models.StatusHuman:

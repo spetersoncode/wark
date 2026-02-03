@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/diogenes-ai-code/wark/internal/models"
@@ -198,6 +199,83 @@ func (r *TasksRepo) CountIncomplete(ctx context.Context, ticketID int64) (int, e
 		return 0, fmt.Errorf("failed to count incomplete tasks: %w", err)
 	}
 	return count, nil
+}
+
+// TaskCounts holds the completed and total task counts for a ticket.
+type TaskCounts struct {
+	Completed int
+	Total     int
+}
+
+// GetTaskCounts returns the number of completed and total tasks for a ticket.
+func (r *TasksRepo) GetTaskCounts(ctx context.Context, ticketID int64) (*TaskCounts, error) {
+	query := `
+		SELECT 
+			COUNT(*) as total,
+			SUM(CASE WHEN complete = TRUE THEN 1 ELSE 0 END) as completed
+		FROM ticket_tasks 
+		WHERE ticket_id = ?
+	`
+	var total int
+	var completed sql.NullInt64
+	err := r.db.QueryRowContext(ctx, query, ticketID).Scan(&total, &completed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task counts: %w", err)
+	}
+	return &TaskCounts{
+		Completed: int(completed.Int64),
+		Total:     total,
+	}, nil
+}
+
+// GetTaskCountsForTickets returns task counts for multiple tickets efficiently.
+func (r *TasksRepo) GetTaskCountsForTickets(ctx context.Context, ticketIDs []int64) (map[int64]*TaskCounts, error) {
+	if len(ticketIDs) == 0 {
+		return make(map[int64]*TaskCounts), nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(ticketIDs))
+	args := make([]interface{}, len(ticketIDs))
+	for i, id := range ticketIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT 
+			ticket_id,
+			COUNT(*) as total,
+			SUM(CASE WHEN complete = TRUE THEN 1 ELSE 0 END) as completed
+		FROM ticket_tasks 
+		WHERE ticket_id IN (%s)
+		GROUP BY ticket_id
+	`, strings.Join(placeholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task counts: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[int64]*TaskCounts)
+	for rows.Next() {
+		var ticketID int64
+		var total int
+		var completed sql.NullInt64
+		if err := rows.Scan(&ticketID, &total, &completed); err != nil {
+			return nil, fmt.Errorf("failed to scan task counts: %w", err)
+		}
+		result[ticketID] = &TaskCounts{
+			Completed: int(completed.Int64),
+			Total:     total,
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating task counts: %w", err)
+	}
+
+	return result, nil
 }
 
 func (r *TasksRepo) scanOne(row *sql.Row) (*models.TicketTask, error) {

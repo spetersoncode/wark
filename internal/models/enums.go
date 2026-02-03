@@ -232,6 +232,9 @@ const (
 	ActionDecomposed   Action = "decomposed"
 	ActionChildCreated Action = "child_created"
 
+	// Task actions
+	ActionTaskCompleted Action = "task_completed"
+
 	// Human interaction
 	ActionEscalated      Action = "escalated"
 	ActionHumanResponded Action = "human_responded"

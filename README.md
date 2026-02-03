@@ -11,6 +11,7 @@ Wark is a command-line task management tool inspired by Jira, purpose-built for 
 - **Project-based organization** - Group related work into projects with unique keys
 - **Dependency-aware scheduling** - Tickets auto-block/unblock based on dependencies
 - **Claim-based work distribution** - Prevents multiple agents from working on the same task
+- **Task breakdown** - Split tickets into sequential tasks for multi-session work
 - **Human-in-the-loop support** - Inbox system for escalations and questions
 - **Branch tracking** - Suggested branch names for seamless agent handoffs
 - **Full audit trail** - Activity logging for all ticket operations

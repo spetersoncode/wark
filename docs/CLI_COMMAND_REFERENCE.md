@@ -30,7 +30,12 @@ wark
 │   ├── next               
 │   ├── branch             
 │   ├── depend             
-│   └── log                 # View activity log
+│   ├── log                 # View activity log
+│   └── task                # Task management within tickets
+│       ├── add            
+│       ├── list           
+│       ├── toggle         
+│       └── remove         
 ├── inbox                   # Human inbox
 │   ├── list               
 │   ├── show               
@@ -781,6 +786,125 @@ wark ticket depend WEBAPP-42 --remove WEBAPP-40
 
 # List dependencies
 wark ticket depend WEBAPP-42 --list
+```
+
+---
+
+### `wark ticket task`
+
+Manage tasks within a ticket. Tasks are ordered work items that break a ticket into sequential steps without creating child tickets.
+
+#### `wark ticket task add`
+
+Add a new task to a ticket.
+
+```bash
+wark ticket task add <TICKET> "<description>"
+```
+
+**Arguments:**
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `TICKET` | Ticket ID | Yes |
+| `description` | Task description | Yes |
+
+**Examples:**
+```bash
+wark ticket task add WEBAPP-42 "Implement login form"
+wark ticket task add WEBAPP-42 "Add validation" --json
+```
+
+**Output:**
+```
+Added task to WEBAPP-42:
+  [1] Implement login form
+```
+
+---
+
+#### `wark ticket task list`
+
+List all tasks for a ticket, showing position, completion status, and progress.
+
+```bash
+wark ticket task list <TICKET>
+```
+
+**Examples:**
+```bash
+wark ticket task list WEBAPP-42
+wark ticket task list WEBAPP-42 --json
+```
+
+**Output:**
+```
+Tasks for WEBAPP-42:
+
+  [✓] [1] Implement login form
+→ [ ] [2] Add validation
+  [ ] [3] Connect to auth API
+
+Progress: 1/3 complete
+```
+
+The `→` marker indicates the next incomplete task.
+
+---
+
+#### `wark ticket task toggle`
+
+Toggle a task between complete and incomplete.
+
+```bash
+wark ticket task toggle <TICKET> [POSITION]
+```
+
+**Arguments:**
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `TICKET` | Ticket ID | Yes |
+| `POSITION` | Task position (1-indexed) | No (defaults to next incomplete) |
+
+**Examples:**
+```bash
+# Toggle next incomplete task (marks it complete)
+wark ticket task toggle WEBAPP-42
+
+# Toggle specific task by position
+wark ticket task toggle WEBAPP-42 2
+```
+
+**Output:**
+```
+Marked complete: [2] Add validation
+Remaining: 1 incomplete task(s)
+```
+
+---
+
+#### `wark ticket task remove`
+
+Remove a task from a ticket.
+
+```bash
+wark ticket task remove <TICKET> <POSITION> [--yes]
+```
+
+**Arguments:**
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `TICKET` | Ticket ID | Yes |
+| `POSITION` | Task position (1-indexed) | Yes |
+
+**Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--yes` | `-y` | Skip confirmation prompt |
+
+**Examples:**
+```bash
+wark ticket task remove WEBAPP-42 2
+wark ticket task remove WEBAPP-42 2 --yes
 ```
 
 ---

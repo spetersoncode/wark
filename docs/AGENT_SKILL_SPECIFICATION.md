@@ -219,7 +219,87 @@ wark ticket complete WEBAPP-42 --summary "Implemented login form with validation
 wark ticket complete WEBAPP-42 --auto-accept --summary "Fixed typo"
 ```
 
-### 4.4 Decomposing Complex Work
+### 4.4 Working with Tasks
+
+Tasks are ordered work items within a ticket. Unlike child tickets (decomposition), tasks:
+- Share the same branch as the parent ticket
+- Are sequential — work through them in order
+- Are simpler — no separate status, dependencies, or claims per task
+- Auto-cycle — completing a task releases the claim for the next agent
+
+#### Adding Tasks to a Ticket
+```bash
+wark ticket task add WEBAPP-42 "Implement login form"
+wark ticket task add WEBAPP-42 "Add validation"
+wark ticket task add WEBAPP-42 "Connect to auth API"
+```
+
+#### Viewing Task Progress
+```bash
+wark ticket task list WEBAPP-42
+```
+
+**Output:**
+```
+Tasks for WEBAPP-42:
+
+  [✓] [1] Implement login form
+→ [ ] [2] Add validation
+  [ ] [3] Connect to auth API
+
+Progress: 1/3 complete
+```
+
+#### Task-Aware Claim/Complete Cycle
+
+When claiming a ticket with tasks:
+```bash
+wark ticket claim WEBAPP-42
+```
+
+The output includes task context:
+```
+Claimed: WEBAPP-42
+Worker: abc123
+Expires: 2024-02-01 15:30:00 (30 minutes)
+Branch: WEBAPP-42-add-user-login-page
+
+Tasks: 1/3 complete
+Next task: Add validation
+```
+
+When completing a ticket with incomplete tasks:
+```bash
+wark ticket complete WEBAPP-42 --summary "Added form validation"
+```
+
+The behavior depends on remaining tasks:
+- **More tasks remain**: Current task marked complete, claim released, ticket set to `ready` for next pickup
+- **All tasks done**: Ticket moves to `review` (normal completion)
+
+This enables a relay pattern:
+1. Agent A claims ticket, works on task 1, completes
+2. Agent B claims ticket, works on task 2, completes
+3. Agent C claims ticket, works on task 3, completes → ticket goes to review
+
+#### Manually Toggling Tasks
+
+To mark a task complete without the full complete flow:
+```bash
+wark ticket task toggle WEBAPP-42      # Toggle next incomplete
+wark ticket task toggle WEBAPP-42 2    # Toggle specific task
+```
+
+#### When to Use Tasks vs Decomposition
+
+| Use Tasks When | Use Decomposition When |
+|----------------|------------------------|
+| Work is sequential | Work can be parallelized |
+| Same branch for all work | Different branches needed |
+| Simple checklist items | Complex sub-features |
+| Single-session work per task | Multi-session work per item |
+
+### 4.5 Decomposing Complex Work
 
 When a ticket is too complex for a single session:
 
@@ -552,8 +632,10 @@ wark ticket log <TICKET>
 ## Key Commands
 - `wark status` - See what's available
 - `wark ticket next` - Get and claim next task
-- `wark ticket complete <id>` - Finish a task
-- `wark ticket decompose <id>` - Break down complex task
+- `wark ticket complete <id>` - Finish a task (or complete current task and release)
+- `wark ticket task list <id>` - View tasks for a ticket
+- `wark ticket task toggle <id>` - Mark next task complete
+- `wark ticket decompose <id>` - Break down complex task into child tickets
 - `wark ticket flag <id>` - Flag for human input (from any stage!)
 - `wark ticket log <id>` - View full activity history
 - `wark inbox list` - Check for human responses

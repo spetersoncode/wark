@@ -362,7 +362,9 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		} else if len(ticketStatus) > 0 {
 			// Parse status filter
 			// For now, filter the first status (TODO: support multiple)
-			status := models.Status(strings.ToLower(ticketStatus[0]))
+			// Normalize hyphens to underscores (e.g., "in-progress" -> "in_progress")
+			statusStr := strings.ReplaceAll(strings.ToLower(ticketStatus[0]), "-", "_")
+			status := models.Status(statusStr)
 			if status.IsValid() {
 				filter.Status = &status
 			}

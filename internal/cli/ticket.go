@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
@@ -488,6 +489,7 @@ type ticketShowResult struct {
 	Tasks          []*models.TicketTask   `json:"tasks,omitempty"`
 	TasksComplete  int                    `json:"tasks_complete,omitempty"`
 	TasksTotal     int                    `json:"tasks_total,omitempty"`
+	Claim          *models.Claim          `json:"claim,omitempty"`
 }
 
 func runTicketShow(cmd *cobra.Command, args []string) error {
@@ -534,11 +536,19 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Fetch active claim
+	claimRepo := db.NewClaimRepo(database.DB)
+	claim, err := claimRepo.GetActiveByTicketID(ticket.ID)
+	if err != nil {
+		VerboseOutput("Warning: failed to get claim: %v\n", err)
+	}
+
 	result := ticketShowResult{
 		Ticket:       ticket,
 		Dependencies: dependencies,
 		Dependents:   dependents,
 		History:      history,
+		Claim:        claim,
 	}
 
 	// Only include task fields if there are tasks
@@ -571,6 +581,22 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Updated:     %s\n", ticket.UpdatedAt.Format("2006-01-02 15:04:05"))
 	if ticket.CompletedAt != nil {
 		fmt.Printf("Completed:   %s\n", ticket.CompletedAt.Format("2006-01-02 15:04:05"))
+	}
+
+	if claim != nil {
+		fmt.Println()
+		fmt.Println(strings.Repeat("-", 65))
+		fmt.Println("Current Claim:")
+		fmt.Println(strings.Repeat("-", 65))
+		fmt.Printf("Worker ID:   %s\n", claim.WorkerID)
+		fmt.Printf("Claimed At:  %s\n", claim.ClaimedAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("Expires At:  %s\n", claim.ExpiresAt.Format("2006-01-02 15:04:05"))
+		remaining := claim.TimeRemaining()
+		if remaining > 0 {
+			fmt.Printf("Remaining:   %s\n", remaining.Round(time.Second))
+		} else {
+			fmt.Printf("Status:      expired\n")
+		}
 	}
 
 	if ticket.Description != "" {

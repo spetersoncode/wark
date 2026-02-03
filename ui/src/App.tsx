@@ -13,6 +13,7 @@ import { cn } from "./lib/utils";
 import {
 	Analytics,
 	Board,
+	ComponentDemo,
 	Dashboard,
 	Inbox,
 	NotFound,
@@ -78,6 +79,7 @@ function App() {
 					<Route path="/analytics" element={<Analytics />} />
 					<Route path="/tickets/:key" element={<TicketDetail />} />
 					<Route path="/colors" element={<ColorSwatches />} />
+					<Route path="/components" element={<ComponentDemo />} />
 					<Route path="*" element={<NotFound />} />
 				</Routes>
 			</main>

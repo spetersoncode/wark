@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
+	"github.com/diogenes-ai-code/wark/internal/errors"
 	"github.com/diogenes-ai-code/wark/internal/models"
 )
 
@@ -128,9 +129,19 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 // writeError writes an error response.
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, ErrorResponse{
-		Error: http.StatusText(status),
-		Code:  status,
+		Error:   http.StatusText(status),
+		Code:    status,
 		Message: message,
+	})
+}
+
+// writeSharedError writes an error response using the shared error type.
+// It automatically maps the error kind to the appropriate HTTP status code.
+func writeSharedError(w http.ResponseWriter, err *errors.Error) {
+	writeJSON(w, err.HTTPStatus(), ErrorResponse{
+		Error:   http.StatusText(err.HTTPStatus()),
+		Code:    err.HTTPStatus(),
+		Message: err.Message,
 	})
 }
 

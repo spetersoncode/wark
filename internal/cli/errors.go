@@ -4,9 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	werrors "github.com/diogenes-ai-code/wark/internal/errors"
 )
 
-// WarkError is an error with an exit code and optional suggestion
+// WarkError is an error with an exit code and optional suggestion.
+// It wraps the shared errors.Error type to maintain backward compatibility
+// while leveraging the shared error infrastructure.
 type WarkError struct {
 	Code       int
 	Message    string
@@ -40,8 +44,16 @@ func (e *WarkError) FormatError() string {
 	return b.String()
 }
 
-// ExitCode returns the exit code for any error
+// ExitCode returns the exit code for any error.
+// Supports both WarkError and the shared errors.Error type.
 func ExitCode(err error) int {
+	// Check for shared error type first
+	var sharedErr *werrors.Error
+	if errors.As(err, &sharedErr) {
+		return sharedErr.CLIExitCode()
+	}
+
+	// Fall back to WarkError
 	var werr *WarkError
 	if errors.As(err, &werr) {
 		return werr.Code
@@ -49,8 +61,23 @@ func ExitCode(err error) int {
 	return ExitGeneralError
 }
 
-// FormatErrorMessage returns formatted error with suggestion if available
+// FormatErrorMessage returns formatted error with suggestion if available.
+// Supports both WarkError and the shared errors.Error type.
 func FormatErrorMessage(err error) string {
+	// Check for shared error type first
+	var sharedErr *werrors.Error
+	if errors.As(err, &sharedErr) {
+		var b strings.Builder
+		b.WriteString("Error: ")
+		b.WriteString(sharedErr.Error())
+		if sharedErr.Suggestion != "" {
+			b.WriteString("\n\nSuggestion: ")
+			b.WriteString(sharedErr.Suggestion)
+		}
+		return b.String()
+	}
+
+	// Fall back to WarkError
 	var werr *WarkError
 	if errors.As(err, &werr) {
 		return werr.FormatError()

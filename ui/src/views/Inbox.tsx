@@ -5,13 +5,12 @@ import {
 	Info,
 	MessageSquare,
 	RefreshCw,
-	Send,
 	Star,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
-import { type InboxMessage, listInbox, type MessageType, respondToInbox } from "../lib/api";
+import { type InboxMessage, listInbox, type MessageType } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn, formatRelativeTime } from "../lib/utils";
 
@@ -72,15 +71,6 @@ export default function Inbox() {
 	// Auto-refresh every 10 seconds when tab is visible
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchMessages, [fetchMessages]);
 
-	async function handleRespond(id: number, response: string) {
-		try {
-			const updated = await respondToInbox(id, response);
-			setMessages((msgs) => msgs.map((m) => (m.id === id ? updated : m)));
-		} catch (e) {
-			setError(e instanceof Error ? e.message : "Failed to respond");
-		}
-	}
-
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center h-64">
@@ -128,7 +118,7 @@ export default function Inbox() {
 			) : (
 				<div className="space-y-4">
 					{messages.map((message) => (
-						<InboxCard key={message.id} message={message} onRespond={handleRespond} />
+						<InboxCard key={message.id} message={message} />
 					))}
 				</div>
 			)}
@@ -138,30 +128,12 @@ export default function Inbox() {
 
 function InboxCard({
 	message,
-	onRespond,
 }: {
 	message: InboxMessage;
-	onRespond: (id: number, response: string) => Promise<void>;
 }) {
-	const [response, setResponse] = useState("");
-	const [submitting, setSubmitting] = useState(false);
 	const [expanded, setExpanded] = useState(!message.responded_at);
 
 	const typeConfig = MESSAGE_TYPE_CONFIG[message.message_type];
-
-	async function handleSubmit(e: React.FormEvent) {
-		e.preventDefault();
-		if (!response.trim()) return;
-
-		setSubmitting(true);
-		try {
-			await onRespond(message.id, response.trim());
-			setResponse("");
-			setExpanded(false);
-		} finally {
-			setSubmitting(false);
-		}
-	}
 
 	return (
 		<div
@@ -209,8 +181,8 @@ function InboxCard({
 				<Markdown>{message.content}</Markdown>
 			</div>
 
-			{/* Response section */}
-			{message.responded_at ? (
+			{/* Response section (only shown if already responded) */}
+			{message.responded_at && (
 				<div className="px-4 pb-4">
 					<button
 						type="button"
@@ -228,26 +200,6 @@ function InboxCard({
 						</div>
 					)}
 				</div>
-			) : (
-				<form onSubmit={handleSubmit} className="px-4 pb-4">
-					<div className="flex gap-2">
-						<input
-							type="text"
-							value={response}
-							onChange={(e) => setResponse(e.target.value)}
-							placeholder="Type your response..."
-							className="flex-1 px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-						/>
-						<button
-							type="submit"
-							disabled={submitting || !response.trim()}
-							className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-[var(--primary-foreground)] rounded-md hover:opacity-90 disabled:opacity-50 transition-opacity"
-						>
-							<Send className="w-4 h-4" />
-							Send
-						</button>
-					</div>
-				</form>
 			)}
 		</div>
 	);

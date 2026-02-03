@@ -31,6 +31,100 @@ type TicketFilter struct {
 	Offset     int
 }
 
+// AutoReleaseExpiredClaims finds tickets with expired claims and releases them back to 'ready' status.
+// This is called automatically on query operations to ensure tickets don't stay orphaned.
+// Returns the number of tickets released.
+func (r *TicketRepo) AutoReleaseExpiredClaims() (int64, error) {
+	now := time.Now()
+
+	// Find tickets that are in_progress with expired active claims
+	// We need to:
+	// 1. Update the claim status to 'expired'
+	// 2. Update the ticket status to 'ready' (or 'human' if max retries exceeded)
+	// 3. Increment the retry count
+
+	// First, get all affected ticket/claim pairs
+	query := `
+		SELECT t.id, t.retry_count, t.max_retries, c.id AS claim_id
+		FROM tickets t
+		JOIN claims c ON c.ticket_id = t.id
+		WHERE t.status = 'in_progress'
+		AND c.status = 'active'
+		AND c.expires_at <= ?
+	`
+	rows, err := r.db.Query(query, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find expired claims: %w", err)
+	}
+	defer rows.Close()
+
+	type expiredTicket struct {
+		ticketID   int64
+		claimID    int64
+		retryCount int
+		maxRetries int
+	}
+	var expired []expiredTicket
+
+	for rows.Next() {
+		var et expiredTicket
+		if err := rows.Scan(&et.ticketID, &et.retryCount, &et.maxRetries, &et.claimID); err != nil {
+			return 0, fmt.Errorf("failed to scan expired ticket: %w", err)
+		}
+		expired = append(expired, et)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("error iterating expired tickets: %w", err)
+	}
+
+	if len(expired) == 0 {
+		return 0, nil
+	}
+
+	// Process each expired ticket
+	for _, et := range expired {
+		newRetryCount := et.retryCount + 1
+		newStatus := models.StatusReady
+		humanFlagReason := ""
+
+		// Escalate to human if max retries exceeded
+		if newRetryCount >= et.maxRetries {
+			newStatus = models.StatusHuman
+			humanFlagReason = "max_retries_exceeded"
+		}
+
+		// Update claim status
+		_, err := r.db.Exec(`UPDATE claims SET status = 'expired', released_at = ? WHERE id = ?`, now, et.claimID)
+		if err != nil {
+			return 0, fmt.Errorf("failed to expire claim: %w", err)
+		}
+
+		// Update ticket status and retry count
+		if humanFlagReason != "" {
+			_, err = r.db.Exec(`UPDATE tickets SET status = ?, retry_count = ?, human_flag_reason = ? WHERE id = ?`,
+				newStatus, newRetryCount, humanFlagReason, et.ticketID)
+		} else {
+			_, err = r.db.Exec(`UPDATE tickets SET status = ?, retry_count = ? WHERE id = ?`,
+				newStatus, newRetryCount, et.ticketID)
+		}
+		if err != nil {
+			return 0, fmt.Errorf("failed to update ticket: %w", err)
+		}
+
+		// Log activity (best effort - don't fail if this errors)
+		summary := "Claim auto-expired"
+		if newStatus == models.StatusHuman {
+			summary = fmt.Sprintf("Claim auto-expired - escalated to human (retry %d/%d)", newRetryCount, et.maxRetries)
+		}
+		r.db.Exec(`
+			INSERT INTO activity_log (ticket_id, action, actor_type, actor_id, summary, details, created_at)
+			VALUES (?, 'expired', 'system', '', ?, '{}', ?)
+		`, et.ticketID, summary, now)
+	}
+
+	return int64(len(expired)), nil
+}
+
 // Create creates a new ticket.
 func (r *TicketRepo) Create(t *models.Ticket) error {
 	// Set defaults - status must be set by caller based on dependency check
@@ -124,7 +218,15 @@ func (r *TicketRepo) GetByKey(projectKey string, number int) (*models.Ticket, er
 }
 
 // List retrieves tickets matching the given filter.
+// It automatically releases any expired claims before querying.
 func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
+	// Auto-release expired claims to ensure accurate status
+	if _, err := r.AutoReleaseExpiredClaims(); err != nil {
+		// Log but don't fail - the query can still proceed
+		// In production, you'd want proper logging here
+		_ = err
+	}
+
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
 			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,
@@ -193,7 +295,16 @@ func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 
 // ListWorkable retrieves all workable tickets (ready status with no unresolved dependencies).
 // A dependency is only resolved if its ticket is closed with 'completed' resolution.
+// It automatically releases any expired claims before querying, which may make
+// previously claimed tickets workable again.
 func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error) {
+	// Auto-release expired claims - this is especially important for ListWorkable
+	// since it makes orphaned tickets available for work again
+	if _, err := r.AutoReleaseExpiredClaims(); err != nil {
+		// Log but don't fail - the query can still proceed
+		_ = err
+	}
+
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
 			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.branch_name,

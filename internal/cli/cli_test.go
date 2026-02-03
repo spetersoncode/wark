@@ -82,10 +82,10 @@ func TestGenerateBranchName(t *testing.T) {
 		title      string
 		want       string
 	}{
-		{"WEBAPP", 42, "Add user login page", "wark/WEBAPP-42-add-user-login-page"},
-		{"TEST", 1, "Fix bug", "wark/TEST-1-fix-bug"},
-		{"ABC", 123, "Test  with  spaces", "wark/ABC-123-test-with-spaces"},
-		{"XYZ", 1, "Special @#$% chars!", "wark/XYZ-1-special-chars"},
+		{"WEBAPP", 42, "Add user login page", "WEBAPP-42-add-user-login-page"},
+		{"TEST", 1, "Fix bug", "TEST-1-fix-bug"},
+		{"ABC", 123, "Test  with  spaces", "ABC-123-test-with-spaces"},
+		{"XYZ", 1, "Special @#$% chars!", "XYZ-1-special-chars"},
 	}
 
 	for _, tt := range tests {

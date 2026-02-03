@@ -151,7 +151,7 @@ func generateBranchName(projectKey string, number int, title string) string {
 		slug = strings.TrimRight(slug, "-")
 	}
 
-	return fmt.Sprintf("wark/%s-%d-%s", projectKey, number, slug)
+	return fmt.Sprintf("%s-%d-%s", projectKey, number, slug)
 }
 
 // ticket create

@@ -230,7 +230,7 @@ wark ticket create WEBAPP \
 Created: WEBAPP-42
 Title: Add user login page
 Status: created
-Branch: wark/WEBAPP-42-add-user-login-page
+Branch: WEBAPP-42-add-user-login-page
 ```
 
 ---
@@ -305,7 +305,7 @@ WEBAPP-42: Add user login page
 Status:      ready
 Priority:    high
 Complexity:  medium
-Branch:      wark/WEBAPP-42-add-user-login-page
+Branch:      WEBAPP-42-add-user-login-page
 Retries:     0/3
 
 Created:     2024-02-01 10:30:00
@@ -403,9 +403,9 @@ wark ticket claim WEBAPP-42 --worker-id session-abc123 --duration 120
 Claimed: WEBAPP-42
 Worker: session-abc123
 Expires: 2024-02-01 15:30:00 (60 minutes)
-Branch: wark/WEBAPP-42-add-user-login-page
+Branch: WEBAPP-42-add-user-login-page
 
-Run: git checkout -b wark/WEBAPP-42-add-user-login-page
+Run: git checkout -b WEBAPP-42-add-user-login-page
 ```
 
 **Activity log entry:**
@@ -738,7 +738,7 @@ wark ticket branch <TICKET> [--set "<branch>"]
 |------|-------------|
 | `--set` | Override auto-generated branch name |
 
-**Auto-generation format:** `wark/<PROJECT>-<NUMBER>-<slug>`
+**Auto-generation format:** `<PROJECT>-<NUMBER>-<slug>`
 
 Where `<slug>` is the title lowercased, spaces replaced with hyphens, max 50 chars.
 
@@ -746,7 +746,7 @@ Where `<slug>` is the title lowercased, spaces replaced with hyphens, max 50 cha
 ```bash
 # Get branch name
 wark ticket branch WEBAPP-42
-# Output: wark/WEBAPP-42-add-user-login-page
+# Output: WEBAPP-42-add-user-login-page
 
 # Set custom branch
 wark ticket branch WEBAPP-42 --set "feature/login-page"

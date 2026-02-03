@@ -352,7 +352,7 @@ func TestCmdTicketCreate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output, "Created: TICK-1")
 	assert.Contains(t, output, "My First Ticket")
-	assert.Contains(t, output, "Branch: wark/TICK-1")
+	assert.Contains(t, output, "Branch: TICK-1")
 }
 
 func TestCmdTicketCreateWithOptions(t *testing.T) {
@@ -382,7 +382,7 @@ func TestCmdTicketCreateJSON(t *testing.T) {
 	assert.Equal(t, "JSON-1", result.TicketKey)
 	assert.Equal(t, "JSON Ticket", result.Title)
 	assert.Equal(t, models.StatusReady, result.Status)
-	assert.Contains(t, result.Branch, "wark/JSON-1")
+	assert.Contains(t, result.Branch, "JSON-1")
 }
 
 func TestCmdTicketCreateNoProject(t *testing.T) {
@@ -1198,7 +1198,7 @@ func TestCmdTicketBranch(t *testing.T) {
 
 	output, err := runCmd(t, dbPath, "ticket", "branch", "BRN-1")
 	require.NoError(t, err)
-	assert.Contains(t, output, "wark/BRN-1-add-login-page")
+	assert.Contains(t, output, "BRN-1-add-login-page")
 }
 
 func TestCmdTicketBranchSet(t *testing.T) {

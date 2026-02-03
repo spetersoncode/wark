@@ -173,7 +173,7 @@ wark ticket next --project WEBAPP --complexity small,medium --json
   "description": "Create a login page with email/password...",
   "priority": "high",
   "complexity": "medium",
-  "branch": "wark/WEBAPP-42-add-user-login-page",
+  "branch": "WEBAPP-42-add-user-login-page",
   "claim": {
     "worker_id": "agent-session-abc123",
     "expires_at": "2024-02-01T15:30:00Z",
@@ -194,7 +194,7 @@ wark ticket list --workable --json
 #### Get Branch Name
 ```bash
 wark ticket branch WEBAPP-42
-# Output: wark/WEBAPP-42-add-user-login-page
+# Output: WEBAPP-42-add-user-login-page
 ```
 
 #### Extend Claim (if more time needed)

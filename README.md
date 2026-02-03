@@ -82,7 +82,7 @@ wark ticket show MYAPP-1 --json
 
 # Get the suggested git branch
 wark ticket branch MYAPP-1
-# Output: wark/MYAPP-1-add-user-authentication
+# Output: MYAPP-1-add-user-authentication
 
 # Complete the ticket
 wark ticket complete MYAPP-1 --summary "Implemented OAuth2 login with Google provider"

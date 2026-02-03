@@ -1,22 +1,19 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
-	"github.com/diogenes-ai-code/wark/internal/state"
-	"github.com/diogenes-ai-code/wark/internal/tasks"
+	"github.com/diogenes-ai-code/wark/internal/service"
 	"github.com/spf13/cobra"
 )
 
 // State command flags
 var (
-	rejectReason   string
-	cancelReason   string
+	rejectReason    string
+	cancelReason    string
 	closeResolution string
 )
 
@@ -61,65 +58,37 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if ticket is in review
-	if ticket.Status != models.StatusReview {
-		return fmt.Errorf("ticket is not in review (current status: %s)", ticket.Status)
-	}
-
-	// Check for incomplete tasks - block acceptance if any exist
-	ctx := context.Background()
-	tasksRepo := db.NewTasksRepo(database.DB)
-	incompleteTasks, err := tasksRepo.ListIncompleteTasks(ctx, ticket.ID)
+	// Use service layer for accept operation
+	ticketSvc := service.NewTicketService(database.DB)
+	result, err := ticketSvc.Accept(ticket.ID)
 	if err != nil {
-		return fmt.Errorf("failed to check incomplete tasks: %w", err)
-	}
-	if len(incompleteTasks) > 0 {
-		return formatIncompleteTasksError(ticket.TicketKey, incompleteTasks)
-	}
-
-	// Validate transition
-	machine := state.NewMachine()
-	resolution := models.ResolutionCompleted
-	if err := machine.CanTransition(ticket, models.StatusClosed, state.TransitionTypeManual, "", &resolution); err != nil {
-		return fmt.Errorf("cannot accept ticket: %w", err)
+		// Check for incomplete tasks error and format specially
+		if svcErr, ok := err.(*service.TicketError); ok && svcErr.Code == service.ErrCodeIncompleteTasks {
+			if tasks, ok := svcErr.Details["incomplete_tasks"].([]string); ok {
+				return formatIncompleteTasksErrorFromStrings(ticket.TicketKey, tasks)
+			}
+		}
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	// Update ticket
-	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusClosed
-	ticket.Resolution = &resolution
-	now := time.Now()
-	ticket.CompletedAt = &now
-	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket: %w", err)
-	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogAction(ticket.ID, models.ActionAccepted, models.ActorTypeHuman, "", "Work accepted")
-
-	// Run dependency resolution: unblock dependents and update parent
-	resolver := tasks.NewDependencyResolver(database.DB)
-	resResult, err := resolver.OnTicketCompleted(ticket.ID, false) // false = parents go to review, not auto-done
-	if err != nil {
-		VerboseOutput("Warning: dependency resolution failed: %v\n", err)
-	} else {
-		outputDependencyResolution(resResult)
+	// Output dependency resolution results in verbose mode
+	if result.ResolutionResult != nil {
+		outputDependencyResolution(result.ResolutionResult)
 	}
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":     ticket.TicketKey,
-			"status":     ticket.Status,
-			"resolution": ticket.Resolution,
+			"ticket":     result.Ticket.TicketKey,
+			"status":     result.Ticket.Status,
+			"resolution": result.Ticket.Resolution,
 			"accepted":   true,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Accepted: %s", ticket.TicketKey)
-	OutputLine("Status: %s (resolution: %s)", ticket.Status, *ticket.Resolution)
+	OutputLine("Accepted: %s", result.Ticket.TicketKey)
+	OutputLine("Status: %s (resolution: %s)", result.Ticket.Status, *result.Ticket.Resolution)
 
 	return nil
 }
@@ -150,56 +119,33 @@ func runTicketReject(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if ticket is in review
-	if ticket.Status != models.StatusReview {
-		return fmt.Errorf("ticket is not in review (current status: %s)", ticket.Status)
+	// Use service layer for reject operation
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Reject(ticket.ID, rejectReason); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	// Validate transition (reject goes back to ready for fresh pickup)
-	machine := state.NewMachine()
-	if err := machine.CanTransition(ticket, models.StatusReady, state.TransitionTypeManual, rejectReason, nil); err != nil {
-		return fmt.Errorf("cannot reject ticket: %w", err)
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
 	}
-
-	// Release any active claim so ticket can be picked up fresh
-	claimRepo := db.NewClaimRepo(database.DB)
-	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
-	if claim != nil {
-		claimRepo.Release(claim.ID, models.ClaimStatusReleased)
-	}
-
-	// Update ticket
-	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusReady
-	ticket.RetryCount++
-	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket: %w", err)
-	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionRejected, models.ActorTypeHuman, "",
-		fmt.Sprintf("Rejected: %s", rejectReason),
-		map[string]interface{}{
-			"reason":      rejectReason,
-			"retry_count": ticket.RetryCount,
-		})
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":      ticket.TicketKey,
-			"status":      ticket.Status,
+			"ticket":      updatedTicket.TicketKey,
+			"status":      updatedTicket.Status,
 			"rejected":    true,
-			"retry_count": ticket.RetryCount,
+			"retry_count": updatedTicket.RetryCount,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Rejected: %s", ticket.TicketKey)
+	OutputLine("Rejected: %s", updatedTicket.TicketKey)
 	OutputLine("Reason: %s", rejectReason)
-	OutputLine("Status: %s", ticket.Status)
-	OutputLine("Retry count: %d/%d", ticket.RetryCount, ticket.MaxRetries)
+	OutputLine("Status: %s", updatedTicket.Status)
+	OutputLine("Retry count: %d/%d", updatedTicket.RetryCount, updatedTicket.MaxRetries)
 
 	return nil
 }
@@ -236,51 +182,28 @@ func runTicketClose(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if ticket can be closed
-	if !state.CanBeClosed(ticket.Status) {
-		return fmt.Errorf("ticket cannot be closed in status: %s", ticket.Status)
-	}
-
 	// Parse resolution
 	resolution := models.Resolution(closeResolution)
 	if !resolution.IsValid() {
 		return fmt.Errorf("invalid resolution: %s (must be completed, wont_do, duplicate, invalid, or obsolete)", closeResolution)
 	}
 
-	// Release any active claim
-	claimRepo := db.NewClaimRepo(database.DB)
-	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
-	if claim != nil {
-		claimRepo.Release(claim.ID, models.ClaimStatusReleased)
+	// Use service layer for close operation
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Close(ticket.ID, resolution, cancelReason); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	// Update ticket
-	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusClosed
-	ticket.Resolution = &resolution
-	now := time.Now()
-	ticket.CompletedAt = &now
-	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket: %w", err)
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
 	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	summary := fmt.Sprintf("Ticket closed: %s", resolution)
-	if cancelReason != "" {
-		summary = fmt.Sprintf("Closed (%s): %s", resolution, cancelReason)
-	}
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionClosed, models.ActorTypeHuman, "",
-		summary,
-		map[string]interface{}{
-			"resolution": string(resolution),
-			"reason":     cancelReason,
-		})
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":     ticket.TicketKey,
-			"status":     ticket.Status,
+			"ticket":     updatedTicket.TicketKey,
+			"status":     updatedTicket.Status,
 			"resolution": resolution,
 			"closed":     true,
 		}, "", "  ")
@@ -288,9 +211,9 @@ func runTicketClose(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	OutputLine("Closed: %s", ticket.TicketKey)
+	OutputLine("Closed: %s", updatedTicket.TicketKey)
 	OutputLine("Resolution: %s", resolution)
-	OutputLine("Status: %s", ticket.Status)
+	OutputLine("Status: %s", updatedTicket.Status)
 
 	return nil
 }
@@ -319,59 +242,30 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if ticket can be reopened
-	if !state.CanBeReopened(ticket.Status) {
-		return fmt.Errorf("ticket cannot be reopened in status: %s (must be closed)", ticket.Status)
+	// Use service layer for reopen operation
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Reopen(ticket.ID); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	previousStatus := ticket.Status
-	previousResolution := ticket.Resolution
-
-	// Determine new status: blocked if has deps, ready otherwise
-	depRepo := db.NewDependencyRepo(database.DB)
-	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
-	if err != nil {
-		return fmt.Errorf("failed to check dependencies: %w", err)
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
 	}
-
-	newStatus := models.StatusReady
-	if hasUnresolved {
-		newStatus = models.StatusBlocked
-	}
-
-	// Update ticket
-	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = newStatus
-	ticket.Resolution = nil
-	ticket.CompletedAt = nil
-	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket: %w", err)
-	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	details := map[string]interface{}{
-		"previous_status": string(previousStatus),
-	}
-	if previousResolution != nil {
-		details["previous_resolution"] = string(*previousResolution)
-	}
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionReopened, models.ActorTypeHuman, "",
-		fmt.Sprintf("Reopened from %s", previousStatus),
-		details)
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":   ticket.TicketKey,
-			"status":   ticket.Status,
+			"ticket":   updatedTicket.TicketKey,
+			"status":   updatedTicket.Status,
 			"reopened": true,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Reopened: %s", ticket.TicketKey)
-	OutputLine("Status: %s", ticket.Status)
+	OutputLine("Reopened: %s", updatedTicket.TicketKey)
+	OutputLine("Status: %s", updatedTicket.Status)
 
 	return nil
 }
@@ -402,59 +296,31 @@ func runTicketPromote(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if ticket can be promoted
-	if !state.CanBePromoted(ticket.Status) {
-		return fmt.Errorf("ticket cannot be promoted in status: %s (must be draft)", ticket.Status)
+	// Use service layer for promote operation
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Promote(ticket.ID); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	// Determine new status: blocked if has deps, ready otherwise
-	depRepo := db.NewDependencyRepo(database.DB)
-	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
-	if err != nil {
-		return fmt.Errorf("failed to check dependencies: %w", err)
-	}
-
-	newStatus := models.StatusReady
-	if hasUnresolved {
-		newStatus = models.StatusBlocked
-	}
-
-	// Validate transition
-	machine := state.NewMachine()
-	if err := machine.CanTransition(ticket, newStatus, state.TransitionTypeManual, "", nil); err != nil {
-		return fmt.Errorf("cannot promote ticket: %w", err)
-	}
-
-	// Update ticket
-	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = newStatus
-	if err := ticketRepo.Update(ticket); err != nil {
-		return fmt.Errorf("failed to update ticket: %w", err)
-	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	if newStatus == models.StatusReady {
-		activityRepo.LogAction(ticket.ID, models.ActionPromoted, models.ActorTypeHuman, "",
-			"Promoted from draft to ready")
-	} else {
-		activityRepo.LogAction(ticket.ID, models.ActionBlocked, models.ActorTypeHuman, "",
-			"Promoted from draft but blocked by unresolved dependencies")
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
 	}
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":   ticket.TicketKey,
-			"status":   ticket.Status,
+			"ticket":   updatedTicket.TicketKey,
+			"status":   updatedTicket.Status,
 			"promoted": true,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Promoted: %s", ticket.TicketKey)
-	OutputLine("Status: %s", ticket.Status)
-	if newStatus == models.StatusBlocked {
+	OutputLine("Promoted: %s", updatedTicket.TicketKey)
+	OutputLine("Status: %s", updatedTicket.Status)
+	if updatedTicket.Status == models.StatusBlocked {
 		OutputLine("Note: Ticket has unresolved dependencies")
 	}
 

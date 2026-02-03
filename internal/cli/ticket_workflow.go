@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -9,7 +8,7 @@ import (
 
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
-	"github.com/diogenes-ai-code/wark/internal/state"
+	"github.com/diogenes-ai-code/wark/internal/service"
 	"github.com/diogenes-ai-code/wark/internal/tasks"
 	"github.com/spf13/cobra"
 )
@@ -23,6 +22,18 @@ var (
 	autoAccept      bool
 	flagReason      string
 )
+
+// claimResult is the JSON output structure for ticket claim command.
+// This is used for CLI JSON output and must remain here for backward compatibility.
+type claimResult struct {
+	Ticket        *models.Ticket     `json:"ticket"`
+	Claim         *models.Claim      `json:"claim"`
+	Branch        string             `json:"branch"`
+	GitCmd        string             `json:"git_command"`
+	NextTask      *models.TicketTask `json:"next_task,omitempty"`
+	TasksComplete int                `json:"tasks_complete,omitempty"`
+	TasksTotal    int                `json:"tasks_total,omitempty"`
+}
 
 func init() {
 	// ticket claim
@@ -61,16 +72,6 @@ Examples:
 	RunE: runTicketClaim,
 }
 
-type claimResult struct {
-	Ticket        *models.Ticket     `json:"ticket"`
-	Claim         *models.Claim      `json:"claim"`
-	Branch        string             `json:"branch"`
-	GitCmd        string             `json:"git_command"`
-	NextTask      *models.TicketTask `json:"next_task,omitempty"`
-	TasksComplete int                `json:"tasks_complete,omitempty"`
-	TasksTotal    int                `json:"tasks_total,omitempty"`
-}
-
 func runTicketClaim(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
@@ -81,54 +82,6 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	ticket, err := resolveTicket(database, args[0], "")
 	if err != nil {
 		return err // Already wrapped with proper error type
-	}
-
-	// Check if ticket can be claimed (ready or review status)
-	isReviewClaim := ticket.Status == models.StatusReview
-	if !isReviewClaim {
-		// For ready tickets, validate the state transition
-		machine := state.NewMachine()
-		if err := machine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
-			return ErrStateErrorWithSuggestion(
-				fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
-				"cannot claim ticket: %s", err,
-			)
-		}
-	} else if ticket.Status != models.StatusReview {
-		// Not ready and not review - can't claim
-		return ErrStateErrorWithSuggestion(
-			fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
-			"cannot claim ticket: must be in ready or review status (current: %s)", ticket.Status,
-		)
-	}
-
-	// Check for existing active claim
-	claimRepo := db.NewClaimRepo(database.DB)
-	existingClaim, err := claimRepo.GetActiveByTicketID(ticket.ID)
-	if err != nil {
-		return ErrDatabase(err, "failed to check existing claims")
-	}
-	if existingClaim != nil {
-		return ErrConcurrentConflictWithSuggestion(
-			SuggestReleaseClaim,
-			"ticket is already claimed by %s (expires: %s)",
-			existingClaim.WorkerID, existingClaim.ExpiresAt.Format("15:04:05"),
-		)
-	}
-
-	// Check for unresolved dependencies (only for ready tickets, not review)
-	if !isReviewClaim {
-		depRepo := db.NewDependencyRepo(database.DB)
-		hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
-		if err != nil {
-			return ErrDatabase(err, "failed to check dependencies")
-		}
-		if hasUnresolved {
-			return ErrStateErrorWithSuggestion(
-				fmt.Sprintf("Run 'wark ticket show %s' to see blocking dependencies.", ticket.TicketKey),
-				"ticket has unresolved dependencies",
-			)
-		}
 	}
 
 	// Get worker ID (required flag, but check config default as fallback)
@@ -145,94 +98,45 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	if !cmd.Flags().Changed("duration") {
 		duration = time.Duration(GetDefaultClaimDuration()) * time.Minute
 	}
-	claim := models.NewClaim(ticket.ID, workerID, duration)
-	if err := claimRepo.Create(claim); err != nil {
-		// Handle race condition: another agent claimed the ticket between our check and insert.
-		// The partial unique index on claims(ticket_id) WHERE status = 'active' prevents this.
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return ErrConcurrentConflict("ticket already claimed")
-		}
-		return ErrDatabase(err, "failed to create claim")
-	}
 
-	// Update ticket status (only for ready tickets, review stays at review)
-	ticketRepo := db.NewTicketRepo(database.DB)
-	if !isReviewClaim {
-		ticket.Status = models.StatusInProgress
-		if err := ticketRepo.Update(ticket); err != nil {
-			// Rollback claim
-			claimRepo.Release(claim.ID, models.ClaimStatusReleased)
-			return ErrDatabase(err, "failed to update ticket status")
-		}
-	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	claimType := "Claimed"
-	if isReviewClaim {
-		claimType = "Claimed for review"
-	}
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionClaimed, models.ActorTypeAgent, workerID,
-		fmt.Sprintf("%s (expires in %dm)", claimType, claimDuration),
-		map[string]interface{}{
-			"worker_id":      workerID,
-			"duration_mins":  claimDuration,
-			"expires_at":     claim.ExpiresAt.Format(time.RFC3339),
-			"review_claim":   isReviewClaim,
-		})
-
-	// Generate branch name if needed
-	branchName := ticket.BranchName
-	if branchName == "" {
-		branchName = generateBranchName(ticket.ProjectKey, ticket.Number, ticket.Title)
-	}
-
-	result := claimResult{
-		Ticket: ticket,
-		Claim:  claim,
-		Branch: branchName,
-		GitCmd: fmt.Sprintf("git checkout -b %s", branchName),
-	}
-
-	// Get task info if ticket has tasks
-	tasksRepo := db.NewTasksRepo(database.DB)
-	ctx := context.Background()
-	taskCounts, err := tasksRepo.GetTaskCounts(ctx, ticket.ID)
+	// Use service layer for claim operation
+	ticketSvc := service.NewTicketService(database.DB)
+	result, err := ticketSvc.Claim(ticket.ID, workerID, duration)
 	if err != nil {
-		VerboseOutput("Warning: failed to get task counts: %v\n", err)
-	} else if taskCounts.Total > 0 {
-		result.TasksComplete = taskCounts.Completed
-		result.TasksTotal = taskCounts.Total
-		nextTask, err := tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
-		if err != nil {
-			VerboseOutput("Warning: failed to get next task: %v\n", err)
-		} else if nextTask != nil {
-			result.NextTask = nextTask
-		}
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
 	if IsJSON() {
-		data, _ := json.MarshalIndent(result, "", "  ")
+		cliResult := claimResult{
+			Ticket:        result.Ticket,
+			Claim:         result.Claim,
+			Branch:        result.Branch,
+			GitCmd:        fmt.Sprintf("git checkout -b %s", result.Branch),
+			NextTask:      result.NextTask,
+			TasksComplete: 0,
+			TasksTotal:    result.TasksTotal,
+		}
+		data, _ := json.MarshalIndent(cliResult, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Claimed: %s", ticket.TicketKey)
+	OutputLine("Claimed: %s", result.Ticket.TicketKey)
 	OutputLine("Worker: %s", workerID)
-	OutputLine("Expires: %s (%d minutes)", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), claimDuration)
-	OutputLine("Branch: %s", branchName)
+	OutputLine("Expires: %s (%d minutes)", result.Claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), claimDuration)
+	OutputLine("Branch: %s", result.Branch)
 
 	// Show task progress if ticket has tasks
 	if result.TasksTotal > 0 {
 		OutputLine("")
-		OutputLine("Tasks: %d/%d complete", result.TasksComplete, result.TasksTotal)
+		OutputLine("Tasks: 0/%d complete", result.TasksTotal)
 		if result.NextTask != nil {
 			OutputLine("Next task: %s", result.NextTask.Description)
 		}
 	}
 
 	OutputLine("")
-	OutputLine("Run: %s", result.GitCmd)
+	OutputLine("Run: git checkout -b %s", result.Branch)
 
 	return nil
 }
@@ -262,68 +166,34 @@ func runTicketRelease(cmd *cobra.Command, args []string) error {
 		return err // Already wrapped with proper error type
 	}
 
-	// Check if ticket is in progress
-	if ticket.Status != models.StatusInProgress {
-		return ErrStateErrorWithSuggestion(
-			fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
-			"ticket is not in progress (current status: %s)", ticket.Status,
-		)
+	// Use service layer for release operation
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Release(ticket.ID, releaseReason); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	// Get active claim
-	claimRepo := db.NewClaimRepo(database.DB)
-	claim, err := claimRepo.GetActiveByTicketID(ticket.ID)
-	if err != nil {
-		return ErrDatabase(err, "failed to get claim")
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
 	}
-	if claim == nil {
-		return ErrStateError("no active claim found for ticket")
-	}
-
-	// Release claim
-	if err := claimRepo.Release(claim.ID, models.ClaimStatusReleased); err != nil {
-		return ErrDatabase(err, "failed to release claim")
-	}
-
-	// Update ticket status
-	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusReady
-	ticket.RetryCount++
-	if err := ticketRepo.Update(ticket); err != nil {
-		return ErrDatabase(err, "failed to update ticket status")
-	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	summary := "Released"
-	if releaseReason != "" {
-		summary = fmt.Sprintf("Released: %s", releaseReason)
-	}
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionReleased, models.ActorTypeAgent, claim.WorkerID,
-		summary,
-		map[string]interface{}{
-			"reason":         releaseReason,
-			"retry_count":    ticket.RetryCount,
-			"previous_status": string(models.StatusInProgress),
-			"new_status":     string(ticket.Status),
-		})
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":          ticket.TicketKey,
+			"ticket":          updatedTicket.TicketKey,
 			"released":        true,
-			"status":          ticket.Status,
+			"status":          updatedTicket.Status,
 			"previous_status": models.StatusInProgress,
 			"status_changed":  true,
-			"retry_count":     ticket.RetryCount,
+			"retry_count":     updatedTicket.RetryCount,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Released: %s", ticket.TicketKey)
-	OutputLine("Status: %s", ticket.Status)
-	OutputLine("Retry count: %d/%d", ticket.RetryCount, ticket.MaxRetries)
+	OutputLine("Released: %s", updatedTicket.TicketKey)
+	OutputLine("Status: %s", updatedTicket.Status)
+	OutputLine("Retry count: %d/%d", updatedTicket.RetryCount, updatedTicket.MaxRetries)
 
 	return nil
 }
@@ -354,155 +224,42 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 		return err // Already wrapped with proper error type
 	}
 
-	// Check if ticket is in progress
-	if ticket.Status != models.StatusInProgress {
-		return ErrStateErrorWithSuggestion(
-			"Ticket must be in progress to complete. Claim it first with 'wark ticket claim'.",
-			"ticket is not in progress (current status: %s)", ticket.Status,
-		)
-	}
-
-	// Get active claim for logging
-	claimRepo := db.NewClaimRepo(database.DB)
-	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
-	workerID := ""
-	if claim != nil {
-		workerID = claim.WorkerID
-	}
-
-	// Check if ticket has incomplete tasks - block completion if so
-	ctx := context.Background()
-	tasksRepo := db.NewTasksRepo(database.DB)
-	taskCounts, err := tasksRepo.GetTaskCounts(ctx, ticket.ID)
+	// Use service layer for complete operation
+	ticketSvc := service.NewTicketService(database.DB)
+	result, err := ticketSvc.Complete(ticket.ID, completeSummary, autoAccept)
 	if err != nil {
-		return ErrDatabase(err, "failed to get task counts")
-	}
-
-	if taskCounts.Total > 0 {
-		incompleteTasks, err := tasksRepo.ListIncompleteTasks(ctx, ticket.ID)
-		if err != nil {
-			return ErrDatabase(err, "failed to check incomplete tasks")
+		// Check for incomplete tasks error and format specially
+		if svcErr, ok := err.(*service.TicketError); ok && svcErr.Code == service.ErrCodeIncompleteTasks {
+			if tasks, ok := svcErr.Details["incomplete_tasks"].([]string); ok {
+				return formatIncompleteTasksErrorFromStrings(ticket.TicketKey, tasks)
+			}
 		}
-
-		if len(incompleteTasks) > 0 {
-			// Block completion - list incomplete tasks
-			return formatIncompleteTasksError(ticket.TicketKey, incompleteTasks)
-		}
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	activityRepo := db.NewActivityRepo(database.DB)
-	ticketRepo := db.NewTicketRepo(database.DB)
-
-	// Complete the claim (no more tasks or ticket has no tasks)
-	if claim != nil {
-		claimRepo.Release(claim.ID, models.ClaimStatusCompleted)
-	}
-
-	// Determine final status
-	finalStatus := models.StatusReview
-	var resolution *models.Resolution
-	if autoAccept {
-		finalStatus = models.StatusClosed
-		res := models.ResolutionCompleted
-		resolution = &res
-	}
-
-	// Update ticket
-	ticket.Status = finalStatus
-	ticket.Resolution = resolution
-	if finalStatus == models.StatusClosed {
-		now := time.Now()
-		ticket.CompletedAt = &now
-	}
-	if err := ticketRepo.Update(ticket); err != nil {
-		return ErrDatabase(err, "failed to update ticket")
-	}
-
-	// Log activity
-	action := models.ActionCompleted
-	summary := "Work completed"
-	if completeSummary != "" {
-		summary = completeSummary
-	}
-	if taskCounts.Total > 0 {
-		summary = fmt.Sprintf("All %d tasks completed", taskCounts.Total)
-		if completeSummary != "" {
-			summary = fmt.Sprintf("%s - %s", summary, completeSummary)
-		}
-	}
-	activityRepo.LogActionWithDetails(ticket.ID, action, models.ActorTypeAgent, workerID,
-		summary,
-		map[string]interface{}{
-			"summary":      completeSummary,
-			"auto_accept":  autoAccept,
-			"tasks_total":  taskCounts.Total,
-		})
-
-	if autoAccept {
-		activityRepo.LogAction(ticket.ID, models.ActionAccepted, models.ActorTypeSystem, "", "Auto-accepted")
-
-		// Run dependency resolution when ticket is done
-		resolver := tasks.NewDependencyResolver(database.DB)
-		resResult, err := resolver.OnTicketCompleted(ticket.ID, true)
-		if err != nil {
-			VerboseOutput("Warning: dependency resolution failed: %v\n", err)
-		} else {
-			outputDependencyResolution(resResult)
-		}
+	// Output dependency resolution results in verbose mode
+	if result.ResolutionResult != nil {
+		outputDependencyResolution(result.ResolutionResult)
 	}
 
 	if IsJSON() {
-		result := map[string]interface{}{
-			"ticket":    ticket.TicketKey,
-			"status":    ticket.Status,
+		jsonResult := map[string]interface{}{
+			"ticket":    result.Ticket.TicketKey,
+			"status":    result.Ticket.Status,
 			"completed": true,
 		}
-		if taskCounts.Total > 0 {
-			result["tasks_complete"] = taskCounts.Total
-			result["tasks_total"] = taskCounts.Total
-			result["all_tasks_done"] = true
+		if result.AutoAccepted {
+			jsonResult["auto_accepted"] = true
 		}
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, _ := json.MarshalIndent(jsonResult, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Completed: %s", ticket.TicketKey)
-	if taskCounts.Total > 0 {
-		OutputLine("Tasks: %d/%d complete", taskCounts.Total, taskCounts.Total)
-	}
-	OutputLine("Status: %s", ticket.Status)
+	OutputLine("Completed: %s", result.Ticket.TicketKey)
+	OutputLine("Status: %s", result.Ticket.Status)
 
 	return nil
-}
-
-// outputDependencyResolution outputs the results of dependency resolution in verbose mode.
-func outputDependencyResolution(result *tasks.ResolutionResult) {
-	if result == nil {
-		return
-	}
-
-	if result.Unblocked > 0 {
-		VerboseOutput("Unblocked %d ticket(s):\n", result.Unblocked)
-		for _, r := range result.UnblockResults {
-			if r.NewStatus != "" {
-				VerboseOutput("  %s: %s\n", r.TicketKey, r.Reason)
-			}
-		}
-	}
-
-	if result.ParentsUpdated > 0 {
-		VerboseOutput("Updated %d parent ticket(s):\n", result.ParentsUpdated)
-		for _, r := range result.ParentResults {
-			if r.NewStatus != "" {
-				if r.AutoAccepted {
-					VerboseOutput("  %s: auto-completed (%d/%d children done)\n", r.TicketKey, r.ChildrenDone, r.ChildrenTotal)
-				} else {
-					VerboseOutput("  %s: moved to review (%d/%d children done)\n", r.TicketKey, r.ChildrenDone, r.ChildrenTotal)
-				}
-			}
-		}
-	}
 }
 
 // ticket flag
@@ -554,80 +311,93 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return ErrInvalidArgs("%s", err)
 	}
-	flagReason = string(parsedReason) // Use normalized value
 
-	// Check if ticket can be escalated to human
-	if !state.CanBeEscalated(ticket.Status) {
-		return ErrStateErrorWithSuggestion(
-			fmt.Sprintf(SuggestCheckStatus, ticket.TicketKey),
-			"ticket cannot be flagged in status: %s", ticket.Status,
-		)
+	// Get worker ID if claimed (for logging)
+	workerID := claimWorkerID
+	if workerID == "" {
+		workerID = GetDefaultWorkerID()
 	}
 
-	previousStatus := ticket.Status
-
-	// Get worker ID if claimed
-	claimRepo := db.NewClaimRepo(database.DB)
-	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
-	workerID := ""
-	if claim != nil {
-		workerID = claim.WorkerID
-		// Release the claim
-		claimRepo.Release(claim.ID, models.ClaimStatusReleased)
+	// Use service layer for flag operation
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Flag(ticket.ID, parsedReason, message, workerID); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
 	}
 
-	// Update ticket status
-	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket.Status = models.StatusHuman
-	ticket.HumanFlagReason = flagReason
-	if err := ticketRepo.Update(ticket); err != nil {
-		return ErrDatabase(err, "failed to update ticket")
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
 	}
-
-	// Create inbox message
-	inboxRepo := db.NewInboxRepo(database.DB)
-	msgType := models.MessageTypeQuestion
-	if flagReason == "decision_needed" {
-		msgType = models.MessageTypeDecision
-	} else if flagReason == "risk_assessment" || flagReason == "irreconcilable_conflict" {
-		msgType = models.MessageTypeEscalation
-	}
-
-	inboxMsg := models.NewInboxMessage(ticket.ID, msgType, message, workerID)
-	if err := inboxRepo.Create(inboxMsg); err != nil {
-		return ErrDatabase(err, "failed to create inbox message")
-	}
-
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
-		fmt.Sprintf("Flagged: %s", flagReason),
-		map[string]interface{}{
-			"reason":           flagReason,
-			"message":          message,
-			"inbox_message_id": inboxMsg.ID,
-			"previous_status":  string(previousStatus),
-		})
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":           ticket.TicketKey,
-			"status":           ticket.Status,
-			"reason":           flagReason,
-			"inbox_message_id": inboxMsg.ID,
+			"ticket": updatedTicket.TicketKey,
+			"status": updatedTicket.Status,
+			"reason": string(parsedReason),
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Flagged: %s", ticket.TicketKey)
-	OutputLine("Reason: %s", flagReason)
-	OutputLine("Status: %s", ticket.Status)
-	OutputLine("Inbox message #%d created", inboxMsg.ID)
+	OutputLine("Flagged: %s", updatedTicket.TicketKey)
+	OutputLine("Reason: %s", parsedReason)
+	OutputLine("Status: %s", updatedTicket.Status)
 	OutputLine("")
 	OutputLine("Waiting for human response...")
 
 	return nil
+}
+
+// translateServiceError converts a service layer error to a CLI error with suggestions
+func translateServiceError(err error, ticketKey string) error {
+	svcErr, ok := err.(*service.TicketError)
+	if !ok {
+		return ErrDatabase(err, "operation failed")
+	}
+
+	switch svcErr.Code {
+	case service.ErrCodeNotFound:
+		return ErrNotFoundWithSuggestion(SuggestListTickets, "ticket not found")
+	case service.ErrCodeInvalidState:
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf(SuggestCheckStatus, ticketKey),
+			"%s", svcErr.Message)
+	case service.ErrCodeAlreadyClaimed:
+		return ErrConcurrentConflictWithSuggestion(SuggestReleaseClaim, "%s", svcErr.Message)
+	case service.ErrCodeUnresolvedDeps:
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf("Run 'wark ticket show %s' to see blocking dependencies.", ticketKey),
+			"%s", svcErr.Message)
+	case service.ErrCodeIncompleteTasks:
+		return ErrStateErrorWithSuggestion(
+			fmt.Sprintf("Complete all tasks first with 'wark task complete %s <task-number>'.", ticketKey),
+			"%s", svcErr.Message)
+	case service.ErrCodeInvalidReason:
+		return ErrInvalidArgs("%s", svcErr.Message)
+	case service.ErrCodeInvalidResolution:
+		return ErrInvalidArgs("%s", svcErr.Message)
+	case service.ErrCodeDatabase:
+		return ErrDatabase(err, "%s", svcErr.Message)
+	default:
+		return ErrDatabase(err, "%s", svcErr.Message)
+	}
+}
+
+// formatIncompleteTasksErrorFromStrings creates an error message from task description strings
+func formatIncompleteTasksErrorFromStrings(ticketKey string, tasks []string) error {
+	var taskList strings.Builder
+	for i, task := range tasks {
+		if i > 0 {
+			taskList.WriteString(", ")
+		}
+		taskList.WriteString(fmt.Sprintf("[ ] %s", task))
+	}
+
+	return ErrStateErrorWithSuggestion(
+		fmt.Sprintf("Complete all tasks first with 'wark task complete %s <task-number>', or use 'wark ticket close %s' to close without completing.", ticketKey, ticketKey),
+		"cannot complete ticket: %d task(s) incomplete: %s", len(tasks), taskList.String(),
+	)
 }
 
 // formatIncompleteTasksError creates an error message listing all incomplete tasks.
@@ -644,4 +414,33 @@ func formatIncompleteTasksError(ticketKey string, incompleteTasks []*models.Tick
 		fmt.Sprintf("Complete all tasks first with 'wark task complete %s <task-number>', or use 'wark ticket close %s' to close without completing.", ticketKey, ticketKey),
 		"cannot complete ticket: %d task(s) incomplete: %s", len(incompleteTasks), taskList.String(),
 	)
+}
+
+// outputDependencyResolution outputs the results of dependency resolution in verbose mode.
+func outputDependencyResolution(result *tasks.ResolutionResult) {
+	if result == nil {
+		return
+	}
+
+	if result.Unblocked > 0 {
+		VerboseOutput("Unblocked %d ticket(s):\n", result.Unblocked)
+		for _, r := range result.UnblockResults {
+			if r.NewStatus != "" {
+				VerboseOutput("  %s: %s\n", r.TicketKey, r.Reason)
+			}
+		}
+	}
+
+	if result.ParentsUpdated > 0 {
+		VerboseOutput("Updated %d parent ticket(s):\n", result.ParentsUpdated)
+		for _, r := range result.ParentResults {
+			if r.NewStatus != "" {
+				if r.AutoAccepted {
+					VerboseOutput("  %s: auto-completed (%d/%d children done)\n", r.TicketKey, r.ChildrenDone, r.ChildrenTotal)
+				} else {
+					VerboseOutput("  %s: moved to review (%d/%d children done)\n", r.TicketKey, r.ChildrenDone, r.ChildrenTotal)
+				}
+			}
+		}
+	}
 }

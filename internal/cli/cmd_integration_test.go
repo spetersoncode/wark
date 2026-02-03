@@ -1255,7 +1255,7 @@ func TestCmdTicketReject(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output, "Rejected: REJ-1")
 	assert.Contains(t, output, "Tests failing")
-	assert.Contains(t, output, "in_progress")
+	assert.Contains(t, output, "ready") // After rejection, ticket goes back to ready
 }
 
 func TestCmdTicketClose(t *testing.T) {
@@ -1504,7 +1504,8 @@ func TestCmdRejectionRetryCount(t *testing.T) {
 	_, _ = runCmd(t, dbPath, "ticket", "complete", "RTRY-1")
 	_, _ = runCmd(t, dbPath, "ticket", "reject", "RTRY-1", "--reason", "First rejection")
 
-	// Second attempt
+	// Second attempt - must claim first since reject puts ticket back to ready
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "RTRY-1", "--worker-id", "agent")
 	_, _ = runCmd(t, dbPath, "ticket", "complete", "RTRY-1")
 	output, _ := runCmd(t, dbPath, "ticket", "reject", "RTRY-1", "--reason", "Second rejection")
 

@@ -1,4 +1,5 @@
 import {
+	BarChart3,
 	FolderKanban,
 	Home,
 	Inbox as InboxIcon,
@@ -9,7 +10,7 @@ import {
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { SearchBar } from "./components/SearchBar";
 import { cn } from "./lib/utils";
-import { Board, Dashboard, Inbox, Projects, TicketDetail, Tickets } from "./views";
+import { Analytics, Board, Dashboard, Inbox, Projects, TicketDetail, Tickets } from "./views";
 
 const NAV_ITEMS = [
 	{ to: "/", label: "Dashboard", icon: Home, end: true },
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
 	{ to: "/tickets", label: "Tickets", icon: ListTodo },
 	{ to: "/board", label: "Board", icon: KanbanSquare },
 	{ to: "/inbox", label: "Inbox", icon: InboxIcon },
+	{ to: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 function App() {
@@ -73,6 +75,7 @@ function App() {
 					<Route path="/tickets" element={<Tickets />} />
 					<Route path="/board" element={<Board />} />
 					<Route path="/inbox" element={<Inbox />} />
+					<Route path="/analytics" element={<Analytics />} />
 					<Route path="/tickets/:key" element={<TicketDetail />} />
 				</Routes>
 			</main>

@@ -10,7 +10,7 @@ import {
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { SearchBar } from "./components/SearchBar";
 import { cn } from "./lib/utils";
-import { Analytics, Board, Dashboard, Inbox, Projects, TicketDetail, Tickets } from "./views";
+import { Analytics, Board, Dashboard, Inbox, NotFound, Projects, TicketDetail, Tickets } from "./views";
 
 const NAV_ITEMS = [
 	{ to: "/", label: "Dashboard", icon: Home, end: true },
@@ -77,6 +77,7 @@ function App() {
 					<Route path="/inbox" element={<Inbox />} />
 					<Route path="/analytics" element={<Analytics />} />
 					<Route path="/tickets/:key" element={<TicketDetail />} />
+					<Route path="*" element={<NotFound />} />
 				</Routes>
 			</main>
 		</div>

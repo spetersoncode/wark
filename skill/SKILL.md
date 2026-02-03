@@ -4,7 +4,7 @@
 
 ## What is Wark?
 
-Wark is a command-line task management system designed for coordinating AI coding agents. It provides:
+Wark is a command-line task management system designed for coordinating AI agents. It handles coding, content generation, research, analysis, and any task-based work. It provides:
 
 - **Project-based ticket organization** — Group related work into projects
 - **Dependency-aware scheduling** — Tickets automatically block/unblock based on dependencies
@@ -18,7 +18,8 @@ Load the appropriate reference based on your task:
 
 | Role | Reference | When to Load |
 |------|-----------|--------------|
-| **Coder** | `references/coder.md` | Working on implementation tickets |
+| **Worker** | `references/worker.md` | Non-coding tasks (content, research, analysis) |
+| **Coder** | `references/coder.md` | Coding/implementation tickets |
 | **Reviewer** | `references/reviewer.md` | Reviewing completed work |
 
 ## Ticket Lifecycle

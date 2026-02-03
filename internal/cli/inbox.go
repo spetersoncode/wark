@@ -259,14 +259,17 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create message: %w", err)
 	}
 
-	// Log activity
+	// Log activity to ticket history
 	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
+	if err := activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
 		fmt.Sprintf("Sent %s message", msgType),
 		map[string]interface{}{
 			"message_type":     string(msgType),
 			"inbox_message_id": inboxMsg.ID,
-		})
+			"message":          message,
+		}); err != nil {
+		return fmt.Errorf("failed to log activity: %w", err)
+	}
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
@@ -351,14 +354,18 @@ func runInboxRespond(cmd *cobra.Command, args []string) error {
 		statusChanged = true
 	}
 
-	// Log activity
+	// Log activity to ticket history
 	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogActionWithDetails(message.TicketID, models.ActionHumanResponded, models.ActorTypeHuman, "",
+	if err := activityRepo.LogActionWithDetails(message.TicketID, models.ActionHumanResponded, models.ActorTypeHuman, "",
 		"Responded to message",
 		map[string]interface{}{
 			"inbox_message_id": msgID,
+			"message_type":     string(message.MessageType),
+			"message":          message.Content,
 			"response":         response,
-		})
+		}); err != nil {
+		return fmt.Errorf("failed to log activity: %w", err)
+	}
 
 	if IsJSON() {
 		result := map[string]interface{}{

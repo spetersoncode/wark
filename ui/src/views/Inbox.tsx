@@ -4,8 +4,10 @@ import {
 	FileSearch,
 	HelpCircle,
 	Info,
+	Loader2,
 	RefreshCw,
 	Scale,
+	Send,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -13,7 +15,7 @@ import { EmptyState } from "../components/EmptyState";
 import { useRefreshShortcut } from "../components/KeyboardShortcutsProvider";
 import { Markdown } from "../components/Markdown";
 import { InboxSkeleton } from "../components/skeletons";
-import { type InboxMessage, listInbox, type MessageType } from "../lib/api";
+import { type InboxMessage, listInbox, type MessageType, respondToInbox } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn, formatRelativeTime } from "../lib/utils";
 
@@ -170,7 +172,15 @@ export default function Inbox() {
 			) : (
 				<div className="space-y-4">
 					{messages.map((message) => (
-						<InboxCard key={message.id} message={message} />
+						<InboxCard
+							key={message.id}
+							message={message}
+							onResponded={(updated) => {
+								setMessages((prev) =>
+									sortMessages(prev.map((m) => (m.id === updated.id ? updated : m))),
+								);
+							}}
+						/>
 					))}
 				</div>
 			)}
@@ -178,10 +188,30 @@ export default function Inbox() {
 	);
 }
 
-function InboxCard({ message }: { message: InboxMessage }) {
+function InboxCard({
+	message,
+	onResponded,
+}: { message: InboxMessage; onResponded: (updated: InboxMessage) => void }) {
 	const [expanded, setExpanded] = useState(!message.responded_at);
+	const [responseText, setResponseText] = useState("");
+	const [submitting, setSubmitting] = useState(false);
+	const [submitError, setSubmitError] = useState<string | null>(null);
 	const isResponded = !!message.responded_at;
 	const isEscalation = message.message_type === "escalation";
+
+	const handleSubmitResponse = async () => {
+		if (!responseText.trim() || submitting) return;
+		setSubmitting(true);
+		setSubmitError(null);
+		try {
+			const updated = await respondToInbox(message.id, responseText.trim());
+			onResponded(updated);
+		} catch (e) {
+			setSubmitError(e instanceof Error ? e.message : "Failed to submit response");
+		} finally {
+			setSubmitting(false);
+		}
+	};
 
 	const typeConfig = MESSAGE_TYPE_CONFIG[message.message_type];
 
@@ -260,6 +290,58 @@ function InboxCard({ message }: { message: InboxMessage }) {
 					<div className={cn(isResponded && "text-[var(--muted-foreground)]")}>
 						<Markdown>{message.content}</Markdown>
 					</div>
+
+					{/* Response input form for pending messages */}
+					{!isResponded && (
+						<div className="mt-4 space-y-2">
+							<textarea
+								value={responseText}
+								onChange={(e) => setResponseText(e.target.value)}
+								placeholder="Type your response..."
+								disabled={submitting}
+								className={cn(
+									"w-full min-h-[80px] p-3 text-sm rounded-md border resize-y",
+									"bg-[var(--background)] border-[var(--border)]",
+									"placeholder:text-[var(--muted-foreground)]",
+									"focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent",
+									"disabled:opacity-50 disabled:cursor-not-allowed",
+								)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+										e.preventDefault();
+										handleSubmitResponse();
+									}
+								}}
+							/>
+							{submitError && (
+								<p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
+							)}
+							<div className="flex items-center justify-between">
+								<p className="text-xs text-[var(--muted-foreground)]">
+									Press ⌘+Enter to submit
+								</p>
+								<button
+									type="button"
+									onClick={handleSubmitResponse}
+									disabled={!responseText.trim() || submitting}
+									className={cn(
+										"flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md",
+										"bg-[var(--primary)] text-[var(--primary-foreground)]",
+										"hover:bg-[var(--primary)]/90 transition-colors",
+										"disabled:opacity-50 disabled:cursor-not-allowed",
+										"press-effect",
+									)}
+								>
+									{submitting ? (
+										<Loader2 className="w-4 h-4 animate-spin" />
+									) : (
+										<Send className="w-4 h-4" />
+									)}
+									{submitting ? "Sending..." : "Respond"}
+								</button>
+							</div>
+						</div>
+					)}
 
 					{/* Response section (only shown if already responded) */}
 					{message.responded_at && message.response && (

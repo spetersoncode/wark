@@ -2,7 +2,8 @@
 package models
 
 // Status represents the state of a ticket in its lifecycle.
-// State machine redesign (WARK-12):
+// State machine redesign (WARK-12, WARK-21):
+// - draft: being planned, not ready for AI to work on
 // - blocked: has open dependencies, cannot be worked
 // - ready: no blockers, available for work
 // - in_progress: actively being worked
@@ -12,6 +13,7 @@ package models
 type Status string
 
 const (
+	StatusDraft      Status = "draft"
 	StatusBlocked    Status = "blocked"
 	StatusReady      Status = "ready"
 	StatusInProgress Status = "in_progress"
@@ -23,7 +25,7 @@ const (
 // IsValid returns true if the status is a valid ticket status.
 func (s Status) IsValid() bool {
 	switch s {
-	case StatusBlocked, StatusReady, StatusInProgress, StatusHuman, StatusReview, StatusClosed:
+	case StatusDraft, StatusBlocked, StatusReady, StatusInProgress, StatusHuman, StatusReview, StatusClosed:
 		return true
 	}
 	return false
@@ -39,10 +41,15 @@ func (s Status) IsWorkable() bool {
 	return s == StatusReady
 }
 
+// IsDraft returns true if the status is draft.
+func (s Status) IsDraft() bool {
+	return s == StatusDraft
+}
+
 // CanModifyDependencies returns true if dependencies can be modified in this state.
-// Dependencies can only be modified when ticket is blocked or ready.
+// Dependencies can only be modified when ticket is draft, blocked, or ready.
 func (s Status) CanModifyDependencies() bool {
-	return s == StatusBlocked || s == StatusReady
+	return s == StatusDraft || s == StatusBlocked || s == StatusReady
 }
 
 // Resolution represents why a ticket was closed.
@@ -234,6 +241,9 @@ const (
 
 	// Comments/notes
 	ActionComment Action = "comment"
+
+	// Draft workflow (WARK-21)
+	ActionPromoted Action = "promoted"
 )
 
 // IsValid returns true if the action is valid.
@@ -243,7 +253,7 @@ func (a Action) IsValid() bool {
 		ActionCompleted, ActionAccepted, ActionRejected, ActionClosed, ActionReopened,
 		ActionDependencyAdded, ActionDependencyRemoved, ActionBlocked, ActionUnblocked,
 		ActionDecomposed, ActionChildCreated, ActionEscalated, ActionHumanResponded,
-		ActionFieldChanged, ActionComment:
+		ActionFieldChanged, ActionComment, ActionPromoted:
 		return true
 	}
 	return false

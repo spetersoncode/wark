@@ -62,11 +62,11 @@ func (l *Logic) GetBlockingDependencies(ticket *models.Ticket) ([]*models.Ticket
 }
 
 // ShouldBlock determines if a ticket should be in blocked status based on its dependencies.
-// Only applies to blocked or ready tickets.
+// Only applies to draft, blocked, or ready tickets.
 func (l *Logic) ShouldBlock(ticket *models.Ticket) (bool, error) {
-	// Only check blocking for blocked or ready states
+	// Only check blocking for draft, blocked, or ready states
 	switch ticket.Status {
-	case models.StatusBlocked, models.StatusReady:
+	case models.StatusDraft, models.StatusBlocked, models.StatusReady:
 		// These states can be affected by dependency changes
 	default:
 		return false, nil
@@ -403,6 +403,19 @@ func (l *Logic) CanEscalate(ticket *models.Ticket) (bool, string) {
 	return true, ""
 }
 
+// CanPromote checks if a ticket can be promoted from draft to ready.
+func (l *Logic) CanPromote(ticket *models.Ticket) (bool, string) {
+	if ticket == nil {
+		return false, "ticket is nil"
+	}
+
+	if !CanBePromoted(ticket.Status) {
+		return false, "ticket must be in draft status to be promoted"
+	}
+
+	return true, ""
+}
+
 // CanAddDependency checks if a dependency can be added to the ticket.
 func (l *Logic) CanAddDependency(ticket *models.Ticket) (bool, string) {
 	if ticket == nil {
@@ -455,8 +468,8 @@ func (l *Logic) OnDependencyCompleted(ticket *models.Ticket) (models.Status, boo
 // OnDependencyAdded handles when a dependency is added to a ticket.
 // Returns the new status if a transition should occur, or the current status if not.
 func (l *Logic) OnDependencyAdded(ticket *models.Ticket, depIsResolved bool) (models.Status, bool) {
-	// Only affect ready tickets
-	if ticket.Status != models.StatusReady {
+	// Only affect draft or ready tickets
+	if ticket.Status != models.StatusReady && ticket.Status != models.StatusDraft {
 		return ticket.Status, false
 	}
 

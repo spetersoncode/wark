@@ -128,22 +128,25 @@ export function DashboardSkeleton() {
 export function TicketRowSkeleton() {
 	return (
 		<tr>
-			<td className="px-4 py-3">
+			<td className="px-4 py-4">
 				<Skeleton className="h-4 w-16 font-mono" />
 			</td>
-			<td className="px-4 py-3">
+			<td className="px-4 py-4">
 				<Skeleton className="h-4 w-64" />
 			</td>
-			<td className="px-4 py-3">
-				<Skeleton className="h-5 w-20 rounded-full" />
+			<td className="px-4 py-4">
+				<Skeleton className="h-4 w-20" />
 			</td>
-			<td className="px-4 py-3">
+			<td className="px-4 py-4">
+				<Skeleton className="h-5 w-24 rounded-md" />
+			</td>
+			<td className="px-4 py-4">
 				<Skeleton className="h-4 w-16" />
 			</td>
-			<td className="px-4 py-3">
+			<td className="px-4 py-4">
 				<Skeleton className="h-4 w-14" />
 			</td>
-			<td className="px-4 py-3">
+			<td className="px-4 py-4">
 				<Skeleton className="h-4 w-16" />
 			</td>
 		</tr>
@@ -183,10 +186,13 @@ export function TicketsListSkeleton() {
 								<th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)]">
 									Title
 								</th>
-								<th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)] w-28">
+								<th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)] w-32">
+									Project
+								</th>
+								<th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)] w-32">
 									Status
 								</th>
-								<th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)] w-24">
+								<th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)] w-28">
 									Priority
 								</th>
 								<th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)] w-24">
@@ -508,11 +514,7 @@ export function MetricCardSkeleton() {
 /**
  * Skeleton for analytics sections
  */
-export function AnalyticsSectionSkeleton({
-	cardCount = 4,
-}: {
-	cardCount?: number;
-}) {
+export function AnalyticsSectionSkeleton({ cardCount = 4 }: { cardCount?: number }) {
 	return (
 		<section>
 			<div className="flex items-center gap-2 mb-4">
@@ -522,7 +524,9 @@ export function AnalyticsSectionSkeleton({
 			<div
 				className={cn(
 					"grid gap-4",
-					cardCount === 3 ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
+					cardCount === 3
+						? "grid-cols-1 md:grid-cols-3"
+						: "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
 				)}
 			>
 				{Array.from({ length: cardCount }, (_, i) => `skeleton-metric-${i}`).map((key) => (

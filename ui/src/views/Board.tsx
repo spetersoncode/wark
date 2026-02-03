@@ -19,6 +19,7 @@ import {
 	type TicketPriority,
 	type TicketStatus,
 } from "../lib/api";
+import { useAutoRefresh } from "../lib/hooks";
 import { cn, getPriorityColor } from "../lib/utils";
 
 const STATUSES: { key: TicketStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -75,7 +76,6 @@ export default function Board() {
 	const [projects, setProjects] = useState<ProjectWithStats[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [refreshing, setRefreshing] = useState(false);
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	// Read filters from URL
@@ -135,18 +135,16 @@ export default function Board() {
 			setError(e instanceof Error ? e.message : "Failed to fetch data");
 		} finally {
 			setLoading(false);
-			setRefreshing(false);
 		}
 	}, [filterProject, filterPriority]);
 
+	// Initial fetch
 	useEffect(() => {
 		fetchData();
 	}, [fetchData]);
 
-	function handleRefresh() {
-		setRefreshing(true);
-		fetchData();
-	}
+	// Auto-refresh every 10 seconds when tab is visible
+	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchData, [fetchData]);
 
 	// Apply client-side complexity filter (API doesn't support it)
 	const filteredTickets = filterComplexity
@@ -307,7 +305,9 @@ export default function Board() {
 									{(key === "closed"
 										? ticketsByStatus[key]?.slice(0, 10)
 										: ticketsByStatus[key]
-									)?.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} />)}
+									)?.map((ticket) => (
+										<TicketCard key={ticket.id} ticket={ticket} />
+									))}
 									{key === "closed" && ticketsByStatus[key]?.length > 10 && (
 										<Link
 											to="/tickets?status=closed"

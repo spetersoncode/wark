@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
 import { type InboxMessage, listInbox, type MessageType, respondToInbox } from "../lib/api";
+import { useAutoRefresh } from "../lib/hooks";
 import { cn, formatRelativeTime } from "../lib/utils";
 
 const MESSAGE_TYPE_CONFIG: Record<
@@ -49,7 +50,6 @@ export default function Inbox() {
 	const [messages, setMessages] = useState<InboxMessage[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [refreshing, setRefreshing] = useState(false);
 
 	const fetchMessages = useCallback(async () => {
 		try {
@@ -61,18 +61,16 @@ export default function Inbox() {
 			setError(e instanceof Error ? e.message : "Failed to fetch inbox");
 		} finally {
 			setLoading(false);
-			setRefreshing(false);
 		}
 	}, []);
 
+	// Initial fetch
 	useEffect(() => {
 		fetchMessages();
 	}, [fetchMessages]);
 
-	function handleRefresh() {
-		setRefreshing(true);
-		fetchMessages();
-	}
+	// Auto-refresh every 10 seconds when tab is visible
+	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchMessages, [fetchMessages]);
 
 	async function handleRespond(id: number, response: string) {
 		try {

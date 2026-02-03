@@ -2,13 +2,13 @@ import { AlertTriangle, CheckCircle2, CircleDot, Clock, RefreshCw } from "lucide
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, getStatus, type StatusResult } from "../lib/api";
+import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
 
 export default function Dashboard() {
 	const [status, setStatus] = useState<StatusResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
 
 	const fetchStatus = useCallback(async () => {
 		try {
@@ -23,20 +23,16 @@ export default function Dashboard() {
 			}
 		} finally {
 			setLoading(false);
-			setRefreshing(false);
 		}
 	}, []);
 
+	// Initial fetch
 	useEffect(() => {
 		fetchStatus();
-		const interval = setInterval(fetchStatus, 30000);
-		return () => clearInterval(interval);
 	}, [fetchStatus]);
 
-	function handleRefresh() {
-		setRefreshing(true);
-		fetchStatus();
-	}
+	// Auto-refresh every 10 seconds when tab is visible
+	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchStatus, [fetchStatus]);
 
 	if (loading) {
 		return (

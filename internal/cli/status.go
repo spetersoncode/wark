@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/diogenes-ai-code/wark/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -29,6 +29,7 @@ var statusCmd = &cobra.Command{
 Shows:
   - Workable tickets count
   - In progress count
+  - Review count
   - Blocked (deps) count
   - Blocked (human) count
   - Pending inbox messages
@@ -42,26 +43,27 @@ Examples:
 	RunE: runStatus,
 }
 
-// StatusResult represents the status overview data
+// StatusResult represents the status overview data (CLI-specific response format).
 type StatusResult struct {
-	Workable      int             `json:"workable"`
-	InProgress    int             `json:"in_progress"`
-	BlockedDeps   int             `json:"blocked_deps"`
-	BlockedHuman  int             `json:"blocked_human"`
-	PendingInbox  int             `json:"pending_inbox"`
-	ExpiringSoon  []*ExpiringSoon `json:"expiring_soon"`
-	RecentActivity []*ActivitySummary `json:"recent_activity"`
-	Project       string          `json:"project,omitempty"`
+	Workable       int                        `json:"workable"`
+	InProgress     int                        `json:"in_progress"`
+	Review         int                        `json:"review"`
+	BlockedDeps    int                        `json:"blocked_deps"`
+	BlockedHuman   int                        `json:"blocked_human"`
+	PendingInbox   int                        `json:"pending_inbox"`
+	ExpiringSoon   []*ExpiringSoon            `json:"expiring_soon"`
+	RecentActivity []*ActivitySummary         `json:"recent_activity"`
+	Project        string                     `json:"project,omitempty"`
 }
 
-// ExpiringSoon represents a claim that will expire soon
+// ExpiringSoon represents a claim that will expire soon (CLI format).
 type ExpiringSoon struct {
 	TicketKey   string `json:"ticket_key"`
 	WorkerID    string `json:"worker_id"`
 	MinutesLeft int    `json:"minutes_left"`
 }
 
-// ActivitySummary represents a recent activity entry
+// ActivitySummary represents a recent activity entry (CLI format).
 type ActivitySummary struct {
 	TicketKey string `json:"ticket_key"`
 	Action    string `json:"action"`
@@ -76,108 +78,43 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 	defer database.Close()
 
-	result := StatusResult{
-		Project: strings.ToUpper(statusProject),
-	}
-
 	ticketRepo := db.NewTicketRepo(database.DB)
 	inboxRepo := db.NewInboxRepo(database.DB)
 	claimRepo := db.NewClaimRepo(database.DB)
 	activityRepo := db.NewActivityRepo(database.DB)
 
-	// Count workable tickets
-	workableFilter := db.TicketFilter{
-		ProjectKey: result.Project,
-		Limit:      1000,
-	}
-	workable, err := ticketRepo.ListWorkable(workableFilter)
-	if err == nil {
-		result.Workable = len(workable)
+	statusService := service.NewStatusService(ticketRepo, inboxRepo, claimRepo, activityRepo)
+	summary, err := statusService.GetSummary(statusProject)
+	if err != nil {
+		return fmt.Errorf("failed to get status: %w", err)
 	}
 
-	// Count tickets by status
-	statusInProgress := models.StatusInProgress
-	statusBlocked := models.StatusBlocked
-	statusHuman := models.StatusHuman
-
-	inProgressFilter := db.TicketFilter{
-		ProjectKey: result.Project,
-		Status:     &statusInProgress,
-		Limit:      1000,
-	}
-	inProgress, err := ticketRepo.List(inProgressFilter)
-	if err == nil {
-		result.InProgress = len(inProgress)
+	// Convert service types to CLI response types
+	result := StatusResult{
+		Workable:     summary.Workable,
+		InProgress:   summary.InProgress,
+		Review:       summary.Review,
+		BlockedDeps:  summary.BlockedDeps,
+		BlockedHuman: summary.BlockedHuman,
+		PendingInbox: summary.PendingInbox,
+		Project:      summary.ProjectKey,
 	}
 
-	blockedFilter := db.TicketFilter{
-		ProjectKey: result.Project,
-		Status:     &statusBlocked,
-		Limit:      1000,
-	}
-	blocked, err := ticketRepo.List(blockedFilter)
-	if err == nil {
-		result.BlockedDeps = len(blocked)
+	for _, e := range summary.ExpiringSoon {
+		result.ExpiringSoon = append(result.ExpiringSoon, &ExpiringSoon{
+			TicketKey:   e.TicketKey,
+			WorkerID:    e.WorkerID,
+			MinutesLeft: e.MinutesLeft,
+		})
 	}
 
-	humanFilter := db.TicketFilter{
-		ProjectKey: result.Project,
-		Status:     &statusHuman,
-		Limit:      1000,
-	}
-	human, err := ticketRepo.List(humanFilter)
-	if err == nil {
-		result.BlockedHuman = len(human)
-	}
-
-	// Count pending inbox messages
-	inboxFilter := db.InboxFilter{
-		ProjectKey: result.Project,
-		Pending:    true,
-	}
-	pendingMessages, err := inboxRepo.List(inboxFilter)
-	if err == nil {
-		result.PendingInbox = len(pendingMessages)
-	}
-
-	// Get claims expiring soon (within 30 minutes)
-	activeClaims, err := claimRepo.ListActive()
-	if err == nil {
-		for _, claim := range activeClaims {
-			if result.Project != "" && !strings.HasPrefix(claim.TicketKey, result.Project+"-") {
-				continue
-			}
-			if claim.MinutesRemaining <= 30 && claim.MinutesRemaining > 0 {
-				result.ExpiringSoon = append(result.ExpiringSoon, &ExpiringSoon{
-					TicketKey:   claim.TicketKey,
-					WorkerID:    claim.WorkerID,
-					MinutesLeft: claim.MinutesRemaining,
-				})
-			}
-		}
-	}
-
-	// Get recent activity
-	activityFilter := db.ActivityFilter{
-		Limit: 5,
-	}
-	activities, err := activityRepo.List(activityFilter)
-	if err == nil {
-		for _, a := range activities {
-			if result.Project != "" && !strings.HasPrefix(a.TicketKey, result.Project+"-") {
-				continue
-			}
-			summary := a.Summary
-			if summary == "" {
-				summary = string(a.Action)
-			}
-			result.RecentActivity = append(result.RecentActivity, &ActivitySummary{
-				TicketKey: a.TicketKey,
-				Action:    string(a.Action),
-				Age:       formatAge(a.CreatedAt),
-				Summary:   summary,
-			})
-		}
+	for _, a := range summary.RecentActivity {
+		result.RecentActivity = append(result.RecentActivity, &ActivitySummary{
+			TicketKey: a.TicketKey,
+			Action:    a.Action,
+			Age:       a.Age,
+			Summary:   a.Summary,
+		})
 	}
 
 	if IsJSON() {
@@ -198,6 +135,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Ticket counts
 	fmt.Printf("Workable tickets:     %d\n", result.Workable)
 	fmt.Printf("In progress:          %d\n", result.InProgress)
+	fmt.Printf("Review:               %d\n", result.Review)
 	fmt.Printf("Blocked on deps:      %d\n", result.BlockedDeps)
 	fmt.Printf("Blocked on human:     %d\n", result.BlockedHuman)
 	fmt.Println()

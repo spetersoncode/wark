@@ -162,6 +162,7 @@ func TestStatusResultStruct(t *testing.T) {
 	result := StatusResult{
 		Workable:     5,
 		InProgress:   2,
+		Review:       1,
 		BlockedDeps:  3,
 		BlockedHuman: 1,
 		PendingInbox: 4,
@@ -176,6 +177,7 @@ func TestStatusResultStruct(t *testing.T) {
 
 	assert.Equal(t, 5, result.Workable)
 	assert.Equal(t, 2, result.InProgress)
+	assert.Equal(t, 1, result.Review)
 	assert.Equal(t, 3, result.BlockedDeps)
 	assert.Equal(t, 1, result.BlockedHuman)
 	assert.Equal(t, 4, result.PendingInbox)

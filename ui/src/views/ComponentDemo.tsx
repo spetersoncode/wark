@@ -1,7 +1,7 @@
 import { CheckCircle, Search } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
-import { PriorityIndicator, type Priority } from "@/components/PriorityIndicator";
-import { StatusBadge, type Status } from "@/components/StatusBadge";
+import { type Priority, PriorityIndicator } from "@/components/PriorityIndicator";
+import { type Status, StatusBadge } from "@/components/StatusBadge";
 
 const statuses: Status[] = ["ready", "in_progress", "human", "review", "blocked", "closed"];
 const priorities: Priority[] = ["highest", "high", "medium", "low", "lowest"];
@@ -55,11 +55,7 @@ export function ComponentDemo() {
 				<h2 className="text-lg font-semibold">EmptyState</h2>
 				<div className="grid grid-cols-3 gap-4">
 					<div className="border border-[var(--border)] rounded-md">
-						<EmptyState
-							icon={CheckCircle}
-							title="All clear"
-							description="No pending messages"
-						/>
+						<EmptyState icon={CheckCircle} title="All clear" description="No pending messages" />
 					</div>
 					<div className="border border-[var(--border)] rounded-md">
 						<EmptyState title="(no tickets)" className="py-4" />

@@ -98,10 +98,20 @@ export function SearchBar() {
 					break;
 				case "Enter":
 					e.preventDefault();
-					if (selectedIndex >= 0 && selectedIndex < results.length) {
-						navigateToTicket(results[selectedIndex].ticket_key);
-					} else if (results.length > 0) {
-						navigateToTicket(results[0].ticket_key);
+					{
+						const ticketKey =
+							selectedIndex >= 0 && selectedIndex < results.length
+								? results[selectedIndex].ticket_key
+								: results.length > 0
+									? results[0].ticket_key
+									: null;
+						if (ticketKey) {
+							navigate(`/tickets/${ticketKey}`);
+							setQuery("");
+							setResults([]);
+							setIsOpen(false);
+							inputRef.current?.blur();
+						}
 					}
 					break;
 				case "Escape":
@@ -111,7 +121,7 @@ export function SearchBar() {
 					break;
 			}
 		},
-		[isOpen, results, selectedIndex],
+		[isOpen, results, selectedIndex, navigate],
 	);
 
 	const navigateToTicket = (key: string) => {

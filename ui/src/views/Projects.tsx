@@ -1,6 +1,7 @@
-import { FolderKanban, RefreshCw } from "lucide-react";
+import { AlertTriangle, FolderKanban, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { EmptyState } from "../components/EmptyState";
 import { ProjectsSkeleton } from "../components/skeletons";
 import { ApiError, listProjects, type ProjectWithStats } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
@@ -41,8 +42,21 @@ export default function Projects() {
 
 	if (error) {
 		return (
-			<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-				{error}
+			<div className="flex items-center gap-3 p-4 border border-error/20 bg-error/5 rounded-lg animate-in fade-in duration-200">
+				<div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0">
+					<AlertTriangle className="w-5 h-5 text-error" />
+				</div>
+				<div className="flex-1">
+					<p className="font-medium text-error">Failed to load projects</p>
+					<p className="text-sm text-error/80">{error}</p>
+				</div>
+				<button
+					type="button"
+					onClick={() => fetchProjects()}
+					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
+				>
+					Retry
+				</button>
 			</div>
 		);
 	}
@@ -56,7 +70,7 @@ export default function Projects() {
 					type="button"
 					onClick={handleRefresh}
 					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
 				>
 					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
 					Refresh
@@ -65,10 +79,12 @@ export default function Projects() {
 
 			{/* Projects list */}
 			{projects.length === 0 ? (
-				<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-8 text-center">
-					<FolderKanban className="w-12 h-12 mx-auto mb-4 text-[var(--muted-foreground)]" />
-					<p className="text-[var(--muted-foreground)]">No projects found</p>
-				</div>
+				<EmptyState
+					icon={FolderKanban}
+					title="No projects yet"
+					description="Projects organize your tickets. Create one using the CLI to get started."
+					variant="card"
+				/>
 			) : (
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 					{projects.map((project) => (
@@ -91,7 +107,7 @@ function ProjectCard({ project }: { project: ProjectWithStats }) {
 	return (
 		<Link
 			to={`/board?project=${project.key}`}
-			className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4 hover:border-[var(--primary)] transition-colors block"
+			className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4 block card-hover stagger-item"
 		>
 			<div className="flex items-start gap-3 mb-3">
 				<FolderKanban className="w-5 h-5 text-[var(--primary)] mt-0.5" />

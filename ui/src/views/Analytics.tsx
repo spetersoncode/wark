@@ -60,8 +60,21 @@ export default function Analytics() {
 
 	if (error) {
 		return (
-			<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-				{error}
+			<div className="flex items-center gap-3 p-4 border border-error/20 bg-error/5 rounded-lg animate-in fade-in duration-200">
+				<div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0">
+					<BarChart3 className="w-5 h-5 text-error" />
+				</div>
+				<div className="flex-1">
+					<p className="font-medium text-error">Failed to load analytics</p>
+					<p className="text-sm text-error/80">{error}</p>
+				</div>
+				<button
+					type="button"
+					onClick={handleRefresh}
+					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
+				>
+					Retry
+				</button>
 			</div>
 		);
 	}
@@ -90,7 +103,7 @@ export default function Analytics() {
 						type="button"
 						onClick={handleRefresh}
 						disabled={refreshing}
-						className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+						className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
 					>
 						<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
 						Refresh
@@ -318,7 +331,7 @@ function MetricCard({
 	color: string;
 }) {
 	return (
-		<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+		<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4 stagger-item card-hover">
 			<p className="text-sm text-[var(--muted-foreground)] mb-1">{label}</p>
 			<p className={cn("text-3xl font-bold", color)}>{value}</p>
 			<p className="text-xs text-[var(--muted-foreground)] mt-1">{subtext}</p>

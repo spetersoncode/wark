@@ -111,8 +111,21 @@ export default function Inbox() {
 
 	if (error) {
 		return (
-			<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-				{error}
+			<div className="flex items-center gap-3 p-4 border border-error/20 bg-error/5 rounded-lg animate-in fade-in duration-200">
+				<div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0">
+					<AlertTriangle className="w-5 h-5 text-error" />
+				</div>
+				<div className="flex-1">
+					<p className="font-medium text-error">Failed to load inbox</p>
+					<p className="text-sm text-error/80">{error}</p>
+				</div>
+				<button
+					type="button"
+					onClick={() => fetchMessages()}
+					className="px-3 py-1.5 text-sm rounded-md text-error hover:bg-error/10 transition-colors"
+				>
+					Retry
+				</button>
 			</div>
 		);
 	}
@@ -135,7 +148,7 @@ export default function Inbox() {
 					type="button"
 					onClick={handleRefresh}
 					disabled={refreshing}
-					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+					className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-[var(--secondary)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50 press-effect"
 				>
 					<RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
 					Refresh
@@ -146,8 +159,9 @@ export default function Inbox() {
 			{messages.length === 0 ? (
 				<EmptyState
 					icon={CheckCircle}
-					title="All clear"
-					description="No pending messages. Agents are working independently."
+					title="All clear! ✨"
+					description="No pending messages. Your agents are working independently and haven't needed your input."
+					variant="card"
 				/>
 			) : (
 				<div className="space-y-4">
@@ -178,7 +192,7 @@ function InboxCard({ message }: { message: InboxMessage }) {
 		<div
 			className={cn(
 				"bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden",
-				"border-l-4",
+				"border-l-4 stagger-item",
 				getBorderClass(),
 				isResponded && "opacity-70",
 			)}

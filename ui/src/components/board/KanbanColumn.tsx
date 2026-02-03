@@ -33,7 +33,7 @@ export function KanbanColumn({
 			className={cn(
 				"flex-shrink-0 w-72 bg-[var(--card)] border border-[var(--border)] rounded-lg",
 				"border-l-2",
-				borderColor
+				borderColor,
 			)}
 		>
 			{/* Column header */}
@@ -48,9 +48,9 @@ export function KanbanColumn({
 			{/* Column content */}
 			<div className="p-2 space-y-2 max-h-[calc(100vh-16rem)] overflow-y-auto">
 				{isEmpty ? (
-					<p className="text-sm text-[var(--foreground-subtle)] text-center py-6">
-						(no tickets)
-					</p>
+					<div className="text-center py-8 animate-in fade-in duration-200">
+						<p className="text-sm text-[var(--foreground-subtle)]">(no tickets)</p>
+					</div>
 				) : (
 					children
 				)}

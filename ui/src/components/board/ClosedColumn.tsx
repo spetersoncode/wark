@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, CircleCheck } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { PriorityIndicator, type Priority } from "@/components/PriorityIndicator";
+import { type Priority, PriorityIndicator } from "@/components/PriorityIndicator";
 import type { Ticket } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ export function ClosedColumn({ tickets, maxVisible = 8 }: ClosedColumnProps) {
 		<div
 			className={cn(
 				"flex-shrink-0 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg",
-				"border-l-2 border-l-[var(--status-closed)]"
+				"border-l-2 border-l-[var(--status-closed)]",
 			)}
 		>
 			{/* Column header */}
@@ -41,22 +41,19 @@ export function ClosedColumn({ tickets, maxVisible = 8 }: ClosedColumnProps) {
 			{/* Compact list */}
 			<div className="p-2 max-h-[calc(100vh-16rem)] overflow-y-auto">
 				{tickets.length === 0 ? (
-					<p className="text-sm text-[var(--foreground-subtle)] text-center py-6">
-						(no tickets)
-					</p>
+					<div className="text-center py-8 animate-in fade-in duration-200">
+						<p className="text-sm text-[var(--foreground-subtle)]">(no tickets)</p>
+					</div>
 				) : (
 					<>
 						<ul className="space-y-1">
 							{visibleTickets.map((ticket) => (
-								<li key={ticket.id}>
+								<li key={ticket.id} className="stagger-item">
 									<Link
 										to={`/tickets/${ticket.ticket_key}`}
 										className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-[var(--background-muted)] transition-colors"
 									>
-										<PriorityIndicator
-											priority={ticket.priority as Priority}
-											variant="dot"
-										/>
+										<PriorityIndicator priority={ticket.priority as Priority} variant="dot" />
 										<span className="font-mono text-xs text-[var(--foreground-muted)] truncate">
 											{ticket.ticket_key}
 										</span>

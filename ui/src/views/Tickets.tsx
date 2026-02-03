@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, Filter, ListTodo, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { TicketsListSkeleton } from "../components/skeletons";
 import {
 	ApiError,
 	listProjects,
@@ -252,11 +253,7 @@ export default function Tickets() {
 	}
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
-			</div>
-		);
+		return <TicketsListSkeleton />;
 	}
 
 	if (error) {

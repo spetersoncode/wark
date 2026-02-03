@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { BoardSkeleton } from "../components/skeletons";
 import {
 	listProjects,
 	listTickets,
@@ -162,11 +163,7 @@ export default function Board() {
 	const visibleStatuses = filterStatus ? STATUSES.filter((s) => s.key === filterStatus) : STATUSES;
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
-			</div>
-		);
+		return <BoardSkeleton />;
 	}
 
 	if (error) {

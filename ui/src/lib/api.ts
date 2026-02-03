@@ -177,6 +177,7 @@ export interface TicketListParams {
 	project?: string;
 	status?: TicketStatus;
 	priority?: TicketPriority;
+	complexity?: TicketComplexity;
 	workable?: boolean;
 	limit?: number;
 }
@@ -186,6 +187,7 @@ export const listTickets = (params?: TicketListParams) => {
 	if (params?.project) query.set("project", params.project);
 	if (params?.status) query.set("status", params.status);
 	if (params?.priority) query.set("priority", params.priority);
+	if (params?.complexity) query.set("complexity", params.complexity);
 	if (params?.workable) query.set("workable", "true");
 	if (params?.limit) query.set("limit", params.limit.toString());
 	const queryStr = query.toString();

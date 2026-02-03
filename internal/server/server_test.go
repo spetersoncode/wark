@@ -247,6 +247,37 @@ func TestTicketEndpoints(t *testing.T) {
 		assert.Len(t, tickets, 1)
 	})
 
+	t.Run("list tickets with complexity filter", func(t *testing.T) {
+		// Should match the ticket with medium complexity
+		req := httptest.NewRequest("GET", "/api/tickets?complexity=medium", nil)
+		rec := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var tickets []TicketResponse
+		err := json.Unmarshal(rec.Body.Bytes(), &tickets)
+		require.NoError(t, err)
+		assert.Len(t, tickets, 1)
+		assert.Equal(t, "medium", tickets[0].Complexity)
+	})
+
+	t.Run("list tickets with complexity filter no match", func(t *testing.T) {
+		// Should not match any tickets (our test ticket is medium, not trivial)
+		req := httptest.NewRequest("GET", "/api/tickets?complexity=trivial", nil)
+		rec := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var tickets []TicketResponse
+		err := json.Unmarshal(rec.Body.Bytes(), &tickets)
+		require.NoError(t, err)
+		assert.Len(t, tickets, 0)
+	})
+
 	t.Run("get ticket", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/tickets/TEST-1", nil)
 		rec := httptest.NewRecorder()

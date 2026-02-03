@@ -242,14 +242,14 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid message type: %s", inboxType)
 	}
 
+	// Get active claim (needed for worker ID and release)
+	claimRepo := db.NewClaimRepo(database.DB)
+	claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
+
 	// Get worker ID from current claim if not provided
 	workerID := claimWorkerID
-	if workerID == "" {
-		claimRepo := db.NewClaimRepo(database.DB)
-		claim, _ := claimRepo.GetActiveByTicketID(ticket.ID)
-		if claim != nil {
-			workerID = claim.WorkerID
-		}
+	if workerID == "" && claim != nil {
+		workerID = claim.WorkerID
 	}
 
 	// Create inbox message
@@ -259,25 +259,68 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create message: %w", err)
 	}
 
-	// Log activity to ticket history
+	// Transition ticket to human status (escalation flow)
+	previousStatus := ticket.Status
+	statusChanged := false
+	if ticket.Status != models.StatusHuman && ticket.Status != models.StatusClosed {
+		ticketRepo := db.NewTicketRepo(database.DB)
+		ticket.Status = models.StatusHuman
+		if err := ticketRepo.Update(ticket); err != nil {
+			return fmt.Errorf("failed to update ticket status: %w", err)
+		}
+		statusChanged = true
+	}
+
+	// Release any active claim
+	claimReleased := false
+	if claim != nil {
+		if err := claimRepo.Release(claim.ID, models.ClaimStatusReleased); err != nil {
+			// Log warning but don't fail - message was already sent
+			VerboseOutput("Warning: failed to release claim: %v\n", err)
+		} else {
+			claimReleased = true
+		}
+	}
+
+	// Log activity to ticket history (includes status transition info)
 	activityRepo := db.NewActivityRepo(database.DB)
+	summary := fmt.Sprintf("Sent %s message", msgType)
+	if statusChanged {
+		summary = fmt.Sprintf("Escalated: %s → %s", previousStatus, ticket.Status)
+	}
+	activityDetails := map[string]interface{}{
+		"message_type":     string(msgType),
+		"inbox_message_id": inboxMsg.ID,
+		"message":          message,
+	}
+	if statusChanged {
+		activityDetails["previous_status"] = string(previousStatus)
+		activityDetails["new_status"] = string(ticket.Status)
+	}
+	if claimReleased {
+		activityDetails["claim_released"] = true
+	}
 	if err := activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
-		fmt.Sprintf("Sent %s message", msgType),
-		map[string]interface{}{
-			"message_type":     string(msgType),
-			"inbox_message_id": inboxMsg.ID,
-			"message":          message,
-		}); err != nil {
+		summary, activityDetails); err != nil {
 		return fmt.Errorf("failed to log activity: %w", err)
 	}
 
 	if IsJSON() {
-		data, _ := json.MarshalIndent(map[string]interface{}{
-			"id":         inboxMsg.ID,
-			"ticket":     ticket.TicketKey,
-			"type":       msgType,
-			"created_at": inboxMsg.CreatedAt,
-		}, "", "  ")
+		result := map[string]interface{}{
+			"id":             inboxMsg.ID,
+			"ticket":         ticket.TicketKey,
+			"type":           msgType,
+			"created_at":     inboxMsg.CreatedAt,
+			"status_changed": statusChanged,
+		}
+		if statusChanged {
+			result["previous_status"] = string(previousStatus)
+			result["new_status"] = string(ticket.Status)
+		}
+		if claimReleased {
+			result["claim_released"] = true
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
@@ -285,6 +328,12 @@ func runInboxSend(cmd *cobra.Command, args []string) error {
 	OutputLine("Message sent: #%d", inboxMsg.ID)
 	OutputLine("Ticket: %s", ticket.TicketKey)
 	OutputLine("Type: %s", msgType)
+	if statusChanged {
+		OutputLine("Status: %s → %s", previousStatus, ticket.Status)
+	}
+	if claimReleased {
+		OutputLine("Claim released")
+	}
 
 	return nil
 }

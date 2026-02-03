@@ -307,3 +307,78 @@ export const searchTickets = (query: string, limit?: number) => {
 	if (limit) params.set("limit", limit.toString());
 	return fetchApi<Ticket[]>(`/tickets/search?${params.toString()}`);
 };
+
+// Analytics
+export interface SuccessMetrics {
+	total_closed: number;
+	completed_count: number;
+	other_resolutions: number;
+	success_rate: number;
+	tickets_with_retries: number;
+	total_tickets: number;
+	retry_rate: number;
+	avg_retries_on_failed: number;
+}
+
+export interface HumanInteractionMetrics {
+	total_tickets: number;
+	human_interventions: number;
+	human_intervention_rate: number;
+	total_inbox_messages: number;
+	responded_messages: number;
+	avg_response_time_hours: number;
+}
+
+export interface CycleTimeByComplexity {
+	complexity: TicketComplexity;
+	ticket_count: number;
+	avg_cycle_hours: number;
+}
+
+export interface ThroughputMetrics {
+	completed_today: number;
+	completed_week: number;
+	completed_month: number;
+}
+
+export interface WIPByStatus {
+	status: string;
+	count: number;
+}
+
+export interface TrendDataPoint {
+	date: string;
+	count: number;
+}
+
+export interface AnalyticsFilter {
+	project?: string;
+	since?: string;
+	until?: string;
+	trend_days?: number;
+}
+
+export interface AnalyticsResult {
+	success: SuccessMetrics;
+	human_interaction: HumanInteractionMetrics;
+	cycle_time: CycleTimeByComplexity[];
+	throughput: ThroughputMetrics;
+	wip: WIPByStatus[];
+	completion_trend: TrendDataPoint[];
+	filter: {
+		project?: string;
+		since?: string;
+		until?: string;
+		trend_days: number;
+	};
+}
+
+export const getAnalytics = (params?: AnalyticsFilter) => {
+	const query = new URLSearchParams();
+	if (params?.project) query.set("project", params.project);
+	if (params?.since) query.set("since", params.since);
+	if (params?.until) query.set("until", params.until);
+	if (params?.trend_days) query.set("trend_days", params.trend_days.toString());
+	const queryStr = query.toString();
+	return fetchApi<AnalyticsResult>(`/analytics${queryStr ? `?${queryStr}` : ""}`);
+};

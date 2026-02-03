@@ -24,6 +24,8 @@ func (s *Server) setupRoutes() {
 
 	s.router.HandleFunc("GET /api/status", s.handleStatus)
 
+	s.router.HandleFunc("GET /api/analytics", s.handleGetAnalytics)
+
 	// Health check
 	s.router.HandleFunc("GET /api/health", s.handleHealth)
 

@@ -94,7 +94,7 @@ function ProjectCard({ project }: { project: ProjectWithStats }) {
 
 	return (
 		<Link
-			to={`/board?project=${project.key}`}
+			to={`/tickets?project=${project.key}`}
 			className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4 block card-hover stagger-item"
 		>
 			<div className="flex items-start gap-3 mb-3">

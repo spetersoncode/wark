@@ -1,53 +1,407 @@
 @import "tailwindcss";
 
-/* CSS Variables for theming (shadcn/ui compatible) */
+/* =============================================================================
+   WARK Design System - CSS Custom Properties
+   Theme: Industrial mission control - muted, functional, information-dense
+   Color Space: oklch for perceptual uniformity
+   ============================================================================= */
+
+/* =============================================================================
+   LIGHT MODE (Default)
+   ============================================================================= */
 :root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--destructive-foreground: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--radius: 0.5rem;
+	/* -------------------------------------------------------------------------
+	   Background Layers
+	   ------------------------------------------------------------------------- */
+	--background: oklch(0.985 0 0); /* Near-white, warm - main page bg */
+	--background-subtle: oklch(0.97 0 0); /* Panels, cards */
+	--background-muted: oklch(0.94 0 0); /* Hover states, wells */
+
+	/* -------------------------------------------------------------------------
+	   Foreground (Text)
+	   ------------------------------------------------------------------------- */
+	--foreground: oklch(0.2 0 0); /* Primary text - near black */
+	--foreground-muted: oklch(0.45 0 0); /* Secondary text */
+	--foreground-subtle: oklch(0.6 0 0); /* Tertiary, captions, hints */
+
+	/* -------------------------------------------------------------------------
+	   Borders
+	   ------------------------------------------------------------------------- */
+	--border: oklch(0.9 0 0); /* Default borders */
+	--border-muted: oklch(0.93 0 0); /* Subtle dividers */
+	--border-strong: oklch(0.8 0 0); /* Focus rings, emphasis */
+
+	/* -------------------------------------------------------------------------
+	   Status Colors - Muted, Industrial
+	   For ticket/work status indicators
+	   ------------------------------------------------------------------------- */
+	--status-ready: oklch(0.65 0.15 145); /* Muted green - work available */
+	--status-in-progress: oklch(0.6 0.12 250); /* Slate blue - actively worked */
+	--status-human: oklch(0.55 0.14 30); /* Muted amber/rust - needs human */
+	--status-review: oklch(0.62 0.1 85); /* Muted gold - awaiting review */
+	--status-blocked: oklch(0.5 0 0); /* Neutral gray - blocked */
+	--status-closed: oklch(0.7 0 0); /* Light gray - completed */
+
+	/* -------------------------------------------------------------------------
+	   Priority Colors
+	   For ticket priority indicators
+	   ------------------------------------------------------------------------- */
+	--priority-highest: oklch(0.55 0.18 25); /* Deep rust - critical */
+	--priority-high: oklch(0.6 0.14 45); /* Amber - important */
+	--priority-medium: oklch(0.55 0.08 70); /* Olive - normal */
+	--priority-low: oklch(0.55 0.08 250); /* Slate - low priority */
+	--priority-lowest: oklch(0.6 0 0); /* Gray - minimal */
+
+	/* -------------------------------------------------------------------------
+	   Interactive Elements (Accent)
+	   Links, buttons, focus states
+	   ------------------------------------------------------------------------- */
+	--accent: oklch(0.55 0.1 250); /* Slate blue - primary action */
+	--accent-hover: oklch(0.5 0.12 250); /* Darker on hover */
+	--accent-muted: oklch(0.65 0.05 250); /* Subtle accent backgrounds */
+
+	/* -------------------------------------------------------------------------
+	   Feedback Colors
+	   Alerts, notifications, system messages
+	   ------------------------------------------------------------------------- */
+	--success: oklch(0.6 0.15 150); /* Green - positive feedback */
+	--warning: oklch(0.65 0.15 80); /* Gold/amber - caution */
+	--error: oklch(0.55 0.18 25); /* Red/rust - errors, destructive */
+	--info: oklch(0.6 0.1 250); /* Blue - informational */
+
+	/* -------------------------------------------------------------------------
+	   Shadows & Depth
+	   Minimal shadows - prefer borders and background shifts
+	   ------------------------------------------------------------------------- */
+	--shadow-sm: 0 1px 2px oklch(0 0 0 / 0.04);
+	--shadow-md: 0 2px 4px oklch(0 0 0 / 0.06);
+	--shadow-lg: 0 4px 8px oklch(0 0 0 / 0.08);
+	--shadow-popover: 0 4px 16px oklch(0 0 0 / 0.12);
+
+	/* -------------------------------------------------------------------------
+	   shadcn/ui Compatibility Layer
+	   Maps our system to shadcn expected variables
+	   ------------------------------------------------------------------------- */
+	--card: var(--background-subtle);
+	--card-foreground: var(--foreground);
+	--popover: var(--background);
+	--popover-foreground: var(--foreground);
+	--primary: var(--foreground);
+	--primary-foreground: var(--background);
+	--secondary: var(--background-muted);
+	--secondary-foreground: var(--foreground);
+	--muted: var(--background-muted);
+	--muted-foreground: var(--foreground-muted);
+	--destructive: var(--error);
+	--destructive-foreground: var(--background);
+	--input: var(--border);
+	--ring: var(--accent);
+
+	/* -------------------------------------------------------------------------
+	   Border Radius
+	   ------------------------------------------------------------------------- */
+	--radius-sm: 0.25rem; /* 4px - Badges, small buttons */
+	--radius-md: 0.375rem; /* 6px - Default cards, inputs */
+	--radius-lg: 0.5rem; /* 8px - Modals, large cards */
+	--radius-full: 9999px; /* Pills */
+	--radius: var(--radius-md); /* shadcn default */
+
+	/* -------------------------------------------------------------------------
+	   Typography
+	   ------------------------------------------------------------------------- */
+	--font-sans:
+		ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+		"Helvetica Neue", Arial, sans-serif;
+	--font-mono:
+		ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+	/* Type scale (1.2 ratio, minor third) */
+	--text-xs: 0.694rem; /* 11.1px - Captions, badges */
+	--text-sm: 0.833rem; /* 13.3px - Secondary text, labels */
+	--text-base: 1rem; /* 16px - Body text */
+	--text-lg: 1.2rem; /* 19.2px - Section headers */
+	--text-xl: 1.44rem; /* 23px - Page titles */
+	--text-2xl: 1.728rem; /* 27.6px - Hero numbers */
+
+	/* Line heights */
+	--leading-tight: 1.25;
+	--leading-normal: 1.5;
+	--leading-relaxed: 1.625;
+
+	/* Font weights */
+	--font-normal: 400;
+	--font-medium: 500;
+	--font-semibold: 600;
+	--font-bold: 700;
+
+	/* Letter spacing */
+	--tracking-tight: -0.02em;
+	--tracking-normal: 0;
+	--tracking-wide: 0.02em;
+
+	/* -------------------------------------------------------------------------
+	   Spacing System
+	   4px base unit, Tailwind-compatible
+	   ------------------------------------------------------------------------- */
+	--space-0: 0;
+	--space-1: 0.25rem; /* 4px */
+	--space-2: 0.5rem; /* 8px */
+	--space-3: 0.75rem; /* 12px */
+	--space-4: 1rem; /* 16px */
+	--space-5: 1.25rem; /* 20px */
+	--space-6: 1.5rem; /* 24px */
+	--space-8: 2rem; /* 32px */
+	--space-10: 2.5rem; /* 40px */
+	--space-12: 3rem; /* 48px */
+	--space-16: 4rem; /* 64px */
 }
 
+/* =============================================================================
+   DARK MODE
+   Activated via .dark class on html/body or media query
+   ============================================================================= */
 .dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.145 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.145 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.985 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.396 0.141 25.768);
-	--destructive-foreground: oklch(0.637 0.237 25.331);
-	--border: oklch(0.269 0 0);
-	--input: oklch(0.269 0 0);
-	--ring: oklch(0.439 0 0);
+	/* -------------------------------------------------------------------------
+	   Background Layers
+	   ------------------------------------------------------------------------- */
+	--background: oklch(0.14 0 0); /* Near-black */
+	--background-subtle: oklch(0.18 0 0); /* Panels, cards */
+	--background-muted: oklch(0.22 0 0); /* Hover states */
+
+	/* -------------------------------------------------------------------------
+	   Foreground (Text)
+	   ------------------------------------------------------------------------- */
+	--foreground: oklch(0.92 0 0); /* Primary text - near white */
+	--foreground-muted: oklch(0.65 0 0); /* Secondary text */
+	--foreground-subtle: oklch(0.5 0 0); /* Tertiary */
+
+	/* -------------------------------------------------------------------------
+	   Borders
+	   ------------------------------------------------------------------------- */
+	--border: oklch(0.25 0 0);
+	--border-muted: oklch(0.2 0 0);
+	--border-strong: oklch(0.35 0 0);
+
+	/* -------------------------------------------------------------------------
+	   Status Colors - Slightly Brighter for Dark Mode
+	   Adjusted for readability on dark backgrounds
+	   ------------------------------------------------------------------------- */
+	--status-ready: oklch(0.7 0.14 145); /* Muted green */
+	--status-in-progress: oklch(0.65 0.12 250); /* Slate blue */
+	--status-human: oklch(0.65 0.14 30); /* Muted amber/rust */
+	--status-review: oklch(0.68 0.1 85); /* Muted gold */
+	--status-blocked: oklch(0.55 0 0); /* Neutral gray */
+	--status-closed: oklch(0.45 0 0); /* Dimmed gray */
+
+	/* -------------------------------------------------------------------------
+	   Priority Colors - Adjusted for Dark Mode
+	   ------------------------------------------------------------------------- */
+	--priority-highest: oklch(0.65 0.16 25); /* Deep rust */
+	--priority-high: oklch(0.68 0.13 45); /* Amber */
+	--priority-medium: oklch(0.62 0.07 70); /* Olive */
+	--priority-low: oklch(0.6 0.07 250); /* Slate */
+	--priority-lowest: oklch(0.5 0 0); /* Gray */
+
+	/* -------------------------------------------------------------------------
+	   Interactive Elements (Accent)
+	   ------------------------------------------------------------------------- */
+	--accent: oklch(0.65 0.1 250); /* Slate blue */
+	--accent-hover: oklch(0.7 0.12 250); /* Lighter on hover */
+	--accent-muted: oklch(0.45 0.05 250); /* Subtle accent backgrounds */
+
+	/* -------------------------------------------------------------------------
+	   Feedback Colors - Adjusted for Dark Mode
+	   ------------------------------------------------------------------------- */
+	--success: oklch(0.65 0.14 150);
+	--warning: oklch(0.7 0.14 80);
+	--error: oklch(0.6 0.16 25);
+	--info: oklch(0.65 0.1 250);
+
+	/* -------------------------------------------------------------------------
+	   Shadows - Stronger for Dark Mode
+	   ------------------------------------------------------------------------- */
+	--shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+	--shadow-md: 0 2px 4px oklch(0 0 0 / 0.3);
+	--shadow-lg: 0 4px 8px oklch(0 0 0 / 0.4);
+	--shadow-popover: 0 4px 16px oklch(0 0 0 / 0.5);
+
+	/* -------------------------------------------------------------------------
+	   shadcn/ui Compatibility Layer (dark overrides)
+	   ------------------------------------------------------------------------- */
+	--card: var(--background-subtle);
+	--card-foreground: var(--foreground);
+	--popover: var(--background-subtle);
+	--popover-foreground: var(--foreground);
+	--primary: var(--foreground);
+	--primary-foreground: var(--background);
+	--secondary: var(--background-muted);
+	--secondary-foreground: var(--foreground);
+	--muted: var(--background-muted);
+	--muted-foreground: var(--foreground-muted);
+	--destructive: var(--error);
+	--destructive-foreground: var(--foreground);
+	--input: var(--border);
+	--ring: var(--accent);
 }
 
+/* =============================================================================
+   BASE STYLES
+   ============================================================================= */
 body {
 	background-color: var(--background);
 	color: var(--foreground);
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	font-family: var(--font-sans);
+	line-height: var(--leading-normal);
+}
+
+/* Monospace elements */
+code,
+kbd,
+pre,
+samp {
+	font-family: var(--font-mono);
+}
+
+/* =============================================================================
+   UTILITY CLASSES FOR DESIGN SYSTEM COLORS
+   These can be used directly or extended via Tailwind
+   ============================================================================= */
+
+/* Status color utilities */
+.text-status-ready {
+	color: var(--status-ready);
+}
+.text-status-in-progress {
+	color: var(--status-in-progress);
+}
+.text-status-human {
+	color: var(--status-human);
+}
+.text-status-review {
+	color: var(--status-review);
+}
+.text-status-blocked {
+	color: var(--status-blocked);
+}
+.text-status-closed {
+	color: var(--status-closed);
+}
+
+.bg-status-ready {
+	background-color: var(--status-ready);
+}
+.bg-status-in-progress {
+	background-color: var(--status-in-progress);
+}
+.bg-status-human {
+	background-color: var(--status-human);
+}
+.bg-status-review {
+	background-color: var(--status-review);
+}
+.bg-status-blocked {
+	background-color: var(--status-blocked);
+}
+.bg-status-closed {
+	background-color: var(--status-closed);
+}
+
+/* Status background with opacity for badges/pills */
+.bg-status-ready\/10 {
+	background-color: oklch(from var(--status-ready) l c h / 0.1);
+}
+.bg-status-in-progress\/10 {
+	background-color: oklch(from var(--status-in-progress) l c h / 0.1);
+}
+.bg-status-human\/10 {
+	background-color: oklch(from var(--status-human) l c h / 0.1);
+}
+.bg-status-review\/10 {
+	background-color: oklch(from var(--status-review) l c h / 0.1);
+}
+.bg-status-blocked\/10 {
+	background-color: oklch(from var(--status-blocked) l c h / 0.1);
+}
+.bg-status-closed\/10 {
+	background-color: oklch(from var(--status-closed) l c h / 0.1);
+}
+
+/* Priority color utilities */
+.text-priority-highest {
+	color: var(--priority-highest);
+}
+.text-priority-high {
+	color: var(--priority-high);
+}
+.text-priority-medium {
+	color: var(--priority-medium);
+}
+.text-priority-low {
+	color: var(--priority-low);
+}
+.text-priority-lowest {
+	color: var(--priority-lowest);
+}
+
+.bg-priority-highest {
+	background-color: var(--priority-highest);
+}
+.bg-priority-high {
+	background-color: var(--priority-high);
+}
+.bg-priority-medium {
+	background-color: var(--priority-medium);
+}
+.bg-priority-low {
+	background-color: var(--priority-low);
+}
+.bg-priority-lowest {
+	background-color: var(--priority-lowest);
+}
+
+/* Feedback color utilities */
+.text-success {
+	color: var(--success);
+}
+.text-warning {
+	color: var(--warning);
+}
+.text-error {
+	color: var(--error);
+}
+.text-info {
+	color: var(--info);
+}
+
+.bg-success {
+	background-color: var(--success);
+}
+.bg-warning {
+	background-color: var(--warning);
+}
+.bg-error {
+	background-color: var(--error);
+}
+.bg-info {
+	background-color: var(--info);
+}
+
+/* Border utilities for status colors */
+.border-status-ready {
+	border-color: var(--status-ready);
+}
+.border-status-in-progress {
+	border-color: var(--status-in-progress);
+}
+.border-status-human {
+	border-color: var(--status-human);
+}
+.border-status-review {
+	border-color: var(--status-review);
+}
+.border-status-blocked {
+	border-color: var(--status-blocked);
+}
+.border-status-closed {
+	border-color: var(--status-closed);
 }

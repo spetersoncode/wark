@@ -188,6 +188,14 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		return ErrNotFoundWithSuggestion(SuggestListProjects, "project %s not found", projectKey)
 	}
 
+	// Apply defaults before validation (shared flag variables with other commands may override defaults)
+	if ticketPriority == "" {
+		ticketPriority = "medium"
+	}
+	if ticketComplexity == "" {
+		ticketComplexity = "medium"
+	}
+
 	// Parse priority
 	priority := models.Priority(strings.ToLower(ticketPriority))
 	if !priority.IsValid() {

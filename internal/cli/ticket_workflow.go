@@ -144,6 +144,11 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	}
 	claim := models.NewClaim(ticket.ID, workerID, duration)
 	if err := claimRepo.Create(claim); err != nil {
+		// Handle race condition: another agent claimed the ticket between our check and insert.
+		// The partial unique index on claims(ticket_id) WHERE status = 'active' prevents this.
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return ErrConcurrentConflict("ticket already claimed")
+		}
 		return ErrDatabase(err, "failed to create claim")
 	}
 

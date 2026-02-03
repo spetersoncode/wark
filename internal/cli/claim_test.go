@@ -293,6 +293,55 @@ func TestClaimTimeRemaining(t *testing.T) {
 	assert.Equal(t, time.Duration(0), remaining)
 }
 
+// TestClaimRaceConditionPrevented verifies that the unique index prevents concurrent claims
+// at the database level. This is the real safety net - the CLI pre-check is for UX.
+func TestClaimRaceConditionPrevented(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup project and ticket
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "RACE", Name: "Race Condition Test"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID: project.ID,
+		Title:     "Test Race Condition",
+		Status:    models.StatusReady,
+	}
+	err = ticketRepo.Create(ticket)
+	require.NoError(t, err)
+
+	claimRepo := db.NewClaimRepo(database.DB)
+
+	// First agent claims the ticket
+	claim1 := models.NewClaim(ticket.ID, "agent-1", time.Hour)
+	err = claimRepo.Create(claim1)
+	require.NoError(t, err)
+
+	// Second agent tries to claim the same ticket - should fail due to unique index
+	claim2 := models.NewClaim(ticket.ID, "agent-2", time.Hour)
+	err = claimRepo.Create(claim2)
+
+	// The unique index should prevent this
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "UNIQUE constraint failed")
+
+	// Verify only one active claim exists
+	claims, err := claimRepo.ListByTicketID(ticket.ID)
+	require.NoError(t, err)
+
+	activeCount := 0
+	for _, c := range claims {
+		if c.Status == models.ClaimStatusActive {
+			activeCount++
+		}
+	}
+	assert.Equal(t, 1, activeCount, "only one active claim should exist")
+}
+
 // TestClaimReleaseActivityLog verifies that releasing a claim logs an activity entry
 func TestClaimReleaseActivityLog(t *testing.T) {
 	database, dbPath, cleanup := testDB(t)

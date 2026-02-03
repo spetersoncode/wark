@@ -1,6 +1,7 @@
 import { FolderKanban, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ProjectsSkeleton } from "../components/skeletons";
 import { ApiError, listProjects, type ProjectWithStats } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
@@ -35,11 +36,7 @@ export default function Projects() {
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchProjects, [fetchProjects]);
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
-			</div>
-		);
+		return <ProjectsSkeleton />;
 	}
 
 	if (error) {

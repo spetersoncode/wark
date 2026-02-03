@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, CircleDot, Clock, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { DashboardSkeleton } from "../components/skeletons";
 import { ApiError, getStatus, type StatusResult } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
@@ -35,11 +36,7 @@ export default function Dashboard() {
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchStatus, [fetchStatus]);
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
-			</div>
-		);
+		return <DashboardSkeleton />;
 	}
 
 	if (error) {

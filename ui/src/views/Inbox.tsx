@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
+import { InboxSkeleton } from "../components/skeletons";
 import { type InboxMessage, listInbox, type MessageType } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn, formatRelativeTime } from "../lib/utils";
@@ -72,11 +73,7 @@ export default function Inbox() {
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchMessages, [fetchMessages]);
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
-			</div>
-		);
+		return <InboxSkeleton />;
 	}
 
 	if (error) {

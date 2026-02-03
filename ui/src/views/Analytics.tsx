@@ -1,6 +1,7 @@
 import { BarChart3, Clock, RefreshCw, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AnalyticsSkeleton } from "../components/skeletons";
 import {
 	type AnalyticsResult,
 	ApiError,
@@ -54,11 +55,7 @@ export default function Analytics() {
 	}
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
-			</div>
-		);
+		return <AnalyticsSkeleton />;
 	}
 
 	if (error) {

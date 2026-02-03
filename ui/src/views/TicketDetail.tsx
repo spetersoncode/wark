@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
+import { TicketDetailSkeleton } from "../components/skeletons";
 import { type ActivityLog, type Claim, getTicket, type Ticket } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn, formatRelativeTime, getPriorityColor, getStatusColor } from "../lib/utils";
@@ -52,11 +53,7 @@ export default function TicketDetail() {
 	useAutoRefresh(fetchTicket, [fetchTicket]);
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
-			</div>
-		);
+		return <TicketDetailSkeleton />;
 	}
 
 	if (error || !ticket) {

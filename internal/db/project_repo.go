@@ -29,7 +29,8 @@ func (r *ProjectRepo) Create(p *models.Project) error {
 		VALUES (?, ?, ?, ?, ?)
 	`
 	now := time.Now()
-	result, err := r.db.Exec(query, p.Key, p.Name, p.Description, now, now)
+	nowStr := FormatTime(now)
+	result, err := r.db.Exec(query, p.Key, p.Name, p.Description, nowStr, nowStr)
 	if err != nil {
 		return fmt.Errorf("failed to create project: %w", err)
 	}

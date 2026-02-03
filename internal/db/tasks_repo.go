@@ -42,11 +42,12 @@ func (r *TasksRepo) CreateTask(ctx context.Context, ticketID int64, description 
 	}
 
 	now := time.Now()
+	nowStr := FormatTime(now)
 	query := `
 		INSERT INTO ticket_tasks (ticket_id, position, description, complete, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	result, err := r.db.ExecContext(ctx, query, ticketID, nextPos, description, false, now, now)
+	result, err := r.db.ExecContext(ctx, query, ticketID, nextPos, description, false, nowStr, nowStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
@@ -119,7 +120,7 @@ func (r *TasksRepo) CompleteTask(ctx context.Context, taskID int64) error {
 		return fmt.Errorf("task_id is required")
 	}
 
-	now := time.Now()
+	now := NowRFC3339()
 	query := `UPDATE ticket_tasks SET complete = TRUE, updated_at = ? WHERE id = ?`
 	result, err := r.db.ExecContext(ctx, query, now, taskID)
 	if err != nil {
@@ -143,7 +144,7 @@ func (r *TasksRepo) UncompleteTask(ctx context.Context, taskID int64) error {
 		return fmt.Errorf("task_id is required")
 	}
 
-	now := time.Now()
+	now := NowRFC3339()
 	query := `UPDATE ticket_tasks SET complete = FALSE, updated_at = ? WHERE id = ?`
 	result, err := r.db.ExecContext(ctx, query, now, taskID)
 	if err != nil {
@@ -185,7 +186,7 @@ func (r *TasksRepo) RemoveTask(ctx context.Context, taskID int64) error {
 	}
 
 	// Reorder remaining tasks - decrement positions of all tasks after the removed one
-	now := time.Now()
+	now := NowRFC3339()
 	_, err = r.db.ExecContext(ctx, `
 		UPDATE ticket_tasks 
 		SET position = position - 1, updated_at = ?

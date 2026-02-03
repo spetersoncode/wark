@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -116,4 +117,23 @@ func Delete(path string) error {
 	os.Remove(path + "-shm")
 
 	return os.Remove(path)
+}
+
+// FormatTime formats a time.Time as an RFC 3339 string for SQLite compatibility.
+// This ensures timestamps can be parsed by SQLite's julianday() and other date functions.
+func FormatTime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
+}
+
+// FormatTimePtr formats an optional time.Time as an RFC 3339 string, or returns nil.
+func FormatTimePtr(t *time.Time) interface{} {
+	if t == nil {
+		return nil
+	}
+	return FormatTime(*t)
+}
+
+// NowRFC3339 returns the current time formatted as RFC 3339 for SQLite.
+func NowRFC3339() string {
+	return FormatTime(time.Now())
 }

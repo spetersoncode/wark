@@ -6,143 +6,22 @@
 
 Wark is a command-line task management system designed for coordinating AI coding agents. It provides:
 
-- **Project-based ticket organization** - Group related work into projects
-- **Dependency-aware scheduling** - Tickets automatically block/unblock based on dependencies
-- **Claim-based work distribution** - Prevents multiple agents from working on the same ticket
-- **Human-in-the-loop support** - Escalate to humans when blocked or uncertain
-- **Activity logging** - Full audit trail of all actions
+- **Project-based ticket organization** — Group related work into projects
+- **Dependency-aware scheduling** — Tickets automatically block/unblock based on dependencies
+- **Claim-based work distribution** — Prevents multiple agents from working on the same ticket
+- **Human-in-the-loop support** — Escalate to humans when blocked or uncertain
+- **Activity logging** — Full audit trail of all actions
 
-## When to Use Wark
+## Role-Specific References
 
-Use Wark when you need to:
-- Work on tasks that have been organized into tickets
-- Coordinate with other agents (avoid conflicts via claims)
-- Track progress on multi-step work
-- Escalate issues to humans for guidance
-- Report completion of work for review
+Load the appropriate reference based on your task:
 
-## Core Workflow
-
-The fundamental agent workflow is: **claim → worktree → work → complete → cleanup**
-
-```bash
-# 1. Get the next available ticket (automatically claims it)
-wark ticket next --json
-
-# 2. Create isolated worktree for parallel-safe work
-REPO_NAME=$(basename "$PWD")  # e.g., "wark"
-BRANCH=$(wark ticket branch PROJ-42)
-DIR_NAME=${BRANCH#wark/}
-mkdir -p ~/repos/${REPO_NAME}-worktrees
-git worktree add ~/repos/${REPO_NAME}-worktrees/$DIR_NAME -b $BRANCH
-cd ~/repos/${REPO_NAME}-worktrees/$DIR_NAME
-
-# 3. Work on the ticket (write code, make changes)
-# ... your implementation work ...
-
-# 4. Complete the ticket when done
-wark ticket complete PROJ-42 --summary "Implemented feature X"
-
-# 5. Cleanup worktree after merge
-cd ~/repos/<repo-name>
-git worktree remove ~/repos/<repo-name>-worktrees/$DIR_NAME
-git branch -d $BRANCH
-git worktree prune
-```
-
-## Git Worktrees (Required for Parallel Work)
-
-**All work happens in an isolated git worktree, NOT the main repo.**
-
-This enables multiple agents to work simultaneously without conflicts.
-
-### Why Worktrees?
-
-- Each agent gets its own working directory on its own branch
-- All worktrees share the same git object database (efficient)
-- No "last write wins" problems when multiple agents run in parallel
-- Clean isolation, easy cleanup
-
-### Worktree Locations
-
-Each repo has its own worktrees directory as a sibling:
-
-```
-~/repos/wark/                                ← main repo
-~/repos/wark-worktrees/
-  └── WARK-17-add-user-login/                ← worktree for WARK-17
-  └── WARK-18-fix-validation/                ← worktree for WARK-18
-
-~/repos/myapp/                               ← another repo  
-~/repos/myapp-worktrees/
-  └── MYAPP-5-implement-feature/             ← worktree for MYAPP-5
-```
-
-Convention: `~/repos/<repo-name>-worktrees/<ticket-slug>/`
-
-### Branch Naming
-
-Wark generates branch names in format: `wark/{PROJECT}-{number}-{title-slug}`
-
-Example: `wark/PROJ-42-add-user-login`
-
-The worktree directory uses the same name **without** the `wark/` prefix:
-- Branch: `wark/PROJ-42-add-user-login`
-- Directory: `~/repos/wark-worktrees/PROJ-42-add-user-login/`
-
-### Setup Worktree
-
-```bash
-# From within the main repo (e.g., ~/repos/wark/)
-REPO_NAME=$(basename "$PWD")
-
-# Get the branch name
-BRANCH=$(wark ticket branch PROJ-42)
-
-# Extract directory name (strip wark/ prefix)
-DIR_NAME=${BRANCH#wark/}
-
-# Create worktrees directory if needed
-mkdir -p ~/repos/${REPO_NAME}-worktrees
-
-# Create worktree
-git worktree add ~/repos/${REPO_NAME}-worktrees/$DIR_NAME -b $BRANCH
-
-# Work in the worktree
-cd ~/repos/${REPO_NAME}-worktrees/$DIR_NAME
-```
-
-### Cleanup Worktree
-
-**Always clean up after work is merged:**
-
-```bash
-# Return to main repo
-cd ~/repos/<repo-name>
-
-# Remove the worktree
-git worktree remove ~/repos/<repo-name>-worktrees/$DIR_NAME
-
-# Delete the branch (if merged)
-git branch -d $BRANCH
-
-# Prune stale references
-git worktree prune
-```
-
-### Useful Commands
-
-```bash
-# List all worktrees
-git worktree list
-
-# Force remove (if stuck)
-git worktree remove --force ~/repos/wark-worktrees/<name>
-```
+| Role | Reference | When to Load |
+|------|-----------|--------------|
+| **Coder** | `references/coder.md` | Working on implementation tickets |
+| **Reviewer** | `references/reviewer.md` | Reviewing completed work |
 
 ## Ticket Lifecycle
-
-Tickets move through these states:
 
 ```
 created → ready → in_progress → review → done → closed
@@ -150,165 +29,63 @@ created → ready → in_progress → review → done → closed
          blocked   needs_human          cancelled
 ```
 
-**States explained:**
-- `created` - Just created, not yet validated
-- `ready` - Available for work (all dependencies resolved)
-- `in_progress` - Currently being worked on (has active claim)
-- `blocked` - Waiting for dependencies to complete
-- `needs_human` - Waiting for human input
-- `review` - Work complete, awaiting human acceptance
-- `done` - Accepted and finished
-- `closed` - Archived after completion
-- `cancelled` - No longer needed
+| State | Description |
+|-------|-------------|
+| `created` | Just created, not yet validated |
+| `ready` | Available for work (dependencies resolved) |
+| `in_progress` | Currently being worked on (has active claim) |
+| `blocked` | Waiting for dependencies to complete |
+| `needs_human` | Waiting for human input |
+| `review` | Work complete, awaiting review |
+| `done` | Accepted and finished |
+| `closed` | Archived after completion |
+| `cancelled` | No longer needed |
 
 ## Essential Commands
 
 ### Getting Work
 
 ```bash
-# Get and claim the next available ticket
-wark ticket next --json
-
-# Get next ticket from a specific project
-wark ticket next --project MYAPP --json
-
-# Preview without claiming (dry run)
-wark ticket next --dry-run --json
-
-# List all workable tickets
-wark ticket list --workable --json
+wark ticket next --json                    # Get and claim next available ticket
+wark ticket next --project MYAPP --json    # From specific project
+wark ticket next --dry-run --json          # Preview without claiming
+wark ticket list --workable --json         # List all available tickets
 ```
 
 **Selection priority:** highest priority first, then oldest first.
 
-### Claiming Tickets
+### Viewing Tickets
 
 ```bash
-# Claim a specific ticket
-wark ticket claim PROJ-42 --worker-id "agent-session-123" --json
-
-# Claims expire after 60 minutes by default
-# Extend with --duration (in minutes)
-wark ticket claim PROJ-42 --duration 120 --json
+wark ticket show PROJ-42 --json            # View ticket details
+wark ticket branch PROJ-42                 # Get branch name (e.g., wark/PROJ-42-add-login)
 ```
 
-**Important:** Always use a consistent `--worker-id` across your session. This helps with tracking and allows you to release your own claims.
-
-### Working on Tickets
+### Claiming & Releasing
 
 ```bash
-# View ticket details
-wark ticket show PROJ-42 --json
-
-# Get the suggested branch name
-wark ticket branch PROJ-42
-
-# Example output: wark/PROJ-42-add-user-login
+wark ticket claim PROJ-42 --json           # Claim a ticket (60 min default)
+wark ticket claim PROJ-42 --duration 120   # Claim for 120 minutes
+wark ticket release PROJ-42 --reason "..." # Release without completing
 ```
-
-**Important:** Use the worktree protocol (see "Git Worktrees" section above) rather than `git checkout`. This enables parallel work by multiple agents.
 
 ### Completing Work
 
 ```bash
-# Submit for human review
-wark ticket complete PROJ-42 --summary "Implemented login form with validation"
-
-# Auto-accept (skip review, goes directly to done)
-wark ticket complete PROJ-42 --summary "Fixed typo" --auto-accept
+wark ticket complete PROJ-42 --summary "..." # Submit for human review
+wark ticket complete PROJ-42 --auto-accept   # Skip review (trivial changes only)
 ```
 
-Use `--auto-accept` only for trivial changes that don't need human review.
-
-### Releasing Claims
-
-If you cannot complete a ticket:
+### Status & Claims
 
 ```bash
-# Release back to the queue
-wark ticket release PROJ-42 --reason "Need clarification on requirements"
+wark status --json                         # Overall system status
+wark claim list --json                     # Active claims
 ```
-
-The ticket returns to `ready` status and can be picked up again.
-
-## Handling Blockers
-
-### Flagging for Human Help
-
-When you encounter issues that require human intervention:
-
-```bash
-wark ticket flag PROJ-42 --reason unclear_requirements \
-  "The spec mentions 'enterprise SSO' but doesn't specify which providers to support."
-```
-
-**Reason codes:**
-| Code | When to Use |
-|------|-------------|
-| `unclear_requirements` | Requirements are ambiguous or incomplete |
-| `decision_needed` | Multiple valid approaches, need human choice |
-| `irreconcilable_conflict` | Technical conflict you cannot resolve |
-| `access_required` | Need credentials or permissions |
-| `blocked_external` | Blocked by external system or person |
-| `risk_assessment` | Potential risk requiring human review |
-| `out_of_scope` | Task appears beyond original scope |
-| `other` | Other (explain in message) |
-
-**Example: Asking for a decision:**
-```bash
-wark ticket flag PROJ-42 --reason decision_needed \
-  "Database choice needed. Options:
-   1) PostgreSQL - Better for complex queries, team has experience
-   2) SQLite - Simpler deployment, sufficient for current scale
-   Which should I use?"
-```
-
-### Sending Questions Without Blocking
-
-For non-blocking questions (ticket stays in progress):
-
-```bash
-wark inbox send PROJ-42 --type question "Should the login form remember email addresses?"
-```
-
-**Message types:** `question`, `decision`, `review`, `info`, `escalation`
-
-### Checking for Responses
-
-```bash
-# Check inbox for responses
-wark inbox list --json
-
-# View a specific response
-wark inbox show 12 --json
-```
-
-## Dependency Management
-
-### Creating Dependent Tickets
-
-```bash
-# Create a ticket that depends on another
-wark ticket create PROJ --title "Add profile page" --depends-on PROJ-10
-```
-
-### Checking Dependencies
-
-```bash
-# View ticket with dependencies
-wark ticket show PROJ-42 --json
-```
-
-The JSON output includes a `dependencies` array showing status of each dependency.
-
-**A ticket is workable when:**
-1. Status is `ready`
-2. All dependencies are in `done` status
-3. No active claim by another agent
 
 ## JSON Output Format
 
-Always use `--json` flag for machine-readable output.
+Always use `--json` for machine-readable output.
 
 ### Ticket Object
 
@@ -325,15 +102,8 @@ Always use `--json` flag for machine-readable output.
   "branch_name": "wark/PROJ-42-add-user-login",
   "retry_count": 0,
   "max_retries": 3,
-  "parent_ticket_id": null,
-  "created_at": "2024-02-01T10:30:00Z",
-  "updated_at": "2024-02-01T14:22:00Z",
   "dependencies": [
-    {
-      "ticket_id": "PROJ-40",
-      "title": "Create user model",
-      "status": "done"
-    }
+    {"ticket_id": "PROJ-40", "title": "Create user model", "status": "done"}
   ],
   "claim": null
 }
@@ -346,8 +116,7 @@ Always use `--json` flag for machine-readable output.
   "ticket_id": "PROJ-42",
   "worker_id": "agent-session-123",
   "status": "active",
-  "expires_at": "2024-02-01T15:30:00Z",
-  "created_at": "2024-02-01T14:30:00Z"
+  "expires_at": "2024-02-01T15:30:00Z"
 }
 ```
 
@@ -360,7 +129,8 @@ Always use `--json` flag for machine-readable output.
 }
 ```
 
-**Exit codes:**
+## Exit Codes
+
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
@@ -370,103 +140,6 @@ Always use `--json` flag for machine-readable output.
 | 4 | State transition error |
 | 5 | Database error |
 | 6 | Concurrent modification conflict |
-
-## Best Practices for Agents
-
-### 1. One Ticket, One Branch
-
-Each ticket gets its own branch in an isolated worktree. Make atomic commits with the ticket ID for traceability:
-
-```bash
-# In your worktree for PROJ-42
-git commit -m "feat(auth): add login form [PROJ-42]"
-```
-
-### 2. Use Consistent Worker IDs
-
-Use the same worker ID throughout your session:
-
-```bash
-WORKER_ID="agent-$(hostname)-$$"
-wark ticket next --worker-id "$WORKER_ID" --json
-```
-
-### 3. Handle Claim Expiration
-
-Claims expire after 60 minutes by default. For long-running tasks:
-- Request a longer duration: `--duration 120`
-- Or re-claim before expiration
-
-If your claim expires, the ticket returns to `ready` and another agent might claim it.
-
-### 4. Check Status Before Acting
-
-Always verify the current state before operations:
-
-```bash
-# Check current status
-wark ticket show PROJ-42 --json | jq '.status'
-```
-
-### 5. Provide Good Summaries
-
-When completing work, write clear summaries:
-
-```bash
-# Good
-wark ticket complete PROJ-42 --summary "Added login form with email/password validation, remember-me checkbox, and forgot-password link"
-
-# Too vague
-wark ticket complete PROJ-42 --summary "Done"
-```
-
-### 6. Flag Early, Not Late
-
-If you're uncertain about requirements, flag immediately rather than guessing:
-
-```bash
-wark ticket flag PROJ-42 --reason unclear_requirements \
-  "The mockup shows a 'Sign in with Google' button but auth strategy isn't specified. Should I implement OAuth?"
-```
-
-### 7. Break Down Large Tasks
-
-If a ticket is too large (complexity `xlarge`), create child tickets:
-
-```bash
-# Create child tickets
-wark ticket create PROJ --title "Create login form component" --parent PROJ-42
-wark ticket create PROJ --title "Add form validation" --parent PROJ-42
-wark ticket create PROJ --title "Connect to auth API" --parent PROJ-42
-```
-
-The parent ticket will automatically complete when all children are done.
-
-## Quick Reference
-
-```bash
-# === Getting Work ===
-wark ticket next --json                    # Get next ticket
-wark ticket list --workable --json         # List available tickets
-
-# === Working ===
-wark ticket show PROJ-42 --json            # View details
-wark ticket branch PROJ-42                 # Get branch name
-wark ticket claim PROJ-42 --json           # Explicitly claim
-
-# === Completing ===
-wark ticket complete PROJ-42 --summary "..." # Submit for review
-wark ticket release PROJ-42 --reason "..."   # Release without completing
-
-# === Getting Help ===
-wark ticket flag PROJ-42 --reason <code> "..."  # Flag for human
-wark inbox send PROJ-42 --type question "..."   # Ask a question
-wark inbox list --json                          # Check for responses
-
-# === Status ===
-wark status --json                         # Overall status
-wark claim list --json                     # Active claims
-```
 
 ## Environment Variables
 
@@ -478,20 +151,9 @@ wark claim list --json                     # Active claims
 
 ## Troubleshooting
 
-### "ticket is blocked"
-The ticket has unresolved dependencies. Check:
-```bash
-wark ticket show PROJ-42 --json | jq '.dependencies'
-```
-
-### "claim already exists"
-Another agent has claimed this ticket. Use `wark ticket next` to get a different ticket, or wait for the claim to expire.
-
-### "state transition not allowed"
-The ticket is not in a state that allows your operation. Check current status:
-```bash
-wark ticket show PROJ-42 --json | jq '.status'
-```
-
-### "max retries exceeded"
-The ticket has failed too many times and needs human attention. It will be in `needs_human` status.
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "ticket is blocked" | Unresolved dependencies | Check `.dependencies` in ticket JSON |
+| "claim already exists" | Another agent claimed it | Use `wark ticket next` for different ticket |
+| "state transition not allowed" | Invalid operation for current state | Check `.status` in ticket JSON |
+| "max retries exceeded" | Too many failures | Ticket needs human attention |

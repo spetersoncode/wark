@@ -9,6 +9,7 @@ import {
 	type TicketPriority,
 	type TicketStatus,
 } from "../lib/api";
+import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
 
 type SortField = "ticket_key" | "title" | "status" | "priority" | "complexity" | "created_at";
@@ -64,7 +65,6 @@ export default function Tickets() {
 	const [tickets, setTickets] = useState<Ticket[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
 	const [sortField, setSortField] = useState<SortField>("created_at");
 	const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -84,18 +84,16 @@ export default function Tickets() {
 			}
 		} finally {
 			setLoading(false);
-			setRefreshing(false);
 		}
 	}, [projectFilter, statusFilter]);
 
+	// Initial fetch
 	useEffect(() => {
 		fetchTickets();
 	}, [fetchTickets]);
 
-	function handleRefresh() {
-		setRefreshing(true);
-		fetchTickets();
-	}
+	// Auto-refresh every 10 seconds when tab is visible
+	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchTickets, [fetchTickets]);
 
 	function handleSort(field: SortField) {
 		if (sortField === field) {

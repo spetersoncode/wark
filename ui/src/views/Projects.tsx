@@ -2,13 +2,13 @@ import { FolderKanban, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, listProjects, type ProjectWithStats } from "../lib/api";
+import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
 
 export default function Projects() {
 	const [projects, setProjects] = useState<ProjectWithStats[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
 
 	const fetchProjects = useCallback(async () => {
 		try {
@@ -23,18 +23,16 @@ export default function Projects() {
 			}
 		} finally {
 			setLoading(false);
-			setRefreshing(false);
 		}
 	}, []);
 
+	// Initial fetch
 	useEffect(() => {
 		fetchProjects();
 	}, [fetchProjects]);
 
-	function handleRefresh() {
-		setRefreshing(true);
-		fetchProjects();
-	}
+	// Auto-refresh every 10 seconds when tab is visible
+	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchProjects, [fetchProjects]);
 
 	if (loading) {
 		return (

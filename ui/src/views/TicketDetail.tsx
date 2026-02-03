@@ -29,6 +29,7 @@ import {
 	reopenTicket,
 	type Ticket,
 } from "../lib/api";
+import { useAutoRefresh } from "../lib/hooks";
 import { cn, formatRelativeTime, getPriorityColor, getStatusColor } from "../lib/utils";
 
 export default function TicketDetail() {
@@ -60,9 +61,13 @@ export default function TicketDetail() {
 		}
 	}, [key]);
 
+	// Initial fetch
 	useEffect(() => {
 		fetchTicket();
 	}, [fetchTicket]);
+
+	// Auto-refresh every 10 seconds when tab is visible
+	useAutoRefresh(fetchTicket, [fetchTicket]);
 
 	async function handleAction(action: string, fn: () => Promise<unknown>) {
 		setActionLoading(action);

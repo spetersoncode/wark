@@ -7,6 +7,7 @@ import {
 	ListTodo,
 } from "lucide-react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { ColorSwatches } from "./components/ColorSwatches";
 import { SearchBar } from "./components/SearchBar";
 import { cn } from "./lib/utils";
 import {
@@ -76,6 +77,7 @@ function App() {
 					<Route path="/inbox" element={<Inbox />} />
 					<Route path="/analytics" element={<Analytics />} />
 					<Route path="/tickets/:key" element={<TicketDetail />} />
+					<Route path="/colors" element={<ColorSwatches />} />
 					<Route path="*" element={<NotFound />} />
 				</Routes>
 			</main>

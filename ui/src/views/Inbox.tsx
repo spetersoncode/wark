@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
+import { useRefreshShortcut } from "../components/KeyboardShortcutsProvider";
 import { Markdown } from "../components/Markdown";
 import { InboxSkeleton } from "../components/skeletons";
 import { type InboxMessage, listInbox, type MessageType } from "../lib/api";
@@ -104,6 +105,9 @@ export default function Inbox() {
 
 	// Auto-refresh every 10 seconds when tab is visible
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchMessages, [fetchMessages]);
+
+	// Register "r" keyboard shortcut for refresh
+	useRefreshShortcut(handleRefresh);
 
 	if (loading) {
 		return <InboxSkeleton />;

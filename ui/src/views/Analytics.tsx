@@ -1,6 +1,7 @@
 import { BarChart3, Clock, RefreshCw, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useRefreshShortcut } from "../components/KeyboardShortcutsProvider";
 import { AnalyticsSkeleton } from "../components/skeletons";
 import {
 	type AnalyticsResult,
@@ -48,6 +49,9 @@ export default function Analytics() {
 		setRefreshing(true);
 		fetchData();
 	}
+
+	// Register "r" keyboard shortcut for refresh
+	useRefreshShortcut(handleRefresh);
 
 	function handleProjectChange(e: React.ChangeEvent<HTMLSelectElement>) {
 		setSelectedProject(e.target.value);

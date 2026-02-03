@@ -11,9 +11,7 @@ const STORAGE_KEY = "wark-theme";
  */
 function getSystemTheme(): "light" | "dark" {
 	if (typeof window === "undefined") return "light";
-	return window.matchMedia("(prefers-color-scheme: dark)").matches
-		? "dark"
-		: "light";
+	return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 /**
@@ -81,8 +79,7 @@ export function ThemeToggle() {
 	}, []);
 
 	const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
-	const label =
-		theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System";
+	const label = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System";
 
 	return (
 		<Button

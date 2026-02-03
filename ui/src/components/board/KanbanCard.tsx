@@ -27,7 +27,7 @@ export function KanbanCard({ ticket, showBlockedBadge = false }: KanbanCardProps
 			className={cn(
 				"block p-3 bg-[var(--background)] border rounded-md transition-colors group",
 				"border-[var(--border)] hover:border-[var(--border-strong)]",
-				hasHumanFlag && "border-l-2 border-l-[var(--status-human)]"
+				hasHumanFlag && "border-l-2 border-l-[var(--status-human)]",
 			)}
 		>
 			{/* Top row: Key + Priority dot + optional blocked badge */}

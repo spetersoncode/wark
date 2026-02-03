@@ -55,11 +55,7 @@ export function ComponentDemo() {
 				<h2 className="text-lg font-semibold">EmptyState</h2>
 				<div className="grid grid-cols-3 gap-4">
 					<div className="border border-[var(--border)] rounded-md">
-						<EmptyState
-							icon={CheckCircle}
-							title="All clear"
-							description="No pending messages"
-						/>
+						<EmptyState icon={CheckCircle} title="All clear" description="No pending messages" />
 					</div>
 					<div className="border border-[var(--border)] rounded-md">
 						<EmptyState title="(no tickets)" className="py-4" />

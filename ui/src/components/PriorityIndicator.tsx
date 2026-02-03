@@ -46,7 +46,7 @@ export interface PriorityIndicatorProps extends ComponentProps<"span"> {
 
 /**
  * PriorityIndicator displays a ticket/work item priority level.
- * 
+ *
  * Variants:
  * - `dot`: Colored circle only
  * - `text`: Priority label only

@@ -13,9 +13,9 @@ export interface EmptyStateProps extends ComponentProps<"div"> {
 
 /**
  * EmptyState displays a zero-state message for empty lists, tables, or sections.
- * 
+ *
  * Visually understated but clear, with optional icon and description.
- * 
+ *
  * @example
  * // Inbox empty state
  * <EmptyState
@@ -23,11 +23,11 @@ export interface EmptyStateProps extends ComponentProps<"div"> {
  *   title="All clear"
  *   description="No pending messages"
  * />
- * 
+ *
  * @example
  * // Minimal board column empty state
  * <EmptyState title="(no tickets)" />
- * 
+ *
  * @example
  * // Empty search results
  * <EmptyState
@@ -45,20 +45,13 @@ export function EmptyState({
 }: EmptyStateProps) {
 	return (
 		<div
-			className={cn(
-				"flex flex-col items-center justify-center py-8 text-center",
-				className
-			)}
+			className={cn("flex flex-col items-center justify-center py-8 text-center", className)}
 			{...props}
 		>
-			{Icon && (
-				<Icon className="size-12 text-muted-foreground/50 mb-3" strokeWidth={1.5} />
-			)}
+			{Icon && <Icon className="size-12 text-muted-foreground/50 mb-3" strokeWidth={1.5} />}
 			<p className="text-sm font-medium text-muted-foreground">{title}</p>
 			{description && (
-				<p className="text-xs text-muted-foreground/70 mt-1 max-w-[200px]">
-					{description}
-				</p>
+				<p className="text-xs text-muted-foreground/70 mt-1 max-w-[200px]">{description}</p>
 			)}
 		</div>
 	);

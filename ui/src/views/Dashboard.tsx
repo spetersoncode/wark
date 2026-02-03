@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useRefreshShortcut } from "@/components/KeyboardShortcutsProvider";
 import { PriorityIndicator } from "@/components/PriorityIndicator";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,7 +65,10 @@ export default function Dashboard() {
 	}, [fetchData]);
 
 	// Auto-refresh every 10 seconds when tab is visible (no manual refresh button needed)
-	useAutoRefresh(fetchData, [fetchData]);
+	const { refresh } = useAutoRefresh(fetchData, [fetchData]);
+
+	// Register "r" keyboard shortcut for refresh
+	useRefreshShortcut(refresh);
 
 	if (loading) {
 		return <DashboardSkeleton />;

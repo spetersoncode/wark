@@ -164,9 +164,8 @@ export default function Inbox() {
 							key={message.id}
 							message={message}
 							onResponded={(updated) => {
-								setMessages((prev) =>
-									sortMessages(prev.map((m) => (m.id === updated.id ? updated : m))),
-								);
+								// Remove the message immediately since we only show pending messages
+								setMessages((prev) => prev.filter((m) => m.id !== updated.id));
 							}}
 						/>
 					))}

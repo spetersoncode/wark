@@ -26,7 +26,7 @@ func init() {
 	// Add task as subcommand of ticket
 	taskCmd.AddCommand(taskAddCmd)
 	taskCmd.AddCommand(taskListCmd)
-	taskCmd.AddCommand(taskCompleteCmd)
+	taskCmd.AddCommand(taskToggleCmd)
 	taskCmd.AddCommand(taskRemoveCmd)
 
 	ticketCmd.AddCommand(taskCmd)
@@ -190,25 +190,27 @@ func runTaskList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// task complete
-var taskCompleteCmd = &cobra.Command{
-	Use:   "complete <TICKET> [POSITION]",
-	Short: "Mark a task as complete",
-	Long: `Mark a task as complete. If no position is given, completes the first incomplete task.
+// task toggle
+var taskToggleCmd = &cobra.Command{
+	Use:   "toggle <TICKET> [POSITION]",
+	Short: "Toggle a task's completion status",
+	Long: `Toggle a task between complete and incomplete. If no position is given, 
+toggles the first incomplete task.
 
 Examples:
-  wark ticket task complete WEBAPP-42      # Complete next incomplete task
-  wark ticket task complete WEBAPP-42 2    # Complete task at position 2`,
+  wark ticket task toggle WEBAPP-42      # Toggle next incomplete task (marks complete)
+  wark ticket task toggle WEBAPP-42 2    # Toggle task at position 2`,
 	Args: cobra.RangeArgs(1, 2),
-	RunE: runTaskComplete,
+	RunE: runTaskToggle,
 }
 
-type taskCompleteResult struct {
+type taskToggleResult struct {
 	Task            *models.TicketTask `json:"task"`
+	Action          string             `json:"action"`
 	IncompleteCount int                `json:"incomplete_count"`
 }
 
-func runTaskComplete(cmd *cobra.Command, args []string) error {
+func runTaskToggle(cmd *cobra.Command, args []string) error {
 	ticketKey := args[0]
 
 	database, err := db.Open(GetDBPath())
@@ -228,7 +230,7 @@ func runTaskComplete(cmd *cobra.Command, args []string) error {
 	var task *models.TicketTask
 
 	if len(args) == 2 {
-		// Position provided
+		// Position provided - toggle that specific task
 		position, err := strconv.Atoi(args[1])
 		if err != nil {
 			return ErrInvalidArgs("invalid position: %s (must be a number)", args[1])
@@ -241,11 +243,8 @@ func runTaskComplete(cmd *cobra.Command, args []string) error {
 		if task == nil {
 			return ErrNotFound("no task at position %d for %s", position, ticket.TicketKey)
 		}
-		if task.Complete {
-			return ErrStateError("task at position %d is already complete", position)
-		}
 	} else {
-		// No position, get next incomplete
+		// No position, get next incomplete (same as old complete behavior)
 		task, err = tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
 		if err != nil {
 			return ErrDatabase(err, "failed to get next incomplete task")
@@ -255,13 +254,23 @@ func runTaskComplete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Complete the task
-	if err := tasksRepo.CompleteTask(ctx, task.ID); err != nil {
-		return ErrDatabase(err, "failed to complete task")
+	// Toggle the task
+	var action string
+	if task.Complete {
+		// Mark incomplete
+		if err := tasksRepo.UncompleteTask(ctx, task.ID); err != nil {
+			return ErrDatabase(err, "failed to mark task incomplete")
+		}
+		task.Complete = false
+		action = "incomplete"
+	} else {
+		// Mark complete
+		if err := tasksRepo.CompleteTask(ctx, task.ID); err != nil {
+			return ErrDatabase(err, "failed to mark task complete")
+		}
+		task.Complete = true
+		action = "complete"
 	}
-
-	// Mark task as complete in the struct for output
-	task.Complete = true
 
 	// Get remaining incomplete count
 	incompleteCount, err := tasksRepo.CountIncomplete(ctx, ticket.ID)
@@ -271,8 +280,9 @@ func runTaskComplete(cmd *cobra.Command, args []string) error {
 		incompleteCount = -1
 	}
 
-	result := taskCompleteResult{
+	result := taskToggleResult{
 		Task:            task,
+		Action:          action,
 		IncompleteCount: incompleteCount,
 	}
 
@@ -282,7 +292,12 @@ func runTaskComplete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	OutputLine("Completed: [%d] %s", task.Position, task.Description)
+	if action == "complete" {
+		OutputLine("Marked complete: [%d] %s", task.Position, task.Description)
+	} else {
+		OutputLine("Marked incomplete: [%d] %s", task.Position, task.Description)
+	}
+
 	if incompleteCount >= 0 {
 		if incompleteCount == 0 {
 			OutputLine("All tasks complete! 🎉")

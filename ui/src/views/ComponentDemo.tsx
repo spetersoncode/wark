@@ -1,3 +1,5 @@
+import { CheckCircle, Search } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 import { PriorityIndicator, type Priority } from "@/components/PriorityIndicator";
 import { StatusBadge, type Status } from "@/components/StatusBadge";
 
@@ -45,6 +47,29 @@ export function ComponentDemo() {
 								<PriorityIndicator key={priority} priority={priority} variant="text" />
 							))}
 						</div>
+					</div>
+				</div>
+			</section>
+
+			<section className="space-y-4">
+				<h2 className="text-lg font-semibold">EmptyState</h2>
+				<div className="grid grid-cols-3 gap-4">
+					<div className="border border-[var(--border)] rounded-md">
+						<EmptyState
+							icon={CheckCircle}
+							title="All clear"
+							description="No pending messages"
+						/>
+					</div>
+					<div className="border border-[var(--border)] rounded-md">
+						<EmptyState title="(no tickets)" className="py-4" />
+					</div>
+					<div className="border border-[var(--border)] rounded-md">
+						<EmptyState
+							icon={Search}
+							title="No tickets found"
+							description="Try adjusting your filters"
+						/>
 					</div>
 				</div>
 			</section>

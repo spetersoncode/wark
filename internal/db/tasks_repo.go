@@ -96,6 +96,23 @@ func (r *TasksRepo) GetNextIncompleteTask(ctx context.Context, ticketID int64) (
 	return r.scanOne(r.db.QueryRowContext(ctx, query, ticketID))
 }
 
+// ListIncompleteTasks returns all incomplete tasks for a ticket ordered by position.
+func (r *TasksRepo) ListIncompleteTasks(ctx context.Context, ticketID int64) ([]*models.TicketTask, error) {
+	query := `
+		SELECT id, ticket_id, position, description, complete, created_at, updated_at
+		FROM ticket_tasks
+		WHERE ticket_id = ? AND complete = FALSE
+		ORDER BY position
+	`
+	rows, err := r.db.QueryContext(ctx, query, ticketID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list incomplete tasks: %w", err)
+	}
+	defer rows.Close()
+
+	return r.scanMany(rows)
+}
+
 // CompleteTask marks a task as complete.
 func (r *TasksRepo) CompleteTask(ctx context.Context, taskID int64) error {
 	if taskID <= 0 {

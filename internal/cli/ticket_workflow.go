@@ -366,7 +366,7 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 		workerID = claim.WorkerID
 	}
 
-	// Check if ticket has tasks
+	// Check if ticket has incomplete tasks - block completion if so
 	ctx := context.Background()
 	tasksRepo := db.NewTasksRepo(database.DB)
 	taskCounts, err := tasksRepo.GetTaskCounts(ctx, ticket.ID)
@@ -374,79 +374,20 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 		return ErrDatabase(err, "failed to get task counts")
 	}
 
-	activityRepo := db.NewActivityRepo(database.DB)
-	ticketRepo := db.NewTicketRepo(database.DB)
-
-	// Handle tickets with tasks
 	if taskCounts.Total > 0 {
-		nextTask, err := tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
+		incompleteTasks, err := tasksRepo.ListIncompleteTasks(ctx, ticket.ID)
 		if err != nil {
-			return ErrDatabase(err, "failed to get next task")
+			return ErrDatabase(err, "failed to check incomplete tasks")
 		}
 
-		if nextTask != nil {
-			// Mark the current task as complete
-			if err := tasksRepo.CompleteTask(ctx, nextTask.ID); err != nil {
-				return ErrDatabase(err, "failed to complete task")
-			}
-
-			// Log task completion
-			activityRepo.LogActionWithDetails(ticket.ID, models.ActionTaskCompleted, models.ActorTypeAgent, workerID,
-				fmt.Sprintf("Completed task %d/%d: %s", nextTask.Position+1, taskCounts.Total, truncate(nextTask.Description, 50)),
-				map[string]interface{}{
-					"task_id":       nextTask.ID,
-					"task_position": nextTask.Position,
-					"summary":       completeSummary,
-				})
-
-			// Check for more incomplete tasks
-			nextNextTask, err := tasksRepo.GetNextIncompleteTask(ctx, ticket.ID)
-			if err != nil {
-				return ErrDatabase(err, "failed to check remaining tasks")
-			}
-
-			if nextNextTask != nil {
-				// More tasks remain: release claim, set ticket back to ready
-				if claim != nil {
-					claimRepo.Release(claim.ID, models.ClaimStatusReleased)
-				}
-
-				// Set status back to ready for next claim, increment retry count
-				ticket.Status = models.StatusReady
-				ticket.RetryCount++
-				if err := ticketRepo.Update(ticket); err != nil {
-					return ErrDatabase(err, "failed to update ticket")
-				}
-
-				completedCount := taskCounts.Completed + 1
-
-				if IsJSON() {
-					data, _ := json.MarshalIndent(map[string]interface{}{
-						"ticket":          ticket.TicketKey,
-						"status":          ticket.Status,
-						"task_completed":  true,
-						"tasks_complete":  completedCount,
-						"tasks_total":     taskCounts.Total,
-						"next_task":       nextNextTask,
-						"all_tasks_done":  false,
-					}, "", "  ")
-					fmt.Println(string(data))
-					return nil
-				}
-
-				OutputLine("Task completed: %s", truncate(nextTask.Description, 60))
-				OutputLine("Progress: %d/%d tasks complete", completedCount, taskCounts.Total)
-				OutputLine("")
-				OutputLine("Next task: %s", nextNextTask.Description)
-				OutputLine("")
-				OutputLine("Ticket released for next task pickup.")
-
-				return nil
-			}
-
-			// All tasks complete - fall through to normal completion
+		if len(incompleteTasks) > 0 {
+			// Block completion - list incomplete tasks
+			return formatIncompleteTasksError(ticket.TicketKey, incompleteTasks)
 		}
 	}
+
+	activityRepo := db.NewActivityRepo(database.DB)
+	ticketRepo := db.NewTicketRepo(database.DB)
 
 	// Complete the claim (no more tasks or ticket has no tasks)
 	if claim != nil {
@@ -694,4 +635,20 @@ func runTicketFlag(cmd *cobra.Command, args []string) error {
 	OutputLine("Waiting for human response...")
 
 	return nil
+}
+
+// formatIncompleteTasksError creates an error message listing all incomplete tasks.
+func formatIncompleteTasksError(ticketKey string, incompleteTasks []*models.TicketTask) error {
+	var taskList strings.Builder
+	for i, task := range incompleteTasks {
+		if i > 0 {
+			taskList.WriteString(", ")
+		}
+		taskList.WriteString(fmt.Sprintf("[ ] %s", task.Description))
+	}
+
+	return ErrStateErrorWithSuggestion(
+		fmt.Sprintf("Complete all tasks first with 'wark task complete %s <task-number>', or use 'wark ticket close %s' to close without completing.", ticketKey, ticketKey),
+		"cannot complete ticket: %d task(s) incomplete: %s", len(incompleteTasks), taskList.String(),
+	)
 }

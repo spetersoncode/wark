@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -754,6 +755,135 @@ func TestCmdTicketFlagInvalidReason(t *testing.T) {
 	_, err := runCmd(t, dbPath, "ticket", "flag", "INVF-1", "--reason", "not_a_valid_reason", "Some message")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid reason")
+}
+
+func TestCmdTicketCompleteBlockedByIncompleteTasks(t *testing.T) {
+	database, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup: create project and ticket
+	_, _ = runCmd(t, dbPath, "project", "create", "TSKBLK", "--name", "Task Block")
+	_, _ = runCmd(t, dbPath, "ticket", "create", "TSKBLK", "--title", "Has Tasks")
+
+	// Get the ticket ID and add tasks directly
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket, _ := ticketRepo.GetByKey("TSKBLK", 1)
+
+	tasksRepo := db.NewTasksRepo(database.DB)
+	ctx := context.Background()
+	_, _ = tasksRepo.CreateTask(ctx, ticket.ID, "First task")
+	_, _ = tasksRepo.CreateTask(ctx, ticket.ID, "Second task")
+
+	// Claim the ticket
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "TSKBLK-1", "--worker-id", "agent")
+
+	// Try to complete - should fail with incomplete tasks
+	_, err := runCmd(t, dbPath, "ticket", "complete", "TSKBLK-1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "task(s) incomplete")
+	assert.Contains(t, err.Error(), "First task")
+	assert.Contains(t, err.Error(), "Second task")
+}
+
+func TestCmdTicketAcceptBlockedByIncompleteTasks(t *testing.T) {
+	database, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup: create project, ticket, and put it in review status
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TSKACPT", Name: "Task Accept"}
+	projectRepo.Create(project)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID:  project.ID,
+		Number:     1,
+		Title:      "Review Ticket With Tasks",
+		Status:     models.StatusReview, // Already in review
+		Priority:   models.PriorityMedium,
+		Complexity: models.ComplexityMedium,
+		MaxRetries: 3,
+	}
+	ticketRepo.Create(ticket)
+
+	// Add incomplete tasks
+	tasksRepo := db.NewTasksRepo(database.DB)
+	ctx := context.Background()
+	_, _ = tasksRepo.CreateTask(ctx, ticket.ID, "Incomplete task 1")
+	_, _ = tasksRepo.CreateTask(ctx, ticket.ID, "Incomplete task 2")
+
+	// Try to accept - should fail with incomplete tasks
+	_, err := runCmd(t, dbPath, "ticket", "accept", "TSKACPT-1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "task(s) incomplete")
+	assert.Contains(t, err.Error(), "Incomplete task 1")
+}
+
+func TestCmdTicketCompleteWithAllTasksDone(t *testing.T) {
+	database, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup: create project and ticket
+	_, _ = runCmd(t, dbPath, "project", "create", "TSKDON", "--name", "Tasks Done")
+	_, _ = runCmd(t, dbPath, "ticket", "create", "TSKDON", "--title", "All Tasks Done")
+
+	// Get the ticket ID and add tasks directly
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket, _ := ticketRepo.GetByKey("TSKDON", 1)
+
+	tasksRepo := db.NewTasksRepo(database.DB)
+	ctx := context.Background()
+	task1, _ := tasksRepo.CreateTask(ctx, ticket.ID, "First task")
+	task2, _ := tasksRepo.CreateTask(ctx, ticket.ID, "Second task")
+
+	// Complete all tasks
+	_ = tasksRepo.CompleteTask(ctx, task1.ID)
+	_ = tasksRepo.CompleteTask(ctx, task2.ID)
+
+	// Claim the ticket
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "TSKDON-1", "--worker-id", "agent")
+
+	// Complete should succeed with all tasks done
+	output, err := runCmd(t, dbPath, "ticket", "complete", "TSKDON-1")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Completed: TSKDON-1")
+	assert.Contains(t, output, "Status: review")
+}
+
+func TestCmdTicketAcceptWithAllTasksDone(t *testing.T) {
+	database, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	// Setup: create project, ticket in review status with completed tasks
+	projectRepo := db.NewProjectRepo(database.DB)
+	project := &models.Project{Key: "TSKACPD", Name: "Task Accept Done"}
+	projectRepo.Create(project)
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID:  project.ID,
+		Number:     1,
+		Title:      "Review Ticket Done",
+		Status:     models.StatusReview,
+		Priority:   models.PriorityMedium,
+		Complexity: models.ComplexityMedium,
+		MaxRetries: 3,
+	}
+	ticketRepo.Create(ticket)
+
+	// Add tasks and complete them
+	tasksRepo := db.NewTasksRepo(database.DB)
+	ctx := context.Background()
+	task1, _ := tasksRepo.CreateTask(ctx, ticket.ID, "Task 1")
+	task2, _ := tasksRepo.CreateTask(ctx, ticket.ID, "Task 2")
+	_ = tasksRepo.CompleteTask(ctx, task1.ID)
+	_ = tasksRepo.CompleteTask(ctx, task2.ID)
+
+	// Accept should succeed with all tasks done
+	output, err := runCmd(t, dbPath, "ticket", "accept", "TSKACPD-1")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Accepted: TSKACPD-1")
+	assert.Contains(t, output, "closed")
 }
 
 // =============================================================================

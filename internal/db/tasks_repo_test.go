@@ -532,6 +532,86 @@ func TestTasksRepo_GetByID(t *testing.T) {
 	})
 }
 
+func TestTasksRepo_ListIncompleteTasks(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	projectID := createTestProject(t, db)
+	ticketID := createTestTicket(t, db, projectID)
+	repo := NewTasksRepo(db)
+	ctx := context.Background()
+
+	t.Run("returns empty list when no tasks", func(t *testing.T) {
+		tasks, err := repo.ListIncompleteTasks(ctx, ticketID)
+		if err != nil {
+			t.Fatalf("ListIncompleteTasks failed: %v", err)
+		}
+		if len(tasks) != 0 {
+			t.Errorf("expected 0 tasks, got %d", len(tasks))
+		}
+	})
+
+	// Create some tasks
+	task1, _ := repo.CreateTask(ctx, ticketID, "Task A")
+	task2, _ := repo.CreateTask(ctx, ticketID, "Task B")
+	repo.CreateTask(ctx, ticketID, "Task C")
+
+	t.Run("returns all incomplete tasks ordered by position", func(t *testing.T) {
+		tasks, err := repo.ListIncompleteTasks(ctx, ticketID)
+		if err != nil {
+			t.Fatalf("ListIncompleteTasks failed: %v", err)
+		}
+		if len(tasks) != 3 {
+			t.Fatalf("expected 3 tasks, got %d", len(tasks))
+		}
+
+		expectedDescs := []string{"Task A", "Task B", "Task C"}
+		for i, task := range tasks {
+			if task.Position != i {
+				t.Errorf("task %d: expected position %d, got %d", i, i, task.Position)
+			}
+			if task.Description != expectedDescs[i] {
+				t.Errorf("task %d: expected description %q, got %q", i, expectedDescs[i], task.Description)
+			}
+		}
+	})
+
+	t.Run("excludes completed tasks", func(t *testing.T) {
+		// Complete first two tasks
+		repo.CompleteTask(ctx, task1.ID)
+		repo.CompleteTask(ctx, task2.ID)
+
+		tasks, err := repo.ListIncompleteTasks(ctx, ticketID)
+		if err != nil {
+			t.Fatalf("ListIncompleteTasks failed: %v", err)
+		}
+		if len(tasks) != 1 {
+			t.Fatalf("expected 1 incomplete task, got %d", len(tasks))
+		}
+		if tasks[0].Description != "Task C" {
+			t.Errorf("expected Task C, got %q", tasks[0].Description)
+		}
+	})
+
+	t.Run("returns empty list when all tasks complete", func(t *testing.T) {
+		// Complete remaining task
+		allTasks, _ := repo.ListTasks(ctx, ticketID)
+		for _, task := range allTasks {
+			if !task.Complete {
+				repo.CompleteTask(ctx, task.ID)
+			}
+		}
+
+		tasks, err := repo.ListIncompleteTasks(ctx, ticketID)
+		if err != nil {
+			t.Fatalf("ListIncompleteTasks failed: %v", err)
+		}
+		if len(tasks) != 0 {
+			t.Errorf("expected 0 incomplete tasks, got %d", len(tasks))
+		}
+	})
+}
+
 func TestTasksRepo_MultiTicketIsolation(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()

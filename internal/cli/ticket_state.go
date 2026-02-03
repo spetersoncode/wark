@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -63,6 +64,17 @@ func runTicketAccept(cmd *cobra.Command, args []string) error {
 	// Check if ticket is in review
 	if ticket.Status != models.StatusReview {
 		return fmt.Errorf("ticket is not in review (current status: %s)", ticket.Status)
+	}
+
+	// Check for incomplete tasks - block acceptance if any exist
+	ctx := context.Background()
+	tasksRepo := db.NewTasksRepo(database.DB)
+	incompleteTasks, err := tasksRepo.ListIncompleteTasks(ctx, ticket.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check incomplete tasks: %w", err)
+	}
+	if len(incompleteTasks) > 0 {
+		return formatIncompleteTasksError(ticket.TicketKey, incompleteTasks)
 	}
 
 	// Validate transition

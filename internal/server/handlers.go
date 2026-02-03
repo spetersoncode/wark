@@ -9,6 +9,7 @@ import (
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/errors"
 	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/diogenes-ai-code/wark/internal/service"
 )
 
 // API Response types
@@ -89,6 +90,7 @@ type ActivityResponse struct {
 type StatusResponse struct {
 	Workable       int                  `json:"workable"`
 	InProgress     int                  `json:"in_progress"`
+	Review         int                  `json:"review"`
 	BlockedDeps    int                  `json:"blocked_deps"`
 	BlockedHuman   int                  `json:"blocked_human"`
 	PendingInbox   int                  `json:"pending_inbox"`
@@ -581,105 +583,48 @@ func (s *Server) handleGetClaim(w http.ResponseWriter, r *http.Request) {
 // Status handler
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	projectKey := strings.ToUpper(r.URL.Query().Get("project"))
+	projectKey := r.URL.Query().Get("project")
 
 	ticketRepo := db.NewTicketRepo(s.config.DB)
 	inboxRepo := db.NewInboxRepo(s.config.DB)
 	claimRepo := db.NewClaimRepo(s.config.DB)
 	activityRepo := db.NewActivityRepo(s.config.DB)
 
+	statusService := service.NewStatusService(ticketRepo, inboxRepo, claimRepo, activityRepo)
+	summary, err := statusService.GetSummary(projectKey)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Convert service types to API response types
 	result := StatusResponse{
-		Project:        projectKey,
+		Workable:       summary.Workable,
+		InProgress:     summary.InProgress,
+		Review:         summary.Review,
+		BlockedDeps:    summary.BlockedDeps,
+		BlockedHuman:   summary.BlockedHuman,
+		PendingInbox:   summary.PendingInbox,
+		Project:        summary.ProjectKey,
 		ExpiringSoon:   []ExpiringSoonItem{},
 		RecentActivity: []ActivityItem{},
 	}
 
-	// Count workable tickets
-	workableFilter := db.TicketFilter{
-		ProjectKey: projectKey,
-		Limit:      1000,
-	}
-	if workable, err := ticketRepo.ListWorkable(workableFilter); err == nil {
-		result.Workable = len(workable)
-	}
-
-	// Count tickets by status
-	statusInProgress := models.StatusInProgress
-	statusBlocked := models.StatusBlocked
-	statusHuman := models.StatusHuman
-
-	inProgressFilter := db.TicketFilter{
-		ProjectKey: projectKey,
-		Status:     &statusInProgress,
-		Limit:      1000,
-	}
-	if inProgress, err := ticketRepo.List(inProgressFilter); err == nil {
-		result.InProgress = len(inProgress)
+	for _, e := range summary.ExpiringSoon {
+		result.ExpiringSoon = append(result.ExpiringSoon, ExpiringSoonItem{
+			TicketKey:   e.TicketKey,
+			WorkerID:    e.WorkerID,
+			MinutesLeft: e.MinutesLeft,
+		})
 	}
 
-	blockedFilter := db.TicketFilter{
-		ProjectKey: projectKey,
-		Status:     &statusBlocked,
-		Limit:      1000,
-	}
-	if blocked, err := ticketRepo.List(blockedFilter); err == nil {
-		result.BlockedDeps = len(blocked)
-	}
-
-	humanFilter := db.TicketFilter{
-		ProjectKey: projectKey,
-		Status:     &statusHuman,
-		Limit:      1000,
-	}
-	if human, err := ticketRepo.List(humanFilter); err == nil {
-		result.BlockedHuman = len(human)
-	}
-
-	// Count pending inbox messages
-	inboxFilter := db.InboxFilter{
-		ProjectKey: projectKey,
-		Pending:    true,
-	}
-	if pending, err := inboxRepo.List(inboxFilter); err == nil {
-		result.PendingInbox = len(pending)
-	}
-
-	// Get claims expiring soon (within 30 minutes)
-	if activeClaims, err := claimRepo.ListActive(); err == nil {
-		for _, claim := range activeClaims {
-			if projectKey != "" && !strings.HasPrefix(claim.TicketKey, projectKey+"-") {
-				continue
-			}
-			if claim.MinutesRemaining <= 30 && claim.MinutesRemaining > 0 {
-				result.ExpiringSoon = append(result.ExpiringSoon, ExpiringSoonItem{
-					TicketKey:   claim.TicketKey,
-					WorkerID:    claim.WorkerID,
-					MinutesLeft: claim.MinutesRemaining,
-				})
-			}
-		}
-	}
-
-	// Get recent activity
-	activityFilter := db.ActivityFilter{
-		Limit: 5,
-	}
-	if activities, err := activityRepo.List(activityFilter); err == nil {
-		for _, a := range activities {
-			if projectKey != "" && !strings.HasPrefix(a.TicketKey, projectKey+"-") {
-				continue
-			}
-			summary := a.Summary
-			if summary == "" {
-				summary = string(a.Action)
-			}
-			result.RecentActivity = append(result.RecentActivity, ActivityItem{
-				TicketKey: a.TicketKey,
-				Action:    string(a.Action),
-				Age:       formatAge(a.CreatedAt),
-				Summary:   summary,
-			})
-		}
+	for _, a := range summary.RecentActivity {
+		result.RecentActivity = append(result.RecentActivity, ActivityItem{
+			TicketKey: a.TicketKey,
+			Action:    a.Action,
+			Age:       a.Age,
+			Summary:   a.Summary,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, result)

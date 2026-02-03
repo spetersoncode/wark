@@ -1,7 +1,7 @@
 import { CircleCheck, CircleDot, Eye, Filter, RefreshCw, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClosedColumn, KanbanCard, KanbanColumn } from "@/components/board";
+import { KanbanCard, KanbanColumn } from "@/components/board";
 import { BoardSkeleton } from "@/components/skeletons";
 import {
 	listProjects,
@@ -161,9 +161,6 @@ export default function Board() {
 		{} as Record<TicketStatus, Ticket[]>,
 	);
 
-	// Closed tickets are shown in a separate compact column
-	const closedTickets = filteredTickets.filter((t) => t.status === "closed");
-
 	const visibleColumns = filterStatus ? COLUMNS.filter((c) => c.key === filterStatus) : COLUMNS;
 
 	if (loading) {
@@ -307,8 +304,6 @@ export default function Board() {
 					</KanbanColumn>
 				))}
 
-				{/* Closed column - compact list view */}
-				{!filterStatus && <ClosedColumn tickets={closedTickets} />}
 			</div>
 		</div>
 	);

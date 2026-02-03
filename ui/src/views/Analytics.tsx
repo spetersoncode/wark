@@ -273,7 +273,7 @@ export default function Analytics() {
 
 			{/* Completion Trend */}
 			<Section title="Completion Trend (Last 30 Days)" icon={<TrendingUp className="w-5 h-5" />}>
-				{analytics.completion_trend.length > 0 ? (
+				{analytics.completion_trend && analytics.completion_trend.length > 0 ? (
 					<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
 						<div className="p-4">
 							<SimpleTrendChart data={analytics.completion_trend} />

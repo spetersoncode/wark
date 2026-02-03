@@ -42,7 +42,7 @@ func (r *ActivityRepo) Create(a *models.ActivityLog) error {
 	now := time.Now()
 	result, err := r.db.Exec(query,
 		a.TicketID, a.Action, a.ActorType, nullString(a.ActorID),
-		nullString(a.Details), nullString(a.Summary), now,
+		nullString(a.Details), nullString(a.Summary), FormatTime(now),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create activity log: %w", err)
@@ -103,7 +103,7 @@ func (r *ActivityRepo) List(filter ActivityFilter) ([]*models.ActivityLog, error
 	}
 	if filter.Since != nil {
 		query += " AND a.created_at >= ?"
-		args = append(args, *filter.Since)
+		args = append(args, FormatTime(*filter.Since))
 	}
 
 	query += " ORDER BY a.created_at DESC"

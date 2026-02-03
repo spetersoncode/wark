@@ -291,21 +291,21 @@ func (r *AnalyticsRepo) GetThroughputMetrics(filter AnalyticsFilter) (*Throughpu
 		AND t.resolution = 'completed' 
 		AND t.completed_at >= ? %s
 	`, projectWhere)
-	args := append([]interface{}{today}, projectArgs...)
+	args := append([]interface{}{FormatTime(today)}, projectArgs...)
 	err := r.db.QueryRow(query, args...).Scan(&metrics.CompletedToday)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to get today's throughput: %w", err)
 	}
 
 	// Completed this week
-	args = append([]interface{}{weekAgo}, projectArgs...)
+	args = append([]interface{}{FormatTime(weekAgo)}, projectArgs...)
 	err = r.db.QueryRow(query, args...).Scan(&metrics.CompletedWeek)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to get weekly throughput: %w", err)
 	}
 
 	// Completed this month
-	args = append([]interface{}{monthAgo}, projectArgs...)
+	args = append([]interface{}{FormatTime(monthAgo)}, projectArgs...)
 	err = r.db.QueryRow(query, args...).Scan(&metrics.CompletedMonth)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to get monthly throughput: %w", err)
@@ -359,7 +359,7 @@ func (r *AnalyticsRepo) GetCompletionTrend(filter AnalyticsFilter, days int) ([]
 
 	where, args := r.buildFilterWhere(filter, "t")
 	startDate := time.Now().AddDate(0, 0, -days)
-	args = append([]interface{}{startDate}, args...)
+	args = append([]interface{}{FormatTime(startDate)}, args...)
 
 	query := fmt.Sprintf(`
 		SELECT 
@@ -409,11 +409,11 @@ func (r *AnalyticsRepo) buildFilterWhere(filter AnalyticsFilter, alias string) (
 	}
 	if filter.Since != nil {
 		where += fmt.Sprintf(" AND %s.created_at >= ?", alias)
-		args = append(args, *filter.Since)
+		args = append(args, FormatTime(*filter.Since))
 	}
 	if filter.Until != nil {
 		where += fmt.Sprintf(" AND %s.created_at < ?", alias)
-		args = append(args, *filter.Until)
+		args = append(args, FormatTime(*filter.Until))
 	}
 
 	return where, args

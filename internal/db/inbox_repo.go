@@ -40,7 +40,7 @@ func (r *InboxRepo) Create(m *models.InboxMessage) error {
 		VALUES (?, ?, ?, ?, ?)
 	`
 	now := time.Now()
-	result, err := r.db.Exec(query, m.TicketID, m.MessageType, m.Content, nullString(m.FromAgent), now)
+	result, err := r.db.Exec(query, m.TicketID, m.MessageType, m.Content, nullString(m.FromAgent), FormatTime(now))
 	if err != nil {
 		return fmt.Errorf("failed to create inbox message: %w", err)
 	}
@@ -133,7 +133,7 @@ func (r *InboxRepo) Respond(id int64, response string) error {
 		return fmt.Errorf("response cannot be empty")
 	}
 
-	now := time.Now()
+	now := NowRFC3339()
 	query := `UPDATE inbox_messages SET response = ?, responded_at = ? WHERE id = ?`
 	result, err := r.db.Exec(query, response, now, id)
 	if err != nil {

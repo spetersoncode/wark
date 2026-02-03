@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/diogenes-ai-code/wark/internal/models"
 )
@@ -28,7 +27,7 @@ func (r *ClaimRepo) Create(c *models.Claim) error {
 		INSERT INTO claims (ticket_id, worker_id, claimed_at, expires_at, status)
 		VALUES (?, ?, ?, ?, ?)
 	`
-	result, err := r.db.Exec(query, c.TicketID, c.WorkerID, c.ClaimedAt, c.ExpiresAt, c.Status)
+	result, err := r.db.Exec(query, c.TicketID, c.WorkerID, FormatTime(c.ClaimedAt), FormatTime(c.ExpiresAt), c.Status)
 	if err != nil {
 		return fmt.Errorf("failed to create claim: %w", err)
 	}
@@ -67,7 +66,7 @@ func (r *ClaimRepo) GetActiveByTicketID(ticketID int64) (*models.Claim, error) {
 		JOIN projects p ON t.project_id = p.id
 		WHERE c.ticket_id = ? AND c.status = 'active' AND c.expires_at > ?
 	`
-	return r.scanOne(r.db.QueryRow(query, ticketID, time.Now()))
+	return r.scanOne(r.db.QueryRow(query, ticketID, NowRFC3339()))
 }
 
 // GetActiveByWorkerID retrieves all active claims for a worker.
@@ -82,7 +81,7 @@ func (r *ClaimRepo) GetActiveByWorkerID(workerID string) ([]*models.Claim, error
 		WHERE c.worker_id = ? AND c.status = 'active' AND c.expires_at > ?
 		ORDER BY c.claimed_at
 	`
-	rows, err := r.db.Query(query, workerID, time.Now())
+	rows, err := r.db.Query(query, workerID, NowRFC3339())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active claims: %w", err)
 	}
@@ -104,7 +103,7 @@ func (r *ClaimRepo) ListActive() ([]*models.Claim, error) {
 		WHERE c.status = 'active' AND c.expires_at > ?
 		ORDER BY c.expires_at
 	`
-	rows, err := r.db.Query(query, time.Now())
+	rows, err := r.db.Query(query, NowRFC3339())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active claims: %w", err)
 	}
@@ -125,7 +124,7 @@ func (r *ClaimRepo) ListExpired() ([]*models.Claim, error) {
 		WHERE c.status = 'active' AND c.expires_at <= ?
 		ORDER BY c.expires_at
 	`
-	rows, err := r.db.Query(query, time.Now())
+	rows, err := r.db.Query(query, NowRFC3339())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list expired claims: %w", err)
 	}
@@ -157,7 +156,7 @@ func (r *ClaimRepo) ListByTicketID(ticketID int64) ([]*models.Claim, error) {
 
 // Release releases a claim.
 func (r *ClaimRepo) Release(id int64, status models.ClaimStatus) error {
-	now := time.Now()
+	now := NowRFC3339()
 	query := `UPDATE claims SET status = ?, released_at = ? WHERE id = ?`
 	result, err := r.db.Exec(query, status, now, id)
 	if err != nil {
@@ -177,7 +176,7 @@ func (r *ClaimRepo) Release(id int64, status models.ClaimStatus) error {
 
 // ExpireAll marks all expired active claims as expired.
 func (r *ClaimRepo) ExpireAll() (int64, error) {
-	now := time.Now()
+	now := NowRFC3339()
 	query := `UPDATE claims SET status = 'expired', released_at = ? WHERE status = 'active' AND expires_at <= ?`
 	result, err := r.db.Exec(query, now, now)
 	if err != nil {
@@ -190,7 +189,7 @@ func (r *ClaimRepo) ExpireAll() (int64, error) {
 func (r *ClaimRepo) HasActiveClaim(ticketID int64) (bool, error) {
 	query := `SELECT 1 FROM claims WHERE ticket_id = ? AND status = 'active' AND expires_at > ? LIMIT 1`
 	var exists int
-	err := r.db.QueryRow(query, ticketID, time.Now()).Scan(&exists)
+	err := r.db.QueryRow(query, ticketID, NowRFC3339()).Scan(&exists)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}

@@ -35,7 +35,7 @@ type TicketFilter struct {
 // This is called automatically on query operations to ensure tickets don't stay orphaned.
 // Returns the number of tickets released.
 func (r *TicketRepo) AutoReleaseExpiredClaims() (int64, error) {
-	now := time.Now()
+	now := NowRFC3339()
 
 	// Find tickets that are in_progress with expired active claims
 	// We need to:
@@ -153,6 +153,7 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	now := time.Now()
+	nowStr := FormatTime(now)
 
 	// Number will be set by trigger if 0
 	number := t.Number
@@ -169,7 +170,7 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 	result, err := r.db.Exec(query,
 		t.ProjectID, number, t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
 		t.Priority, t.Complexity, nullString(t.BranchName), t.RetryCount, t.MaxRetries,
-		nullInt64(t.ParentTicketID), now, now, nullTime(t.CompletedAt),
+		nullInt64(t.ParentTicketID), nowStr, nowStr, FormatTimePtr(t.CompletedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create ticket: %w", err)
@@ -377,7 +378,7 @@ func (r *TicketRepo) Update(t *models.Ticket) error {
 	result, err := r.db.Exec(query,
 		t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
 		t.Priority, t.Complexity, nullString(t.BranchName),
-		t.RetryCount, t.MaxRetries, nullInt64(t.ParentTicketID), nullTime(t.CompletedAt),
+		t.RetryCount, t.MaxRetries, nullInt64(t.ParentTicketID), FormatTimePtr(t.CompletedAt),
 		t.ID,
 	)
 	if err != nil {

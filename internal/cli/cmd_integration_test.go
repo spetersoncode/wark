@@ -1482,3 +1482,175 @@ func TestCmdCrossProjectDependency(t *testing.T) {
 	assert.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "CPDA-1", result.Dependencies[0].TicketKey)
 }
+
+// =============================================================================
+// Human-in-the-Loop Escalation Flow Tests
+// =============================================================================
+
+func TestCmdHumanInTheLoopEscalationFlow(t *testing.T) {
+	// This test verifies the full human-in-the-loop escalation flow:
+	// 1. Agent claims a ticket and starts work
+	// 2. Agent escalates via `inbox send` with a question
+	// 3. Ticket transitions to `human` status
+	// 4. Human responds via `inbox respond`
+	// 5. Ticket transitions back to `ready` status
+	_, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	// Step 1: Create project and ticket
+	_, err := runCmd(t, dbPath, "project", "create", "HITL", "--name", "Human In The Loop")
+	require.NoError(t, err)
+
+	_, err = runCmd(t, dbPath, "ticket", "create", "HITL", "--title", "Feature with unclear requirements")
+	require.NoError(t, err)
+
+	// Verify ticket starts in ready status
+	var initialResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &initialResult, "ticket", "show", "HITL-1")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusReady, initialResult.Status)
+
+	// Step 2: Agent claims the ticket
+	output, err := runCmd(t, dbPath, "ticket", "claim", "HITL-1", "--worker-id", "agent-123")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Claimed: HITL-1")
+
+	// Verify ticket is now in_progress
+	var claimedResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &claimedResult, "ticket", "show", "HITL-1")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusInProgress, claimedResult.Status)
+
+	// Step 3: Agent sends an inbox message (escalates with a question)
+	output, err = runCmd(t, dbPath, "inbox", "send", "HITL-1", "--type", "question", "Need clarification on the authentication flow")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Message sent")
+
+	// Step 4: Verify ticket transitions to human status
+	var escalatedResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &escalatedResult, "ticket", "show", "HITL-1")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusHuman, escalatedResult.Status, "ticket should transition to human status after inbox send")
+
+	// Verify the inbox message exists (note: list output truncates long messages)
+	output, err = runCmd(t, dbPath, "inbox", "list")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Need clarification") // truncated message
+	assert.Contains(t, output, "question")
+
+	// Step 5: Human responds to the inbox message
+	output, err = runCmd(t, dbPath, "inbox", "respond", "1", "Use OAuth2 with JWT tokens for authentication")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Responded to message #1")
+
+	// Step 6: Verify ticket transitions back to ready status
+	var respondedResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &respondedResult, "ticket", "show", "HITL-1")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusReady, respondedResult.Status, "ticket should transition to ready status after human response")
+
+	// Verify the response is recorded
+	output, err = runCmd(t, dbPath, "inbox", "show", "1")
+	require.NoError(t, err)
+	assert.Contains(t, output, "Use OAuth2 with JWT tokens")
+}
+
+func TestCmdInboxSendTransitionsToHumanStatus(t *testing.T) {
+	// Test that inbox send with types that require response transitions ticket to human
+	_, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	_, _ = runCmd(t, dbPath, "project", "create", "IBOX", "--name", "Inbox Test")
+
+	// Test question type
+	_, _ = runCmd(t, dbPath, "ticket", "create", "IBOX", "--title", "Question ticket")
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "IBOX-1", "--worker-id", "agent")
+	_, err := runCmd(t, dbPath, "inbox", "send", "IBOX-1", "--type", "question", "Should I use REST or GraphQL?")
+	require.NoError(t, err)
+
+	var qResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &qResult, "ticket", "show", "IBOX-1")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusHuman, qResult.Status, "question type should transition to human")
+
+	// Test decision type
+	_, _ = runCmd(t, dbPath, "ticket", "create", "IBOX", "--title", "Decision ticket")
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "IBOX-2", "--worker-id", "agent")
+	_, err = runCmd(t, dbPath, "inbox", "send", "IBOX-2", "--type", "decision", "Choose: 1) JWT 2) Session cookies")
+	require.NoError(t, err)
+
+	var dResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &dResult, "ticket", "show", "IBOX-2")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusHuman, dResult.Status, "decision type should transition to human")
+
+	// Test escalation type
+	_, _ = runCmd(t, dbPath, "ticket", "create", "IBOX", "--title", "Escalation ticket")
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "IBOX-3", "--worker-id", "agent")
+	_, err = runCmd(t, dbPath, "inbox", "send", "IBOX-3", "--type", "escalation", "Blocked by external dependency")
+	require.NoError(t, err)
+
+	var eResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &eResult, "ticket", "show", "IBOX-3")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusHuman, eResult.Status, "escalation type should transition to human")
+}
+
+func TestCmdInboxSendInfoTypeNoStatusChange(t *testing.T) {
+	// Test that inbox send with info type does NOT transition to human
+	// (info messages are one-way and don't require response)
+	_, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	_, _ = runCmd(t, dbPath, "project", "create", "INFO", "--name", "Info Test")
+	_, _ = runCmd(t, dbPath, "ticket", "create", "INFO", "--title", "Info ticket")
+	_, _ = runCmd(t, dbPath, "ticket", "claim", "INFO-1", "--worker-id", "agent")
+
+	var beforeResult ticketShowResult
+	_ = runCmdJSON(t, dbPath, &beforeResult, "ticket", "show", "INFO-1")
+	assert.Equal(t, models.StatusInProgress, beforeResult.Status)
+
+	// Send info message (should NOT change status)
+	_, err := runCmd(t, dbPath, "inbox", "send", "INFO-1", "--type", "info", "FYI: Started working on the feature")
+	require.NoError(t, err)
+
+	var afterResult ticketShowResult
+	err = runCmdJSON(t, dbPath, &afterResult, "ticket", "show", "INFO-1")
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusInProgress, afterResult.Status, "info type should NOT change status")
+}
+
+func TestCmdInboxRespondResetsRetryCount(t *testing.T) {
+	// Test that human response resets the retry count
+	database, dbPath, cleanup := testDB(t)
+	defer cleanup()
+
+	// Create project and ticket
+	_, _ = runCmd(t, dbPath, "project", "create", "RSET", "--name", "Reset Retry")
+	_, _ = runCmd(t, dbPath, "ticket", "create", "RSET", "--title", "Retry reset ticket")
+
+	// Manually set the ticket to have a retry count
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket, err := ticketRepo.GetByKey("RSET", 1)
+	require.NoError(t, err)
+	ticket.RetryCount = 2
+	ticket.Status = models.StatusHuman
+	err = ticketRepo.Update(ticket)
+	require.NoError(t, err)
+
+	// Create an inbox message
+	inboxRepo := db.NewInboxRepo(database.DB)
+	msg := models.NewInboxMessage(ticket.ID, models.MessageTypeQuestion, "Clarify the requirements", "agent")
+	err = inboxRepo.Create(msg)
+	require.NoError(t, err)
+
+	// Respond to the message
+	_, err = runCmd(t, dbPath, "inbox", "respond", "1", "Here are the clarified requirements")
+	require.NoError(t, err)
+
+	// Verify retry count was reset
+	updatedTicket, err := ticketRepo.GetByKey("RSET", 1)
+	require.NoError(t, err)
+	assert.Equal(t, 0, updatedTicket.RetryCount, "retry count should be reset after human response")
+	assert.Equal(t, models.StatusReady, updatedTicket.Status, "status should be ready after human response")
+}

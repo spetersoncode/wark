@@ -8,7 +8,6 @@ import (
 
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -161,14 +160,13 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Generate worker ID if not provided
+	// Get worker ID (required for claiming)
 	workerID := claimWorkerID
 	if workerID == "" {
-		// Try config default, then generate UUID
 		workerID = GetDefaultWorkerID()
-		if workerID == "" {
-			workerID = uuid.New().String()[:8]
-		}
+	}
+	if workerID == "" {
+		return ErrInvalidArgs("--worker-id is required to claim tickets")
 	}
 
 	// Create claim using config duration

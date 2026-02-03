@@ -11,7 +11,6 @@ import (
 	"github.com/diogenes-ai-code/wark/internal/models"
 	"github.com/diogenes-ai-code/wark/internal/state"
 	"github.com/diogenes-ai-code/wark/internal/tasks"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -27,8 +26,9 @@ var (
 
 func init() {
 	// ticket claim
-	ticketClaimCmd.Flags().StringVar(&claimWorkerID, "worker-id", "", "Worker identifier (default: auto-generated UUID)")
+	ticketClaimCmd.Flags().StringVar(&claimWorkerID, "worker-id", "", "Worker identifier (required)")
 	ticketClaimCmd.Flags().IntVar(&claimDuration, "duration", 60, "Claim duration in minutes")
+	ticketClaimCmd.MarkFlagRequired("worker-id")
 
 	// ticket release
 	ticketReleaseCmd.Flags().StringVar(&releaseReason, "reason", "", "Reason for release (logged)")
@@ -131,14 +131,13 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Generate worker ID if not provided
+	// Get worker ID (required flag, but check config default as fallback)
 	workerID := claimWorkerID
 	if workerID == "" {
-		// Try config default, then generate UUID
 		workerID = GetDefaultWorkerID()
-		if workerID == "" {
-			workerID = uuid.New().String()[:8]
-		}
+	}
+	if workerID == "" {
+		return ErrInvalidArgs("--worker-id is required")
 	}
 
 	// Get duration - use flag if changed from default, otherwise check config

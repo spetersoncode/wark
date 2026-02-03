@@ -11,7 +11,9 @@ export default function NotFound() {
 			</div>
 			<h2 className="text-3xl font-bold mb-2">Page not found</h2>
 			<p className="text-[var(--muted-foreground)] mb-2">
-				The page <code className="px-2 py-1 bg-[var(--secondary)] rounded text-sm">{location.pathname}</code> doesn't exist.
+				The page{" "}
+				<code className="px-2 py-1 bg-[var(--secondary)] rounded text-sm">{location.pathname}</code>{" "}
+				doesn't exist.
 			</p>
 			<p className="text-[var(--muted-foreground)] mb-8">
 				Check the URL or head back to the dashboard.

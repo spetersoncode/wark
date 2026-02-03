@@ -2,10 +2,10 @@ import { BarChart3, Clock, RefreshCw, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
+	type AnalyticsResult,
 	ApiError,
 	getAnalytics,
 	listProjects,
-	type AnalyticsResult,
 	type ProjectWithStats,
 } from "../lib/api";
 import { cn } from "../lib/utils";
@@ -267,7 +267,9 @@ export default function Analytics() {
 						</table>
 					</div>
 				) : (
-					<p className="text-[var(--muted-foreground)]">No completed tickets with cycle time data</p>
+					<p className="text-[var(--muted-foreground)]">
+						No completed tickets with cycle time data
+					</p>
 				)}
 			</Section>
 
@@ -370,9 +372,7 @@ function SimpleTrendChart({ data }: { data: Array<{ date: string; count: number 
 					<Bar dataKey="count" fill="var(--primary)" radius={[2, 2, 0, 0]} />
 				</BarChart>
 			</ResponsiveContainer>
-			<p className="text-sm text-center text-[var(--muted-foreground)]">
-				Total: {total} completed
-			</p>
+			<p className="text-sm text-center text-[var(--muted-foreground)]">Total: {total} completed</p>
 		</div>
 	);
 }

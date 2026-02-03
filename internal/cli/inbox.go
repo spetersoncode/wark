@@ -166,11 +166,11 @@ func runInboxShow(cmd *cobra.Command, args []string) error {
 	if message.FromAgent != "" {
 		fmt.Printf("From Agent: %s\n", message.FromAgent)
 	}
-	fmt.Printf("Created:    %s\n", message.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Created:    %s\n", message.CreatedAt.Local().Format("2006-01-02 15:04:05"))
 
 	status := "Pending response"
 	if message.RespondedAt != nil {
-		status = fmt.Sprintf("Responded on %s", message.RespondedAt.Format("2006-01-02 15:04:05"))
+		status = fmt.Sprintf("Responded on %s", message.RespondedAt.Local().Format("2006-01-02 15:04:05"))
 	}
 	fmt.Printf("Status:     %s\n", status)
 

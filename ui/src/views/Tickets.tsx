@@ -1,7 +1,11 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, Filter, ListTodo, RefreshCw, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
+import {
+	useListNavigationShortcuts,
+	useRefreshShortcut,
+} from "../components/KeyboardShortcutsProvider";
 import { PriorityIndicator } from "../components/PriorityIndicator";
 import { StatusBadge } from "../components/StatusBadge";
 import { TicketsListSkeleton } from "../components/skeletons";
@@ -89,6 +93,7 @@ const COMPLEXITIES: { value: TicketComplexity; label: string }[] = [
 
 export default function Tickets() {
 	const [searchParams, setSearchParams] = useSearchParams();
+	const navigate = useNavigate();
 
 	// Read filters from URL
 	const filterProject = searchParams.get("project");
@@ -107,6 +112,7 @@ export default function Tickets() {
 	const [loading, setLoading] = useState(true);
 	const [sortField, setSortField] = useState<SortField>("created_at");
 	const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+	const [selectedIndex, setSelectedIndex] = useState(-1);
 
 	// Build a map of project keys to names for display
 	const projectMap = new Map(projects.map((p) => [p.key, p.name]));
@@ -171,6 +177,80 @@ export default function Tickets() {
 	// Auto-refresh every 10 seconds when tab is visible
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchData, [fetchData]);
 
+	// Register "r" keyboard shortcut for refresh
+	useRefreshShortcut(handleRefresh);
+
+	// Stable compare function for sorting
+	const compareTickets = useCallback(
+		(a: Ticket, b: Ticket): number => {
+			let comparison = 0;
+
+			switch (sortField) {
+				case "ticket_key":
+					if (a.project_key !== b.project_key) {
+						comparison = a.project_key.localeCompare(b.project_key);
+					} else {
+						comparison = a.number - b.number;
+					}
+					break;
+				case "title":
+					comparison = a.title.localeCompare(b.title);
+					break;
+				case "status":
+					comparison = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+					break;
+				case "priority":
+					comparison = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+					break;
+				case "complexity":
+					comparison = COMPLEXITY_ORDER[a.complexity] - COMPLEXITY_ORDER[b.complexity];
+					break;
+				case "project":
+					comparison = a.project_key.localeCompare(b.project_key);
+					break;
+				case "created_at":
+					comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+					break;
+			}
+
+			return sortDirection === "asc" ? comparison : -comparison;
+		},
+		[sortField, sortDirection],
+	);
+
+	// Memoize sorted tickets to avoid recalculating on every render
+	const sortedTicketsMemo = useMemo(() => {
+		return [...tickets].sort(compareTickets);
+	}, [tickets, compareTickets]);
+
+	// List navigation handlers for j/k/Enter shortcuts
+	const listNavigationHandlers = useMemo(
+		() => ({
+			onNext: () => {
+				setSelectedIndex((prev) => (prev < sortedTicketsMemo.length - 1 ? prev + 1 : prev));
+			},
+			onPrevious: () => {
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+			},
+			onSelect: () => {
+				if (selectedIndex >= 0 && selectedIndex < sortedTicketsMemo.length) {
+					navigate(`/tickets/${sortedTicketsMemo[selectedIndex].ticket_key}`);
+				}
+			},
+			itemCount: sortedTicketsMemo.length,
+		}),
+		[sortedTicketsMemo, selectedIndex, navigate],
+	);
+
+	// Register j/k/Enter shortcuts for list navigation
+	useListNavigationShortcuts(listNavigationHandlers);
+
+	// Reset selected index when tickets change
+	// biome-ignore lint/correctness/useExhaustiveDependencies: we intentionally want to reset on tickets change
+	useEffect(() => {
+		setSelectedIndex(-1);
+	}, [tickets]);
+
 	function handleSort(field: SortField) {
 		if (sortField === field) {
 			setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -178,44 +258,12 @@ export default function Tickets() {
 			setSortField(field);
 			setSortDirection("asc");
 		}
+		// Reset selection when sort changes
+		setSelectedIndex(-1);
 	}
 
-	function compareTickets(a: Ticket, b: Ticket): number {
-		let comparison = 0;
-
-		switch (sortField) {
-			case "ticket_key":
-				// Sort by project key first, then by number
-				if (a.project_key !== b.project_key) {
-					comparison = a.project_key.localeCompare(b.project_key);
-				} else {
-					comparison = a.number - b.number;
-				}
-				break;
-			case "title":
-				comparison = a.title.localeCompare(b.title);
-				break;
-			case "status":
-				comparison = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-				break;
-			case "priority":
-				comparison = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-				break;
-			case "complexity":
-				comparison = COMPLEXITY_ORDER[a.complexity] - COMPLEXITY_ORDER[b.complexity];
-				break;
-			case "project":
-				comparison = a.project_key.localeCompare(b.project_key);
-				break;
-			case "created_at":
-				comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-				break;
-		}
-
-		return sortDirection === "asc" ? comparison : -comparison;
-	}
-
-	const sortedTickets = [...tickets].sort(compareTickets);
+	// Use the memoized sorted tickets
+	const sortedTickets = sortedTicketsMemo;
 
 	function SortHeader({
 		field,
@@ -409,8 +457,16 @@ export default function Tickets() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{sortedTickets.map((ticket) => (
-									<TableRow key={ticket.id} className="hover:bg-muted/50 transition-colors">
+								{sortedTickets.map((ticket, index) => (
+									<TableRow
+										key={ticket.id}
+										className={cn(
+											"hover:bg-muted/50 transition-colors cursor-pointer",
+											selectedIndex === index && "bg-[var(--accent)] ring-1 ring-[var(--primary)]",
+										)}
+										onClick={() => setSelectedIndex(index)}
+										onDoubleClick={() => navigate(`/tickets/${ticket.ticket_key}`)}
+									>
 										<TableCell className="py-4">
 											<Link
 												to={`/tickets/${ticket.ticket_key}`}

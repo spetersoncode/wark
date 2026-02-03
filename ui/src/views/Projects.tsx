@@ -1,6 +1,7 @@
 import { FolderKanban, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useRefreshShortcut } from "../components/KeyboardShortcutsProvider";
 import { ProjectsSkeleton } from "../components/skeletons";
 import { ApiError, listProjects, type ProjectWithStats } from "../lib/api";
 import { useAutoRefresh } from "../lib/hooks";
@@ -34,6 +35,9 @@ export default function Projects() {
 
 	// Auto-refresh every 10 seconds when tab is visible
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchProjects, [fetchProjects]);
+
+	// Register "r" keyboard shortcut for refresh
+	useRefreshShortcut(handleRefresh);
 
 	if (loading) {
 		return <ProjectsSkeleton />;

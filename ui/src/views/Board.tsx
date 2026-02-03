@@ -1,15 +1,8 @@
-import {
-	CircleCheck,
-	CircleDot,
-	Eye,
-	Filter,
-	RefreshCw,
-	UserRound,
-	X,
-} from "lucide-react";
+import { CircleCheck, CircleDot, Eye, Filter, RefreshCw, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { KanbanCard, KanbanColumn, ClosedColumn } from "@/components/board";
+import { useRefreshShortcut } from "@/components/KeyboardShortcutsProvider";
 import { BoardSkeleton } from "@/components/skeletons";
 import {
 	listProjects,
@@ -150,6 +143,9 @@ export default function Board() {
 	// Auto-refresh every 10 seconds when tab is visible
 	const { refreshing, refresh: handleRefresh } = useAutoRefresh(fetchData, [fetchData]);
 
+	// Register "r" keyboard shortcut for refresh
+	useRefreshShortcut(handleRefresh);
+
 	// Apply client-side complexity filter (API doesn't support it)
 	const filteredTickets = filterComplexity
 		? tickets.filter((t) => t.complexity === filterComplexity)
@@ -160,9 +156,7 @@ export default function Board() {
 		(acc, { key }) => {
 			if (key === "ready") {
 				// Ready column includes both ready and blocked tickets
-				acc[key] = filteredTickets.filter(
-					(t) => t.status === "ready" || t.status === "blocked"
-				);
+				acc[key] = filteredTickets.filter((t) => t.status === "ready" || t.status === "blocked");
 			} else {
 				acc[key] = filteredTickets.filter((t) => t.status === key);
 			}
@@ -174,9 +168,7 @@ export default function Board() {
 	// Closed tickets are shown in a separate compact column
 	const closedTickets = filteredTickets.filter((t) => t.status === "closed");
 
-	const visibleColumns = filterStatus
-		? COLUMNS.filter((c) => c.key === filterStatus)
-		: COLUMNS;
+	const visibleColumns = filterStatus ? COLUMNS.filter((c) => c.key === filterStatus) : COLUMNS;
 
 	if (loading) {
 		return <BoardSkeleton />;

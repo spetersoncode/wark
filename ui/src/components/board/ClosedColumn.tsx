@@ -24,7 +24,7 @@ export function ClosedColumn({ tickets, maxVisible = 8 }: ClosedColumnProps) {
 		<div
 			className={cn(
 				"flex-shrink-0 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg",
-				"border-l-2 border-l-[var(--status-closed)]"
+				"border-l-2 border-l-[var(--status-closed)]",
 			)}
 		>
 			{/* Column header */}
@@ -41,9 +41,7 @@ export function ClosedColumn({ tickets, maxVisible = 8 }: ClosedColumnProps) {
 			{/* Compact list */}
 			<div className="p-2 max-h-[calc(100vh-16rem)] overflow-y-auto">
 				{tickets.length === 0 ? (
-					<p className="text-sm text-[var(--foreground-subtle)] text-center py-6">
-						(no tickets)
-					</p>
+					<p className="text-sm text-[var(--foreground-subtle)] text-center py-6">(no tickets)</p>
 				) : (
 					<>
 						<ul className="space-y-1">
@@ -53,10 +51,7 @@ export function ClosedColumn({ tickets, maxVisible = 8 }: ClosedColumnProps) {
 										to={`/tickets/${ticket.ticket_key}`}
 										className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-[var(--background-muted)] transition-colors"
 									>
-										<PriorityIndicator
-											priority={ticket.priority as Priority}
-											variant="dot"
-										/>
+										<PriorityIndicator priority={ticket.priority as Priority} variant="dot" />
 										<span className="font-mono text-xs text-[var(--foreground-muted)] truncate">
 											{ticket.ticket_key}
 										</span>

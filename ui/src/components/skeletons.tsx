@@ -337,7 +337,11 @@ export function BoardSkeleton() {
 			{/* Kanban columns */}
 			<div className="flex gap-4 overflow-x-auto pb-4">
 				{columns.map((col) => (
-					<KanbanColumnSkeleton key={col.borderColor} borderColor={col.borderColor} cardCount={col.cards} />
+					<KanbanColumnSkeleton
+						key={col.borderColor}
+						borderColor={col.borderColor}
+						cardCount={col.cards}
+					/>
 				))}
 				{/* Compact closed column */}
 				<ClosedColumnSkeleton itemCount={6} />

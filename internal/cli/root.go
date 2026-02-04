@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/diogenes-ai-code/wark/internal/backup"
 	"github.com/diogenes-ai-code/wark/internal/config"
+	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -38,6 +40,14 @@ const (
 	ExitConcurrentConflict = 6
 )
 
+// skipBackupCommands lists commands that should not trigger automatic backup.
+// These are either commands that don't need a database, or that initialize it.
+var skipBackupCommands = map[string]bool{
+	"help":    true,
+	"version": true,
+	"init":    true,
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "wark",
 	Short: "Local-first CLI task management for AI agent orchestration",
@@ -52,6 +62,9 @@ Use "wark --help" to see all available commands.`,
 	Version:       Version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return runAutoBackup(cmd)
+	},
 }
 
 func init() {
@@ -96,6 +109,71 @@ func shortDate() string {
 // Execute runs the root command
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+// runAutoBackup performs automatic backup if needed before command execution.
+// It skips backup for commands that don't need it (help, version, init).
+func runAutoBackup(cmd *cobra.Command) error {
+	// Skip for certain commands
+	cmdName := cmd.Name()
+	if skipBackupCommands[cmdName] {
+		return nil
+	}
+
+	// Skip if no config loaded
+	if globalConfig == nil {
+		return nil
+	}
+
+	// Skip if backups are disabled
+	if !globalConfig.Backup.Enabled {
+		return nil
+	}
+
+	// Get the database path
+	dbPath := GetDBPath()
+	if dbPath == "" {
+		dbPath = db.DefaultDBPath
+	}
+	// Expand ~ in the path
+	dbPath = expandPath(dbPath)
+
+	// Check if database exists - no point backing up a non-existent database
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	// Create backup manager and run backup if needed
+	mgr := backup.NewManager(dbPath, globalConfig.Backup)
+	backupPath, err := mgr.BackupIfNeeded()
+	if err != nil {
+		// Log warning but don't fail the command
+		VerboseOutput("Warning: automatic backup failed: %v\n", err)
+		return nil
+	}
+
+	if backupPath != "" && verbose {
+		VerboseOutput("Created backup: %s\n", backupPath)
+	}
+
+	return nil
+}
+
+// expandPath expands ~ to the user's home directory.
+func expandPath(path string) string {
+	if len(path) == 0 {
+		return path
+	}
+
+	if path[0] == '~' {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return home + path[1:]
+	}
+
+	return path
 }
 
 // GetDBPath returns the database path from flags, config, or default.

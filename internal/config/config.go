@@ -15,6 +15,27 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// BackupConfig holds backup-related configuration.
+type BackupConfig struct {
+	// Enabled controls whether automatic backups are performed on startup.
+	// Default: true
+	Enabled bool `toml:"enabled"`
+
+	// IntervalHours is how often to take a backup (in hours).
+	// If the last backup is older than this, a new one will be created.
+	// Default: 24
+	IntervalHours int `toml:"interval_hours"`
+
+	// MaxCount is the maximum number of backup files to keep.
+	// Oldest backups are deleted when this limit is exceeded.
+	// Default: 5
+	MaxCount int `toml:"max_count"`
+
+	// Path is the directory where backup files are stored.
+	// Default: same directory as the database file
+	Path string `toml:"path"`
+}
+
 // Config represents the wark configuration.
 type Config struct {
 	// DB is the path to the database file.
@@ -37,6 +58,9 @@ type Config struct {
 	// Used when --duration flag is not specified.
 	// Default: 60
 	ClaimDuration int `toml:"claim_duration"`
+
+	// Backup contains backup-related settings.
+	Backup BackupConfig `toml:"backup"`
 }
 
 // DefaultConfig returns a Config with default values.
@@ -45,6 +69,12 @@ func DefaultConfig() *Config {
 		DB:            "", // Empty means use db.DefaultDBPath
 		NoColor:       false,
 		ClaimDuration: 60,
+		Backup: BackupConfig{
+			Enabled:       true,
+			IntervalHours: 24,
+			MaxCount:      5,
+			Path:          "", // Empty means same directory as database
+		},
 	}
 }
 
@@ -115,6 +145,27 @@ func (c *Config) applyEnv() {
 			c.ClaimDuration = d
 		}
 	}
+
+	// Backup settings
+	if _, ok := os.LookupEnv("WARK_BACKUP_DISABLED"); ok {
+		c.Backup.Enabled = false
+	}
+
+	if interval := os.Getenv("WARK_BACKUP_INTERVAL_HOURS"); interval != "" {
+		if i, err := strconv.Atoi(interval); err == nil && i > 0 {
+			c.Backup.IntervalHours = i
+		}
+	}
+
+	if maxCount := os.Getenv("WARK_BACKUP_MAX_COUNT"); maxCount != "" {
+		if m, err := strconv.Atoi(maxCount); err == nil && m > 0 {
+			c.Backup.MaxCount = m
+		}
+	}
+
+	if backupPath := os.Getenv("WARK_BACKUP_PATH"); backupPath != "" {
+		c.Backup.Path = backupPath
+	}
 }
 
 // GetDB returns the database path, using the default if not set.
@@ -161,6 +212,30 @@ func SampleConfig() string {
 # Default: 60
 # Environment: WARK_CLAIM_DURATION
 # claim_duration = 60
+
+# =============================================================================
+# Backup Settings
+# =============================================================================
+
+[backup]
+# Enable automatic backups on startup
+# Default: true
+# Environment: WARK_BACKUP_DISABLED (any value = disable backups)
+# enabled = true
+
+# Hours between backups (backup only taken if last backup is older than this)
+# Default: 24
+# Environment: WARK_BACKUP_INTERVAL_HOURS
+# interval_hours = 24
+
+# Maximum number of backup files to keep (oldest deleted when exceeded)
+# Default: 5
+# Environment: WARK_BACKUP_MAX_COUNT
+# max_count = 5
+
+# Directory for backup files (default: same directory as database)
+# Environment: WARK_BACKUP_PATH
+# path = "/path/to/backups"
 `
 }
 

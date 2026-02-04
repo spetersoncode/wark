@@ -16,6 +16,12 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, "", cfg.DefaultProject)
 	assert.Equal(t, "", cfg.DefaultWorkerID)
 	assert.Equal(t, 60, cfg.ClaimDuration)
+
+	// Backup defaults
+	assert.True(t, cfg.Backup.Enabled)
+	assert.Equal(t, 24, cfg.Backup.IntervalHours)
+	assert.Equal(t, 5, cfg.Backup.MaxCount)
+	assert.Equal(t, "", cfg.Backup.Path)
 }
 
 func TestLoadFromPath_MissingFile(t *testing.T) {
@@ -293,4 +299,116 @@ func TestPriorityOrder(t *testing.T) {
 	cfg, err = LoadFromPath(configPath)
 	require.NoError(t, err)
 	assert.Equal(t, 90, cfg.ClaimDuration) // env overrides file
+}
+
+func TestBackupConfig_FromFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	content := `
+[backup]
+enabled = false
+interval_hours = 12
+max_count = 3
+path = "/custom/backup/path"
+`
+	err := os.WriteFile(configPath, []byte(content), 0644)
+	require.NoError(t, err)
+
+	cfg, err := LoadFromPath(configPath)
+	require.NoError(t, err)
+
+	assert.False(t, cfg.Backup.Enabled)
+	assert.Equal(t, 12, cfg.Backup.IntervalHours)
+	assert.Equal(t, 3, cfg.Backup.MaxCount)
+	assert.Equal(t, "/custom/backup/path", cfg.Backup.Path)
+}
+
+func TestBackupConfig_PartialFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	// Only specify some backup settings
+	content := `
+[backup]
+interval_hours = 48
+`
+	err := os.WriteFile(configPath, []byte(content), 0644)
+	require.NoError(t, err)
+
+	cfg, err := LoadFromPath(configPath)
+	require.NoError(t, err)
+
+	// Specified value
+	assert.Equal(t, 48, cfg.Backup.IntervalHours)
+	// Default values for unspecified
+	assert.True(t, cfg.Backup.Enabled)
+	assert.Equal(t, 5, cfg.Backup.MaxCount)
+	assert.Equal(t, "", cfg.Backup.Path)
+}
+
+func TestBackupConfig_EnvOverrides(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	content := `
+[backup]
+enabled = true
+interval_hours = 24
+max_count = 5
+path = "/file/path"
+`
+	err := os.WriteFile(configPath, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Set environment variables
+	t.Setenv("WARK_BACKUP_DISABLED", "1")
+	t.Setenv("WARK_BACKUP_INTERVAL_HOURS", "6")
+	t.Setenv("WARK_BACKUP_MAX_COUNT", "10")
+	t.Setenv("WARK_BACKUP_PATH", "/env/path")
+
+	cfg, err := LoadFromPath(configPath)
+	require.NoError(t, err)
+
+	// Environment variables should override file values
+	assert.False(t, cfg.Backup.Enabled)
+	assert.Equal(t, 6, cfg.Backup.IntervalHours)
+	assert.Equal(t, 10, cfg.Backup.MaxCount)
+	assert.Equal(t, "/env/path", cfg.Backup.Path)
+}
+
+func TestBackupConfig_InvalidEnvValues(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	content := `
+[backup]
+interval_hours = 24
+max_count = 5
+`
+	err := os.WriteFile(configPath, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Invalid values should be ignored
+	t.Setenv("WARK_BACKUP_INTERVAL_HOURS", "invalid")
+	t.Setenv("WARK_BACKUP_MAX_COUNT", "0") // Zero should be ignored
+
+	cfg, err := LoadFromPath(configPath)
+	require.NoError(t, err)
+
+	// Should keep file values when env is invalid
+	assert.Equal(t, 24, cfg.Backup.IntervalHours)
+	assert.Equal(t, 5, cfg.Backup.MaxCount)
+}
+
+func TestSampleConfig_IncludesBackup(t *testing.T) {
+	sample := SampleConfig()
+	assert.Contains(t, sample, "[backup]")
+	assert.Contains(t, sample, "enabled")
+	assert.Contains(t, sample, "interval_hours")
+	assert.Contains(t, sample, "max_count")
+	assert.Contains(t, sample, "WARK_BACKUP_DISABLED")
+	assert.Contains(t, sample, "WARK_BACKUP_INTERVAL_HOURS")
+	assert.Contains(t, sample, "WARK_BACKUP_MAX_COUNT")
+	assert.Contains(t, sample, "WARK_BACKUP_PATH")
 }

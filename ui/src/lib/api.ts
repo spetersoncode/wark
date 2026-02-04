@@ -319,6 +319,27 @@ export interface AnalyticsFilter {
 	trend_days?: number;
 }
 
+export type MilestoneStatus = "open" | "achieved" | "abandoned";
+
+export interface Milestone {
+	id: number;
+	project_id: number;
+	project_key: string;
+	key: string;
+	name: string;
+	goal?: string;
+	target_date?: string;
+	status: MilestoneStatus;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface MilestoneWithStats extends Milestone {
+	ticket_count: number;
+	completed_count: number;
+	completion_pct: number;
+}
+
 export interface AnalyticsResult {
 	success: SuccessMetrics;
 	human_interaction: HumanInteractionMetrics;
@@ -343,3 +364,15 @@ export const getAnalytics = (params?: AnalyticsFilter) => {
 	const queryStr = query.toString();
 	return fetchApi<AnalyticsResult>(`/analytics${queryStr ? `?${queryStr}` : ""}`);
 };
+
+// Milestones
+export const listMilestones = (projectKey?: string) => {
+	const query = projectKey ? `?project=${projectKey}` : "";
+	return fetchApi<MilestoneWithStats[]>(`/milestones${query}`);
+};
+
+export const getMilestone = (key: string) =>
+	fetchApi<MilestoneWithStats>(`/milestones/${key}`);
+
+export const getMilestoneTickets = (key: string) =>
+	fetchApi<Ticket[]>(`/milestones/${key}/tickets`);

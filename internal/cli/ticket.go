@@ -16,19 +16,21 @@ import (
 
 // Ticket command flags
 var (
-	ticketTitle       string
-	ticketDescription string
-	ticketPriority    string
-	ticketComplexity  string
-	ticketDependsOn   []string
-	ticketParent      string
-	ticketProject     string
-	ticketStatus      []string
-	ticketWorkable    bool
-	ticketReviewable  bool
-	ticketLimit       int
-	ticketAddDep      []string
-	ticketRemoveDep   []string
+	ticketTitle          string
+	ticketDescription    string
+	ticketPriority       string
+	ticketComplexity     string
+	ticketDependsOn      []string
+	ticketParent         string
+	ticketMilestone      string
+	ticketProject        string
+	ticketStatus         []string
+	ticketWorkable       bool
+	ticketReviewable     bool
+	ticketLimit          int
+	ticketAddDep         []string
+	ticketRemoveDep      []string
+	ticketClearMilestone bool
 )
 
 func init() {
@@ -39,6 +41,7 @@ func init() {
 	ticketCreateCmd.Flags().StringVarP(&ticketComplexity, "complexity", "c", "medium", "Complexity estimate (trivial, small, medium, large, xlarge)")
 	ticketCreateCmd.Flags().StringSliceVar(&ticketDependsOn, "depends-on", nil, "Ticket IDs this depends on (comma-separated)")
 	ticketCreateCmd.Flags().StringVar(&ticketParent, "parent", "", "Parent ticket ID")
+	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
 	ticketCreateCmd.MarkFlagRequired("title")
 
 	// ticket list
@@ -49,6 +52,7 @@ func init() {
 	ticketListCmd.Flags().BoolVarP(&ticketWorkable, "workable", "w", false, "Show only workable tickets")
 	ticketListCmd.Flags().BoolVarP(&ticketReviewable, "reviewable", "r", false, "Show only tickets in review status")
 	ticketListCmd.Flags().IntVarP(&ticketLimit, "limit", "l", 50, "Max tickets to show")
+	ticketListCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Filter by milestone (key or PROJECT/KEY)")
 
 	// ticket edit
 	ticketEditCmd.Flags().StringVar(&ticketTitle, "title", "", "New title")
@@ -58,11 +62,16 @@ func init() {
 	ticketEditCmd.Flags().StringSliceVar(&ticketAddDep, "add-dep", nil, "Add dependencies (comma-separated)")
 	ticketEditCmd.Flags().StringSliceVar(&ticketRemoveDep, "remove-dep", nil, "Remove dependencies (comma-separated)")
 
+	// ticket link
+	ticketLinkCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
+	ticketLinkCmd.Flags().BoolVar(&ticketClearMilestone, "clear-milestone", false, "Remove milestone association")
+
 	// Add subcommands
 	ticketCmd.AddCommand(ticketCreateCmd)
 	ticketCmd.AddCommand(ticketListCmd)
 	ticketCmd.AddCommand(ticketShowCmd)
 	ticketCmd.AddCommand(ticketEditCmd)
+	ticketCmd.AddCommand(ticketLinkCmd)
 
 	rootCmd.AddCommand(ticketCmd)
 }
@@ -112,6 +121,35 @@ func resolveTicket(database *db.DB, key string, defaultProject string) (*models.
 	return ticket, nil
 }
 
+// resolveMilestone looks up a milestone by key (supports PROJECT/KEY or just KEY with default project)
+func resolveMilestone(database *db.DB, key string, defaultProject string) (*models.Milestone, error) {
+	projectKey, milestoneKey, err := parseMilestoneKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	if projectKey == "" {
+		projectKey = defaultProject
+	}
+	if projectKey == "" {
+		return nil, ErrInvalidArgsWithSuggestion(
+			"Use PROJECT/MILESTONE format (e.g., WEBAPP/MVP) or specify project context.",
+			"project key required for milestone",
+		)
+	}
+
+	milestoneRepo := db.NewMilestoneRepo(database.DB)
+	milestone, err := milestoneRepo.GetByKey(projectKey, milestoneKey)
+	if err != nil {
+		return nil, ErrDatabase(err, "failed to get milestone")
+	}
+	if milestone == nil {
+		return nil, ErrNotFoundWithSuggestion(SuggestListMilestones, "milestone %s/%s not found", projectKey, milestoneKey)
+	}
+
+	return milestone, nil
+}
+
 // generateBranchName generates a git branch name for a ticket
 func generateBranchName(projectKey string, number int, title string) string {
 	// Convert title to slug
@@ -153,7 +191,8 @@ in which case they start in 'blocked' status.
 Examples:
   wark ticket create WEBAPP --title "Add user login page"
   wark ticket create WEBAPP -t "Implement OAuth2" -d "Support Google/GitHub OAuth" -p high -c large
-  wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15`,
+  wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15
+  wark ticket create WEBAPP -t "Add login" --milestone MVP`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketCreate,
 }
@@ -221,6 +260,23 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		ticket.ParentTicketID = &parentTicket.ID
 	}
 
+	// Handle milestone
+	if ticketMilestone != "" {
+		milestone, err := resolveMilestone(database, ticketMilestone, projectKey)
+		if err != nil {
+			return err
+		}
+		// Validate milestone belongs to same project
+		if milestone.ProjectID != project.ID {
+			return ErrInvalidArgsWithSuggestion(
+				"Milestone must belong to the same project as the ticket.",
+				"milestone %s belongs to a different project", ticketMilestone,
+			)
+		}
+		ticket.MilestoneID = &milestone.ID
+		ticket.MilestoneKey = milestone.Key
+	}
+
 	ticketRepo := db.NewTicketRepo(database.DB)
 	if err := ticketRepo.Create(ticket); err != nil {
 		return ErrDatabase(err, "failed to create ticket")
@@ -285,6 +341,9 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	OutputLine("Title: %s", ticket.Title)
 	OutputLine("Status: %s", ticket.Status)
 	OutputLine("Branch: %s", branchName)
+	if ticket.MilestoneKey != "" {
+		OutputLine("Milestone: %s/%s", ticket.ProjectKey, ticket.MilestoneKey)
+	}
 
 	return nil
 }
@@ -300,7 +359,8 @@ Examples:
   wark ticket list --status ready,in_progress
   wark ticket list --workable
   wark ticket list --reviewable
-  wark ticket list --priority high,highest`,
+  wark ticket list --priority high,highest
+  wark ticket list --milestone MVP`,
 	Args: cobra.NoArgs,
 	RunE: runTicketList,
 }
@@ -323,18 +383,25 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 
 	var tickets []*models.Ticket
 
-	if ticketWorkable {
-		filter := db.TicketFilter{
-			ProjectKey: strings.ToUpper(ticketProject),
-			Limit:      ticketLimit,
+	// Build base filter
+	filter := db.TicketFilter{
+		ProjectKey: strings.ToUpper(ticketProject),
+		Limit:      ticketLimit,
+	}
+
+	// Handle milestone filter (applies to both workable and regular list)
+	if ticketMilestone != "" {
+		// Resolve milestone to get its key for filtering
+		milestone, err := resolveMilestone(database, ticketMilestone, strings.ToUpper(ticketProject))
+		if err != nil {
+			return err
 		}
+		filter.MilestoneID = &milestone.ID
+	}
+
+	if ticketWorkable {
 		tickets, err = ticketRepo.ListWorkable(filter)
 	} else {
-		filter := db.TicketFilter{
-			ProjectKey: strings.ToUpper(ticketProject),
-			Limit:      ticketLimit,
-		}
-
 		// Handle --reviewable flag (filter to review status)
 		if ticketReviewable {
 			reviewStatus := models.StatusReview
@@ -413,25 +480,30 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table format
-	fmt.Printf("%-12s %-12s %-8s %-8s %s\n", "ID", "STATUS", "PRI", "COMP", "TITLE")
-	fmt.Println(strings.Repeat("-", 80))
+	fmt.Printf("%-12s %-12s %-8s %-8s %-10s %s\n", "ID", "STATUS", "PRI", "COMP", "MILESTONE", "TITLE")
+	fmt.Println(strings.Repeat("-", 90))
 	for _, t := range tickets {
 		statusDisplay := string(t.Status)
+		milestoneDisplay := ""
+		if t.MilestoneKey != "" {
+			milestoneDisplay = t.MilestoneKey
+		}
 
 		// Add task progress indicator for workable tickets
-		titleDisplay := truncate(t.Title, 40)
+		titleDisplay := truncate(t.Title, 35)
 		if ticketWorkable {
 			if counts, ok := taskCountsMap[t.ID]; ok && counts.Total > 0 {
 				taskIndicator := fmt.Sprintf(" (task %d/%d)", counts.Completed+1, counts.Total)
-				titleDisplay = truncate(t.Title, 40-len(taskIndicator)) + taskIndicator
+				titleDisplay = truncate(t.Title, 35-len(taskIndicator)) + taskIndicator
 			}
 		}
 
-		fmt.Printf("%-12s %-12s %-8s %-8s %s\n",
+		fmt.Printf("%-12s %-12s %-8s %-8s %-10s %s\n",
 			t.TicketKey,
 			statusDisplay,
 			t.Priority,
 			t.Complexity,
+			truncate(milestoneDisplay, 10),
 			titleDisplay,
 		)
 	}
@@ -461,6 +533,7 @@ type ticketShowResult struct {
 	TasksComplete  int                    `json:"tasks_complete,omitempty"`
 	TasksTotal     int                    `json:"tasks_total,omitempty"`
 	Claim          *models.Claim          `json:"claim,omitempty"`
+	MilestoneLink  string                 `json:"milestone_link,omitempty"` // Full milestone key (PROJECT/KEY)
 }
 
 func runTicketShow(cmd *cobra.Command, args []string) error {
@@ -540,6 +613,11 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		result.TasksTotal = len(tasks)
 	}
 
+	// Include milestone link if set
+	if ticket.MilestoneKey != "" {
+		result.MilestoneLink = fmt.Sprintf("%s/%s", ticket.ProjectKey, ticket.MilestoneKey)
+	}
+
 	if IsJSON() {
 		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
@@ -560,6 +638,9 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
 	if ticket.BranchName != "" {
 		fmt.Printf("Branch:      %s\n", ticket.BranchName)
+	}
+	if ticket.MilestoneKey != "" {
+		fmt.Printf("Milestone:   %s/%s\n", ticket.ProjectKey, ticket.MilestoneKey)
 	}
 	fmt.Printf("Retries:     %d/%d\n", ticket.RetryCount, ticket.MaxRetries)
 	fmt.Println()
@@ -849,5 +930,147 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 	}
 
 	OutputLine("Updated: %s", ticket.TicketKey)
+	return nil
+}
+
+// ticket link
+var ticketLinkCmd = &cobra.Command{
+	Use:   "link <TICKET>",
+	Short: "Link ticket to a milestone",
+	Long: `Associate a ticket with a milestone or remove the association.
+
+Examples:
+  wark ticket link WEBAPP-42 --milestone MVP
+  wark ticket link WEBAPP-42 --milestone WEBAPP/MVP
+  wark ticket link WEBAPP-42 --clear-milestone`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketLink,
+}
+
+type ticketLinkResult struct {
+	Ticket        *models.Ticket `json:"ticket"`
+	MilestoneLink string         `json:"milestone_link,omitempty"`
+	Cleared       bool           `json:"cleared,omitempty"`
+}
+
+func runTicketLink(cmd *cobra.Command, args []string) error {
+	// Validate flags
+	milestoneSet := cmd.Flags().Changed("milestone")
+	clearSet := cmd.Flags().Changed("clear-milestone") && ticketClearMilestone
+
+	if !milestoneSet && !clearSet {
+		return ErrInvalidArgsWithSuggestion(
+			"Use --milestone <key> to link or --clear-milestone to remove the association.",
+			"either --milestone or --clear-milestone is required",
+		)
+	}
+	if milestoneSet && clearSet {
+		return ErrInvalidArgs("cannot use both --milestone and --clear-milestone")
+	}
+
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	ticketRepo := db.NewTicketRepo(database.DB)
+	activityRepo := db.NewActivityRepo(database.DB)
+
+	result := ticketLinkResult{Ticket: ticket}
+
+	if clearSet {
+		// Clear milestone
+		if ticket.MilestoneID == nil {
+			if IsJSON() {
+				result.Cleared = false
+				data, _ := json.MarshalIndent(result, "", "  ")
+				fmt.Println(string(data))
+				return nil
+			}
+			OutputLine("Ticket %s is not linked to any milestone", ticket.TicketKey)
+			return nil
+		}
+
+		oldMilestoneKey := ticket.MilestoneKey
+		ticket.MilestoneID = nil
+		ticket.MilestoneKey = ""
+
+		if err := ticketRepo.Update(ticket); err != nil {
+			return ErrDatabase(err, "failed to update ticket")
+		}
+
+		activityRepo.LogActionWithDetails(ticket.ID, models.ActionFieldChanged, models.ActorTypeHuman, "",
+			fmt.Sprintf("Milestone: %s/%s → (none)", ticket.ProjectKey, oldMilestoneKey),
+			map[string]interface{}{"field": "milestone", "old": oldMilestoneKey, "new": nil})
+
+		result.Cleared = true
+
+		if IsJSON() {
+			data, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+
+		OutputLine("Removed milestone from %s (was: %s/%s)", ticket.TicketKey, ticket.ProjectKey, oldMilestoneKey)
+		return nil
+	}
+
+	// Link to milestone
+	milestone, err := resolveMilestone(database, ticketMilestone, ticket.ProjectKey)
+	if err != nil {
+		return err
+	}
+
+	// Validate milestone belongs to same project
+	if milestone.ProjectID != ticket.ProjectID {
+		return ErrInvalidArgsWithSuggestion(
+			"Milestone must belong to the same project as the ticket.",
+			"milestone %s belongs to a different project", ticketMilestone,
+		)
+	}
+
+	// Check if already linked to same milestone
+	if ticket.MilestoneID != nil && *ticket.MilestoneID == milestone.ID {
+		if IsJSON() {
+			result.MilestoneLink = fmt.Sprintf("%s/%s", ticket.ProjectKey, milestone.Key)
+			data, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+		OutputLine("Ticket %s is already linked to %s/%s", ticket.TicketKey, ticket.ProjectKey, milestone.Key)
+		return nil
+	}
+
+	oldMilestoneKey := ticket.MilestoneKey
+	ticket.MilestoneID = &milestone.ID
+	ticket.MilestoneKey = milestone.Key
+
+	if err := ticketRepo.Update(ticket); err != nil {
+		return ErrDatabase(err, "failed to update ticket")
+	}
+
+	oldDisplay := "(none)"
+	if oldMilestoneKey != "" {
+		oldDisplay = fmt.Sprintf("%s/%s", ticket.ProjectKey, oldMilestoneKey)
+	}
+	activityRepo.LogActionWithDetails(ticket.ID, models.ActionFieldChanged, models.ActorTypeHuman, "",
+		fmt.Sprintf("Milestone: %s → %s/%s", oldDisplay, ticket.ProjectKey, milestone.Key),
+		map[string]interface{}{"field": "milestone", "old": oldMilestoneKey, "new": milestone.Key})
+
+	result.MilestoneLink = fmt.Sprintf("%s/%s", ticket.ProjectKey, milestone.Key)
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Linked %s to milestone %s/%s", ticket.TicketKey, ticket.ProjectKey, milestone.Key)
 	return nil
 }

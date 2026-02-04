@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleMinus, GitBranch } from "lucide-react";
+import { AlertTriangle, CircleMinus, Flag, GitBranch } from "lucide-react";
 import { Link } from "react-router-dom";
 import { type Priority, PriorityIndicator } from "@/components/PriorityIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -20,6 +20,7 @@ interface KanbanCardProps {
 export function KanbanCard({ ticket, showBlockedBadge = false }: KanbanCardProps) {
 	const hasHumanFlag = !!ticket.human_flag_reason;
 	const hasBranch = !!ticket.branch_name;
+	const hasMilestone = !!ticket.milestone_key;
 
 	return (
 		<Link
@@ -53,6 +54,14 @@ export function KanbanCard({ ticket, showBlockedBadge = false }: KanbanCardProps
 
 			{/* Title - max 2 lines */}
 			<p className="text-sm font-medium leading-snug line-clamp-2">{ticket.title}</p>
+
+			{/* Milestone indicator */}
+			{hasMilestone && (
+				<div className="flex items-center gap-1 mt-1.5 text-xs text-blue-600 dark:text-blue-400">
+					<Flag className="size-3" />
+					<span className="truncate">{ticket.milestone_key}</span>
+				</div>
+			)}
 
 			{/* Human flag reason - prominent warning */}
 			{hasHumanFlag && (

@@ -1,4 +1,4 @@
-import { AlertTriangle, Copy, GitBranch, Hand } from "lucide-react";
+import { AlertTriangle, Copy, Flag, GitBranch, Hand } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
@@ -235,6 +235,23 @@ export default function TicketDetail() {
 									<dd className="text-xs">{formatRelativeTime(claim.expires_at)}</dd>
 								</div>
 							</dl>
+						</section>
+					)}
+
+					{/* Milestone */}
+					{ticket.milestone_key && (
+						<section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+							<h2 className="text-sm font-medium text-[var(--foreground-muted)] uppercase tracking-wide mb-3 flex items-center gap-2">
+								<Flag className="w-4 h-4" />
+								Milestone
+							</h2>
+							<Link
+								to={`/milestones/${ticket.milestone_key}`}
+								className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-600/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400 border border-blue-600/20 dark:border-blue-400/20 hover:bg-blue-600/20 dark:hover:bg-blue-400/20 transition-colors text-sm font-medium"
+							>
+								<Flag className="w-3.5 h-3.5" />
+								{ticket.milestone_key}
+							</Link>
 						</section>
 					)}
 

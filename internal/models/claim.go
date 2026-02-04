@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// DefaultClaimDuration is the default duration for a claim (1 hour).
-const DefaultClaimDuration = time.Hour
-
 // Claim represents an agent's claim on a ticket.
 type Claim struct {
 	ID         int64       `json:"id"`
@@ -63,11 +60,9 @@ func (c *Claim) TimeRemaining() time.Duration {
 	return remaining
 }
 
-// NewClaim creates a new claim for a ticket with the default duration.
+// NewClaim creates a new claim for a ticket with the specified duration.
+// Callers must provide a valid positive duration.
 func NewClaim(ticketID int64, workerID string, duration time.Duration) *Claim {
-	if duration <= 0 {
-		duration = DefaultClaimDuration
-	}
 	now := time.Now()
 	return &Claim{
 		TicketID:  ticketID,

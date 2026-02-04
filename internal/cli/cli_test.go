@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
@@ -356,7 +357,7 @@ func TestClaimCreate(t *testing.T) {
 
 	// Create claim
 	claimRepo := db.NewClaimRepo(database.DB)
-	claim := models.NewClaim(ticket.ID, "test-worker", 0)
+	claim := models.NewClaim(ticket.ID, "test-worker", 30*time.Minute)
 	err = claimRepo.Create(claim)
 	require.NoError(t, err)
 

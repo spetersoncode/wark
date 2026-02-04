@@ -22,44 +22,6 @@ func TestMachine_CanTransition(t *testing.T) {
 		wantErr    bool
 		errMsg     string
 	}{
-		// Draft transitions (WARK-21)
-		{
-			name:      "draft to ready (promote)",
-			from:      models.StatusDraft,
-			to:        models.StatusReady,
-			transType: TransitionTypeManual,
-			wantErr:   false,
-		},
-		{
-			name:      "draft to blocked (auto)",
-			from:      models.StatusDraft,
-			to:        models.StatusBlocked,
-			transType: TransitionTypeAuto,
-			wantErr:   false,
-		},
-		{
-			name:      "draft to blocked (manual - promote with deps)",
-			from:      models.StatusDraft,
-			to:        models.StatusBlocked,
-			transType: TransitionTypeManual,
-			wantErr:   false,
-		},
-		{
-			name:       "draft to closed",
-			from:       models.StatusDraft,
-			to:         models.StatusClosed,
-			transType:  TransitionTypeManual,
-			resolution: ptrResolution(models.ResolutionWontDo),
-			wantErr:    false,
-		},
-		{
-			name:      "closed to draft (reopen as draft)",
-			from:      models.StatusClosed,
-			to:        models.StatusDraft,
-			transType: TransitionTypeManual,
-			wantErr:   false,
-		},
-
 		// Auto-transitions (dependency-triggered)
 		{
 			name:      "blocked to ready (auto)",
@@ -377,21 +339,7 @@ func TestMachine_GetValidTransitions(t *testing.T) {
 
 	t.Run("from closed", func(t *testing.T) {
 		transitions := m.GetValidTransitions(models.StatusClosed)
-		require.Len(t, transitions, 3) // Can reopen to draft, ready, or blocked
-	})
-
-	t.Run("from draft", func(t *testing.T) {
-		transitions := m.GetValidTransitions(models.StatusDraft)
-		require.NotEmpty(t, transitions)
-
-		toStates := make(map[models.Status]bool)
-		for _, tr := range transitions {
-			toStates[tr.To] = true
-		}
-
-		assert.True(t, toStates[models.StatusReady])   // promote
-		assert.True(t, toStates[models.StatusBlocked]) // dependency added
-		assert.True(t, toStates[models.StatusClosed])  // cancel
+		require.Len(t, transitions, 2) // Can reopen to ready or blocked
 	})
 
 	t.Run("from in_progress", func(t *testing.T) {
@@ -447,11 +395,6 @@ func TestActionForTransition(t *testing.T) {
 		transTyp TransitionType
 		want     models.Action
 	}{
-		// Draft transitions (WARK-21)
-		{"draft to ready", models.StatusDraft, models.StatusReady, TransitionTypeManual, models.ActionPromoted},
-		{"draft to blocked", models.StatusDraft, models.StatusBlocked, TransitionTypeAuto, models.ActionBlocked},
-		{"closed to draft", models.StatusClosed, models.StatusDraft, TransitionTypeManual, models.ActionReopened},
-
 		// Existing transitions
 		{"blocked to ready", models.StatusBlocked, models.StatusReady, TransitionTypeAuto, models.ActionUnblocked},
 		{"ready to blocked", models.StatusReady, models.StatusBlocked, TransitionTypeAuto, models.ActionBlocked},
@@ -478,7 +421,6 @@ func TestActionForTransition(t *testing.T) {
 
 func TestHelperFunctions(t *testing.T) {
 	t.Run("IsActiveState", func(t *testing.T) {
-		assert.True(t, IsActiveState(models.StatusDraft))
 		assert.True(t, IsActiveState(models.StatusBlocked))
 		assert.True(t, IsActiveState(models.StatusReady))
 		assert.True(t, IsActiveState(models.StatusInProgress))
@@ -490,7 +432,6 @@ func TestHelperFunctions(t *testing.T) {
 	t.Run("CanBeEscalated", func(t *testing.T) {
 		assert.True(t, CanBeEscalated(models.StatusReady))
 		assert.True(t, CanBeEscalated(models.StatusInProgress))
-		assert.False(t, CanBeEscalated(models.StatusDraft))
 		assert.False(t, CanBeEscalated(models.StatusBlocked))
 		assert.False(t, CanBeEscalated(models.StatusHuman))
 		assert.False(t, CanBeEscalated(models.StatusReview))
@@ -498,23 +439,12 @@ func TestHelperFunctions(t *testing.T) {
 	})
 
 	t.Run("CanBeClosed", func(t *testing.T) {
-		assert.True(t, CanBeClosed(models.StatusDraft))
 		assert.True(t, CanBeClosed(models.StatusBlocked))
 		assert.True(t, CanBeClosed(models.StatusReady))
 		assert.True(t, CanBeClosed(models.StatusInProgress))
 		assert.True(t, CanBeClosed(models.StatusHuman))
 		assert.True(t, CanBeClosed(models.StatusReview))
 		assert.False(t, CanBeClosed(models.StatusClosed))
-	})
-
-	t.Run("CanBePromoted", func(t *testing.T) {
-		assert.True(t, CanBePromoted(models.StatusDraft))
-		assert.False(t, CanBePromoted(models.StatusBlocked))
-		assert.False(t, CanBePromoted(models.StatusReady))
-		assert.False(t, CanBePromoted(models.StatusInProgress))
-		assert.False(t, CanBePromoted(models.StatusHuman))
-		assert.False(t, CanBePromoted(models.StatusReview))
-		assert.False(t, CanBePromoted(models.StatusClosed))
 	})
 
 	t.Run("CanBeReopened", func(t *testing.T) {
@@ -527,7 +457,6 @@ func TestHelperFunctions(t *testing.T) {
 	})
 
 	t.Run("CanModifyDependencies", func(t *testing.T) {
-		assert.True(t, CanModifyDependencies(models.StatusDraft))
 		assert.True(t, CanModifyDependencies(models.StatusBlocked))
 		assert.True(t, CanModifyDependencies(models.StatusReady))
 		assert.False(t, CanModifyDependencies(models.StatusInProgress))
@@ -606,22 +535,6 @@ func TestLogic_CheckDependencies(t *testing.T) {
 }
 
 func TestLogic_ShouldBlock(t *testing.T) {
-	t.Run("draft with unresolved deps should block", func(t *testing.T) {
-		ticket := &models.Ticket{ID: 1, Status: models.StatusDraft}
-		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
-		shouldBlock, err := logic.ShouldBlock(ticket)
-		require.NoError(t, err)
-		assert.True(t, shouldBlock)
-	})
-
-	t.Run("draft with resolved deps should not block", func(t *testing.T) {
-		ticket := &models.Ticket{ID: 1, Status: models.StatusDraft}
-		logic := NewLogic(&mockDependencyChecker{hasUnresolved: false}, nil, nil)
-		shouldBlock, err := logic.ShouldBlock(ticket)
-		require.NoError(t, err)
-		assert.False(t, shouldBlock)
-	})
-
 	t.Run("ready with unresolved deps should block", func(t *testing.T) {
 		ticket := &models.Ticket{ID: 1, Status: models.StatusReady}
 		logic := NewLogic(&mockDependencyChecker{hasUnresolved: true}, nil, nil)
@@ -1055,38 +968,6 @@ func TestLogic_CanEscalate(t *testing.T) {
 	})
 }
 
-func TestLogic_CanPromote(t *testing.T) {
-	logic := NewLogic(nil, nil, nil)
-
-	t.Run("can promote draft", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusDraft}
-		can, _ := logic.CanPromote(ticket)
-		assert.True(t, can)
-	})
-
-	t.Run("cannot promote ready", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusReady}
-		can, reason := logic.CanPromote(ticket)
-		assert.False(t, can)
-		assert.Contains(t, reason, "draft")
-	})
-
-	t.Run("cannot promote blocked", func(t *testing.T) {
-		ticket := &models.Ticket{Status: models.StatusBlocked}
-		can, reason := logic.CanPromote(ticket)
-		assert.False(t, can)
-		assert.Contains(t, reason, "draft")
-	})
-
-	t.Run("cannot promote closed", func(t *testing.T) {
-		res := models.ResolutionCompleted
-		ticket := &models.Ticket{Status: models.StatusClosed, Resolution: &res}
-		can, reason := logic.CanPromote(ticket)
-		assert.False(t, can)
-		assert.Contains(t, reason, "draft")
-	})
-}
-
 func TestLogic_CanModifyDependencies(t *testing.T) {
 	logic := NewLogic(nil, nil, nil)
 
@@ -1148,22 +1029,6 @@ func TestLogic_DependencyTriggers(t *testing.T) {
 		newStatus, changed := logic.OnDependencyAdded(ticket, true) // dep is resolved
 		assert.False(t, changed)
 		assert.Equal(t, models.StatusReady, newStatus)
-	})
-
-	t.Run("OnDependencyAdded blocks draft ticket", func(t *testing.T) {
-		logic := NewLogic(nil, nil, nil)
-		ticket := &models.Ticket{ID: 1, Status: models.StatusDraft}
-		newStatus, changed := logic.OnDependencyAdded(ticket, false) // dep not resolved
-		assert.True(t, changed)
-		assert.Equal(t, models.StatusBlocked, newStatus)
-	})
-
-	t.Run("OnDependencyAdded does not block draft if dep resolved", func(t *testing.T) {
-		logic := NewLogic(nil, nil, nil)
-		ticket := &models.Ticket{ID: 1, Status: models.StatusDraft}
-		newStatus, changed := logic.OnDependencyAdded(ticket, true) // dep is resolved
-		assert.False(t, changed)
-		assert.Equal(t, models.StatusDraft, newStatus)
 	})
 
 	t.Run("OnDependencyRemoved unblocks", func(t *testing.T) {

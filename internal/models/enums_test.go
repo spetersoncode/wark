@@ -15,7 +15,6 @@ func TestParseStatus(t *testing.T) {
 		wantErr bool
 	}{
 		// Valid cases
-		{"draft lowercase", "draft", StatusDraft, false},
 		{"blocked lowercase", "blocked", StatusBlocked, false},
 		{"ready lowercase", "ready", StatusReady, false},
 		{"in_progress underscore", "in_progress", StatusInProgress, false},
@@ -23,13 +22,13 @@ func TestParseStatus(t *testing.T) {
 		{"human lowercase", "human", StatusHuman, false},
 		{"review lowercase", "review", StatusReview, false},
 		{"closed lowercase", "closed", StatusClosed, false},
-		{"uppercase", "DRAFT", StatusDraft, false},
+		{"uppercase", "BLOCKED", StatusBlocked, false},
 		{"mixed case", "In_Progress", StatusInProgress, false},
 		{"with whitespace", "  ready  ", StatusReady, false},
 		// Invalid cases
 		{"invalid status", "invalid_status", "", true},
 		{"empty", "", "", true},
-		{"partial", "dra", "", true},
+		{"partial", "blo", "", true},
 	}
 
 	for _, tt := range tests {

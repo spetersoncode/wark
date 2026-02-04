@@ -351,28 +351,6 @@ func TestTicketService_Reopen(t *testing.T) {
 	})
 }
 
-func TestTicketService_Promote(t *testing.T) {
-	// NOTE: 'draft' status is not yet in the database schema (WARK-21 migration pending)
-	// This test verifies the service correctly rejects promote on non-draft tickets
-	database, _, cleanup := testDB(t)
-	defer cleanup()
-
-	project := createTicketTestProject(t, database, "TEST")
-
-	svc := NewTicketService(database.DB)
-
-	t.Run("promote non-draft ticket fails", func(t *testing.T) {
-		ticket := createTicketTestTicket(t, database, project.ID, 1, models.StatusReady)
-
-		err := svc.Promote(ticket.ID)
-		require.Error(t, err)
-
-		svcErr, ok := err.(*TicketError)
-		require.True(t, ok)
-		assert.Equal(t, ErrCodeInvalidState, svcErr.Code)
-	})
-}
-
 func TestTicketService_ClaimReviewTicket(t *testing.T) {
 	database, _, cleanup := testDB(t)
 	defer cleanup()

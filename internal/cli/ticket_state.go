@@ -39,7 +39,6 @@ func init() {
 	ticketCmd.AddCommand(ticketRejectCmd)
 	ticketCmd.AddCommand(ticketCloseCmd)
 	ticketCmd.AddCommand(ticketReopenCmd)
-	ticketCmd.AddCommand(ticketPromoteCmd)
 	ticketCmd.AddCommand(ticketResumeCmd)
 }
 
@@ -275,63 +274,6 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 
 	OutputLine("Reopened: %s", updatedTicket.TicketKey)
 	OutputLine("Status: %s", updatedTicket.Status)
-
-	return nil
-}
-
-// ticket promote
-var ticketPromoteCmd = &cobra.Command{
-	Use:   "promote <TICKET>",
-	Short: "Promote a draft ticket to ready",
-	Long: `Promote a draft ticket to ready status, making it available for work.
-
-If the ticket has unresolved dependencies, it will be moved to blocked instead.
-
-Example:
-  wark ticket promote WEBAPP-42`,
-	Args: cobra.ExactArgs(1),
-	RunE: runTicketPromote,
-}
-
-func runTicketPromote(cmd *cobra.Command, args []string) error {
-	database, err := db.Open(GetDBPath())
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
-	}
-	defer database.Close()
-
-	ticket, err := resolveTicket(database, args[0], "")
-	if err != nil {
-		return err
-	}
-
-	// Use service layer for promote operation
-	ticketSvc := service.NewTicketService(database.DB)
-	if err := ticketSvc.Promote(ticket.ID); err != nil {
-		return translateServiceError(err, ticket.TicketKey)
-	}
-
-	// Re-fetch ticket to get updated state
-	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
-	if updatedTicket == nil {
-		updatedTicket = ticket
-	}
-
-	if IsJSON() {
-		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":   updatedTicket.TicketKey,
-			"status":   updatedTicket.Status,
-			"promoted": true,
-		}, "", "  ")
-		fmt.Println(string(data))
-		return nil
-	}
-
-	OutputLine("Promoted: %s", updatedTicket.TicketKey)
-	OutputLine("Status: %s", updatedTicket.Status)
-	if updatedTicket.Status == models.StatusBlocked {
-		OutputLine("Note: Ticket has unresolved dependencies")
-	}
 
 	return nil
 }

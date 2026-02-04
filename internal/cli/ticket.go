@@ -29,7 +29,6 @@ var (
 	ticketLimit       int
 	ticketAddDep      []string
 	ticketRemoveDep   []string
-	ticketDraft       bool
 )
 
 func init() {
@@ -40,7 +39,6 @@ func init() {
 	ticketCreateCmd.Flags().StringVarP(&ticketComplexity, "complexity", "c", "medium", "Complexity estimate (trivial, small, medium, large, xlarge)")
 	ticketCreateCmd.Flags().StringSliceVar(&ticketDependsOn, "depends-on", nil, "Ticket IDs this depends on (comma-separated)")
 	ticketCreateCmd.Flags().StringVar(&ticketParent, "parent", "", "Parent ticket ID")
-	ticketCreateCmd.Flags().BoolVar(&ticketDraft, "draft", false, "Create ticket in draft status (not ready for work)")
 	ticketCreateCmd.MarkFlagRequired("title")
 
 	// ticket list
@@ -149,14 +147,13 @@ var ticketCreateCmd = &cobra.Command{
 	Short: "Create a new ticket",
 	Long: `Create a new ticket in the specified project.
 
-Use --draft to create a ticket that's not ready for AI to work on yet.
-Draft tickets can be promoted to ready status later with 'wark ticket promote'.
+New tickets start in 'ready' status unless they have unresolved dependencies,
+in which case they start in 'blocked' status.
 
 Examples:
   wark ticket create WEBAPP --title "Add user login page"
   wark ticket create WEBAPP -t "Implement OAuth2" -d "Support Google/GitHub OAuth" -p high -c large
-  wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15
-  wark ticket create WEBAPP -t "Design database schema" --draft`,
+  wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketCreate,
 }
@@ -205,19 +202,14 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		return ErrInvalidArgs("%s", err)
 	}
 
-	// Determine initial status: draft if --draft flag, otherwise ready
-	initialStatus := models.StatusReady
-	if ticketDraft {
-		initialStatus = models.StatusDraft
-	}
-
+	// Initial status is ready (may change to blocked if deps added later)
 	ticket := &models.Ticket{
 		ProjectID:   project.ID,
 		Title:       ticketTitle,
 		Description: ticketDescription,
 		Priority:    priority,
 		Complexity:  complexity,
-		Status:      initialStatus, // May change to blocked if deps added
+		Status:      models.StatusReady, // May change to blocked if deps added
 	}
 
 	// Handle parent ticket
@@ -424,11 +416,7 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%-12s %-12s %-8s %-8s %s\n", "ID", "STATUS", "PRI", "COMP", "TITLE")
 	fmt.Println(strings.Repeat("-", 80))
 	for _, t := range tickets {
-		// Add visual indicator for draft tickets
 		statusDisplay := string(t.Status)
-		if t.Status == models.StatusDraft {
-			statusDisplay = "📝 draft"
-		}
 
 		// Add task progress indicator for workable tickets
 		titleDisplay := truncate(t.Title, 40)

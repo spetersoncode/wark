@@ -1,6 +1,50 @@
+---
+name: wark
+description: Local-first task management for AI agent orchestration. Use when managing tasks with the wark CLI - claiming tickets, completing work, checking status, or coordinating AI agent workflows. Invoke for any wark command usage.
+---
+
 # Wark: AI Agent Task Management
 
 > Local-first CLI task management for AI agent orchestration
+
+## Quick Start
+
+When this skill is invoked, follow these steps:
+
+**Step 1: Check system status**
+
+```bash
+wark status --json
+```
+
+This returns counts of tickets by status and any active claims.
+
+**Step 2: Determine your role based on ticket status**
+
+| Condition | Your Role | Next Action |
+|-----------|-----------|-------------|
+| Tickets in `review` status exist | **Reviewer** | Load reviewer reference, process reviews first |
+| Tickets in `ready` status exist | **Coder** | Load coder reference, claim and work on ticket |
+| You have an active claim | **Coder** | Continue working on your claimed ticket |
+| No workable tickets | **Wait** | Inform user there's no work available |
+
+**Priority: Review work takes precedence over new work.** Always clear the review queue before claiming new tickets.
+
+**Step 3: Load the appropriate reference**
+
+Read the full reference file for detailed workflow instructions using the Read tool:
+
+- **Coder workflow:** `~/.claude/skills/wark/references/coder.md` — for coding tasks (uses git worktrees)
+- **Worker workflow:** `~/.claude/skills/wark/references/worker.md` — for non-coding tasks (content, research, analysis)
+- **Reviewer workflow:** `~/.claude/skills/wark/references/reviewer.md` — for reviewing completed work
+
+Choose Coder vs Worker based on the ticket description. If the ticket involves code changes, use Coder. If it's content generation, research, or analysis without code, use Worker.
+
+**Step 4: Execute the workflow**
+
+Follow the instructions in the loaded reference.
+
+---
 
 ## What is Wark?
 
@@ -11,15 +55,6 @@ Wark is a command-line task management system designed for coordinating AI codin
 - **Claim-based work distribution** — Prevents multiple agents from working on the same ticket
 - **Human-in-the-loop support** — Escalate to humans when blocked or uncertain
 - **Activity logging** — Full audit trail of all actions
-
-## Role-Specific References
-
-Load the appropriate reference based on your task:
-
-| Role | Reference | When to Load |
-|------|-----------|--------------|
-| **Coder** | `references/coder.md` | Working on implementation tickets |
-| **Reviewer** | `references/reviewer.md` | Reviewing completed work |
 
 ## Ticket Lifecycle
 

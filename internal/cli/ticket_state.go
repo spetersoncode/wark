@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/diogenes-ai-code/wark/internal/models"
@@ -12,9 +13,11 @@ import (
 
 // State command flags
 var (
-	rejectReason    string
-	cancelReason    string
-	closeResolution string
+	rejectReason     string
+	cancelReason     string
+	closeResolution  string
+	resumeWorkerID   string
+	resumeDuration   int
 )
 
 func init() {
@@ -26,12 +29,18 @@ func init() {
 	ticketCloseCmd.Flags().StringVar(&closeResolution, "resolution", "wont_do", "Resolution (completed, wont_do, duplicate, invalid, obsolete)")
 	ticketCloseCmd.Flags().StringVar(&cancelReason, "reason", "", "Reason for closing")
 
+	// ticket resume
+	ticketResumeCmd.Flags().StringVar(&resumeWorkerID, "worker-id", "", "Worker identifier (required)")
+	ticketResumeCmd.MarkFlagRequired("worker-id")
+	ticketResumeCmd.Flags().IntVar(&resumeDuration, "duration", 60, "Claim duration in minutes")
+
 	// Add subcommands
 	ticketCmd.AddCommand(ticketAcceptCmd)
 	ticketCmd.AddCommand(ticketRejectCmd)
 	ticketCmd.AddCommand(ticketCloseCmd)
 	ticketCmd.AddCommand(ticketReopenCmd)
 	ticketCmd.AddCommand(ticketPromoteCmd)
+	ticketCmd.AddCommand(ticketResumeCmd)
 }
 
 // ticket accept
@@ -323,6 +332,73 @@ func runTicketPromote(cmd *cobra.Command, args []string) error {
 	if updatedTicket.Status == models.StatusBlocked {
 		OutputLine("Note: Ticket has unresolved dependencies")
 	}
+
+	return nil
+}
+
+// ticket resume
+var ticketResumeCmd = &cobra.Command{
+	Use:   "resume <TICKET>",
+	Short: "Resume work on a ticket after human input",
+	Long: `Resume work on a ticket that is in human status.
+
+This command is used when an agent wants to continue work on a ticket
+after a human has provided input via the inbox. It creates a new claim
+and transitions the ticket from human to in_progress status.
+
+Example:
+  wark ticket resume WEBAPP-42 --worker-id session-abc123
+  wark ticket resume WEBAPP-42 --worker-id session-abc123 --duration 120`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketResume,
+}
+
+func runTicketResume(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	workerID := resumeWorkerID
+	if workerID == "" {
+		workerID = GetDefaultWorkerID()
+	}
+	if workerID == "" {
+		return ErrInvalidArgs("--worker-id is required")
+	}
+
+	duration := time.Duration(resumeDuration) * time.Minute
+
+	// Use service layer for resume operation
+	ticketSvc := service.NewTicketService(database.DB)
+	result, err := ticketSvc.Resume(ticket.ID, workerID, duration)
+	if err != nil {
+		return translateServiceError(err, ticket.TicketKey)
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(map[string]interface{}{
+			"ticket":     result.Ticket.TicketKey,
+			"status":     result.Ticket.Status,
+			"worker_id":  workerID,
+			"expires_at": result.Claim.ExpiresAt,
+			"branch":     result.Branch,
+			"resumed":    true,
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Resumed: %s", result.Ticket.TicketKey)
+	OutputLine("Worker: %s", workerID)
+	OutputLine("Expires: %s (%d minutes)", result.Claim.ExpiresAt.Local().Format("15:04:05"), resumeDuration)
+	OutputLine("Branch: %s", result.Branch)
 
 	return nil
 }

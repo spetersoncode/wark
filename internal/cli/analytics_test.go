@@ -11,7 +11,7 @@ import (
 )
 
 func TestAnalyticsSuccessMetrics(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project
@@ -60,7 +60,7 @@ func TestAnalyticsSuccessMetrics(t *testing.T) {
 }
 
 func TestAnalyticsThroughput(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project
@@ -111,7 +111,7 @@ func TestAnalyticsThroughput(t *testing.T) {
 }
 
 func TestAnalyticsWIPByStatus(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project
@@ -160,7 +160,7 @@ func TestAnalyticsWIPByStatus(t *testing.T) {
 }
 
 func TestAnalyticsByProject(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup two projects

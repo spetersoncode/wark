@@ -16,8 +16,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testDB creates a temporary database for testing
-func testDB(t *testing.T) (*db.DB, string, func()) {
+// testDB creates an in-memory database for testing.
+// IMPORTANT: Always use in-memory databases in tests to avoid any risk
+// of accidentally destroying production data.
+//
+// For unit tests that only need the database object, use this function.
+// For CLI integration tests that need a file path, use testDBWithPath.
+func testDB(t *testing.T) (*db.DB, func()) {
+	t.Helper()
+
+	database := db.NewTestDB(t)
+
+	cleanup := func() {
+		database.Close()
+	}
+
+	return database, cleanup
+}
+
+// testDBWithPath creates a temporary file-based database for CLI integration tests.
+// This is needed for tests that invoke CLI commands with --db flag.
+// The database is created in an isolated temp directory and cleaned up automatically.
+//
+// IMPORTANT: Only use this for CLI integration tests that need to pass a path
+// to CLI commands. For unit tests, use testDB() which uses in-memory databases.
+func testDBWithPath(t *testing.T) (*db.DB, string, func()) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -120,12 +143,8 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestProjectCreate(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
-
-	// Set up global db path
-	oldDBPath := dbPath
-	dbPath = oldDBPath
 
 	// Create project
 	repo := db.NewProjectRepo(database.DB)
@@ -144,7 +163,7 @@ func TestProjectCreate(t *testing.T) {
 }
 
 func TestProjectList(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	repo := db.NewProjectRepo(database.DB)
@@ -173,7 +192,7 @@ func TestProjectList(t *testing.T) {
 }
 
 func TestTicketCreate(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project first
@@ -202,7 +221,7 @@ func TestTicketCreate(t *testing.T) {
 }
 
 func TestTicketList(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project
@@ -241,7 +260,7 @@ func TestTicketList(t *testing.T) {
 }
 
 func TestTicketWorkable(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project
@@ -281,7 +300,7 @@ func TestTicketWorkable(t *testing.T) {
 }
 
 func TestTicketDependencies(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project
@@ -337,7 +356,7 @@ func TestTicketDependencies(t *testing.T) {
 }
 
 func TestClaimCreate(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project and ticket
@@ -367,7 +386,7 @@ func TestClaimCreate(t *testing.T) {
 }
 
 func TestActivityLog(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project and ticket
@@ -419,7 +438,7 @@ func TestVersionInfo(t *testing.T) {
 }
 
 func TestJSONOutputFormat(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project
@@ -445,7 +464,7 @@ func TestJSONOutputFormat(t *testing.T) {
 }
 
 func TestProjectStats(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project
@@ -495,7 +514,7 @@ func TestProjectStats(t *testing.T) {
 }
 
 func TestCyclicDependencyDetection(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project

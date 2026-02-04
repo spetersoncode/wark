@@ -1,13 +1,16 @@
 package cli
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/diogenes-ai-code/wark/internal/config"
 	"github.com/diogenes-ai-code/wark/internal/db"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -70,6 +73,44 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Delete existing database if force is set
 	if initForce && db.Exists(dbPath) {
+		displayPath := dbPath
+		if displayPath == "" {
+			displayPath = db.DefaultDBPath
+		}
+
+		// Check if database has data before destroying
+		stats, err := getDBStats(dbPath)
+		if err != nil {
+			// If we can't read the database, just warn and continue
+			VerboseOutput("Warning: could not check existing database for data: %v\n", err)
+		} else if stats.hasData {
+			// Database has data, require confirmation
+			fmt.Fprintf(os.Stderr, "Database at %s contains data:\n", displayPath)
+			fmt.Fprintf(os.Stderr, "  - %d project(s)\n", stats.projects)
+			fmt.Fprintf(os.Stderr, "  - %d ticket(s)\n", stats.tickets)
+			fmt.Fprintf(os.Stderr, "  - %d inbox message(s)\n", stats.inboxMessages)
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr, "This will be PERMANENTLY DESTROYED.")
+
+			// Check if stdin is a TTY
+			if term.IsTerminal(int(os.Stdin.Fd())) {
+				// Interactive mode: require confirmation
+				fmt.Fprint(os.Stderr, "Type 'yes' to confirm: ")
+				reader := bufio.NewReader(os.Stdin)
+				response, err := reader.ReadString('\n')
+				if err != nil {
+					return fmt.Errorf("failed to read confirmation: %w", err)
+				}
+				response = strings.TrimSpace(response)
+				if response != "yes" {
+					return fmt.Errorf("aborted: confirmation not received")
+				}
+			} else {
+				// Non-interactive mode: refuse to destroy data without interactive confirmation
+				return fmt.Errorf("cannot destroy database with data in non-interactive mode\n\nRun interactively to confirm, or use a fresh database path")
+			}
+		}
+
 		VerboseOutput("Removing existing database...\n")
 		if err := db.Delete(dbPath); err != nil {
 			return fmt.Errorf("failed to remove existing database: %w", err)
@@ -132,4 +173,45 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// dbStats holds counts of data in the database
+type dbStats struct {
+	hasData       bool
+	projects      int
+	tickets       int
+	inboxMessages int
+}
+
+// getDBStats checks if a database has data worth protecting
+func getDBStats(dbPath string) (*dbStats, error) {
+	database, err := db.Open(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer database.Close()
+
+	stats := &dbStats{}
+
+	// Count projects
+	row := database.QueryRow("SELECT COUNT(*) FROM projects")
+	if err := row.Scan(&stats.projects); err != nil {
+		// Table might not exist (old schema), treat as no data
+		stats.projects = 0
+	}
+
+	// Count tickets
+	row = database.QueryRow("SELECT COUNT(*) FROM tickets")
+	if err := row.Scan(&stats.tickets); err != nil {
+		stats.tickets = 0
+	}
+
+	// Count inbox messages
+	row = database.QueryRow("SELECT COUNT(*) FROM inbox")
+	if err := row.Scan(&stats.inboxMessages); err != nil {
+		stats.inboxMessages = 0
+	}
+
+	stats.hasData = stats.projects > 0 || stats.tickets > 0 || stats.inboxMessages > 0
+	return stats, nil
 }

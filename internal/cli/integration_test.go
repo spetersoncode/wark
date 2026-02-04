@@ -19,7 +19,7 @@ import (
 // TestFullWorkflowInitToAccept tests the complete CLI workflow:
 // init → project create → ticket create → claim → complete → accept
 func TestFullWorkflowInitToAccept(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// 1. Database is already initialized by testDB, verify it works
@@ -120,7 +120,7 @@ func TestFullWorkflowInitToAccept(t *testing.T) {
 
 // TestWorkflowWithRejection tests the workflow when a ticket is rejected
 func TestWorkflowWithRejection(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project and ticket
@@ -171,7 +171,7 @@ func TestWorkflowWithRejection(t *testing.T) {
 
 // TestWorkflowWithCancellation tests cancelling a ticket
 func TestWorkflowWithCancellation(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -206,7 +206,7 @@ func TestWorkflowWithCancellation(t *testing.T) {
 
 // TestWorkflowReopen tests reopening a done or cancelled ticket
 func TestWorkflowReopen(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -301,7 +301,7 @@ func TestInvalidProjectKey(t *testing.T) {
 
 // TestMissingProject tests creating a ticket with a non-existent project
 func TestMissingProject(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -314,7 +314,7 @@ func TestMissingProject(t *testing.T) {
 
 // TestMissingTicket tests operations on non-existent tickets
 func TestMissingTicket(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	ticketRepo := db.NewTicketRepo(database.DB)
@@ -331,7 +331,7 @@ func TestMissingTicket(t *testing.T) {
 
 // TestDuplicateProject tests creating a project with a duplicate key
 func TestDuplicateProject(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -349,7 +349,7 @@ func TestDuplicateProject(t *testing.T) {
 
 // TestStateTransitionErrors tests invalid state transitions
 func TestStateTransitionErrors(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -406,7 +406,7 @@ func TestStateTransitionErrors(t *testing.T) {
 
 // TestClaimAlreadyClaimed tests trying to claim an already claimed ticket
 func TestClaimAlreadyClaimed(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -440,7 +440,7 @@ func TestClaimAlreadyClaimed(t *testing.T) {
 
 // TestClaimExpiredCanReClaim tests that an expired claim allows re-claiming
 func TestClaimExpiredCanReClaim(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -510,7 +510,7 @@ func TestInvalidEnumValues(t *testing.T) {
 
 // TestProjectJSONOutput tests JSON serialization of projects
 func TestProjectJSONOutput(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -540,7 +540,7 @@ func TestProjectJSONOutput(t *testing.T) {
 
 // TestTicketJSONOutput tests JSON serialization of tickets
 func TestTicketJSONOutput(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -584,7 +584,7 @@ func TestTicketJSONOutput(t *testing.T) {
 
 // TestClaimJSONOutput tests JSON serialization of claims
 func TestClaimJSONOutput(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -619,7 +619,7 @@ func TestClaimJSONOutput(t *testing.T) {
 
 // TestInboxMessageJSONOutput tests JSON serialization of inbox messages
 func TestInboxMessageJSONOutput(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -698,7 +698,7 @@ func TestStatusResultJSONOutput(t *testing.T) {
 
 // TestDependencyBlocking tests that dependencies block tickets
 func TestDependencyBlocking(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -753,7 +753,7 @@ func TestDependencyBlocking(t *testing.T) {
 // does NOT auto-unblock dependents (only completed resolution does that).
 // Non-completed closures require human review.
 func TestDependencyCancellationDoesNotAutoUnblock(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -797,7 +797,7 @@ func TestDependencyCancellationDoesNotAutoUnblock(t *testing.T) {
 
 // TestDependencyCompletionUnblocks tests that completing a dependency unblocks dependents
 func TestDependencyCompletionUnblocks(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -840,7 +840,7 @@ func TestDependencyCompletionUnblocks(t *testing.T) {
 
 // TestChainedDependencies tests a chain of dependencies
 func TestChainedDependencies(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -903,7 +903,7 @@ func TestChainedDependencies(t *testing.T) {
 
 // TestDependencyRemoval tests removing a dependency
 func TestDependencyRemoval(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -943,7 +943,7 @@ func TestDependencyRemoval(t *testing.T) {
 
 // TestInboxBlocksTicket tests that flagging a ticket blocks it
 func TestInboxBlocksTicket(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -988,7 +988,7 @@ func TestInboxBlocksTicket(t *testing.T) {
 
 // TestInboxResponseUnblocksTicket tests that responding to inbox unblocks ticket
 func TestInboxResponseUnblocksTicket(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1035,7 +1035,7 @@ func TestInboxResponseUnblocksTicket(t *testing.T) {
 
 // TestMultipleInboxMessages tests multiple pending messages for a ticket
 func TestMultipleInboxMessages(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1081,7 +1081,7 @@ func TestMultipleInboxMessages(t *testing.T) {
 
 // TestWorkableExcludesBlocked tests that workable list excludes blocked tickets
 func TestWorkableExcludesBlocked(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1117,7 +1117,7 @@ func TestWorkableExcludesBlocked(t *testing.T) {
 // Note: The ListWorkable query returns ready tickets with resolved deps, but retry filtering
 // is done at application level (in ticket_util.go's runTicketNext function)
 func TestWorkableExcludesMaxRetries(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1155,7 +1155,7 @@ func TestWorkableExcludesMaxRetries(t *testing.T) {
 
 // TestWorkableOnlyReady tests that workable only includes ready status
 func TestWorkableOnlyReady(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1203,7 +1203,7 @@ func TestWorkableOnlyReady(t *testing.T) {
 
 // TestClaimExpirationEscalation tests escalation when max retries reached
 func TestClaimExpirationEscalation(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1242,7 +1242,7 @@ func TestClaimExpirationEscalation(t *testing.T) {
 
 // TestClaimListByTicket tests listing claims for a specific ticket
 func TestClaimListByTicket(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1286,7 +1286,7 @@ func TestClaimListByTicket(t *testing.T) {
 
 // TestTicketFilterByProject tests filtering tickets by project
 func TestTicketFilterByProject(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1327,7 +1327,7 @@ func TestTicketFilterByProject(t *testing.T) {
 
 // TestTicketFilterByStatus tests filtering tickets by status
 func TestTicketFilterByStatus(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1371,7 +1371,7 @@ func TestTicketFilterByStatus(t *testing.T) {
 
 // TestTicketFilterByPriority tests filtering tickets by priority
 func TestTicketFilterByPriority(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1408,7 +1408,7 @@ func TestTicketFilterByPriority(t *testing.T) {
 
 // TestActivityLogFiltering tests filtering activity logs
 func TestActivityLogFiltering(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1461,7 +1461,7 @@ func TestActivityLogFiltering(t *testing.T) {
 
 // TestActivityLogWithDetails tests logging activities with JSON details
 func TestActivityLogWithDetails(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	projectRepo := db.NewProjectRepo(database.DB)
@@ -1515,7 +1515,7 @@ func TestActivityLogWithDetails(t *testing.T) {
 // TestAutoTransitionToBlockedOnCreate tests that tickets with unresolved dependencies
 // automatically transition to blocked status on creation
 func TestAutoTransitionToBlockedOnCreate(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project
@@ -1570,7 +1570,7 @@ func TestAutoTransitionToBlockedOnCreate(t *testing.T) {
 // TestAutoTransitionToReadyWhenDependencyResolved tests that blocked tickets
 // automatically transition to ready when their dependencies are resolved
 func TestAutoTransitionToReadyWhenDependencyResolved(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project
@@ -1632,7 +1632,7 @@ func TestAutoTransitionToReadyWhenDependencyResolved(t *testing.T) {
 // TestAutoTransitionOnDependencyEdit tests status transitions when dependencies
 // are added or removed via ticket edit
 func TestAutoTransitionOnDependencyEdit(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project
@@ -1691,7 +1691,7 @@ func TestAutoTransitionOnDependencyEdit(t *testing.T) {
 // TestNoAutoTransitionWithResolvedDependency tests that tickets don't get blocked
 // when depending on already-completed tickets
 func TestNoAutoTransitionWithResolvedDependency(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project

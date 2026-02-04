@@ -33,18 +33,20 @@ This command:
 - Creates ~/.wark/ directory if it doesn't exist
 - Creates wark.db with the database schema
 - Runs any pending migrations
+- Installs skill files to detected AI agent directories (~/.claude/skills/ or ~/.openclaw/skills/)
 - Optionally creates a sample config file (--with-config)
 
-Use --force to overwrite an existing database.
+Use --force to overwrite an existing database and skill files.
 Use --with-config to create a sample config file at ~/.wark/config.toml.`,
 	RunE: runInit,
 }
 
 type initResult struct {
-	Database   string `json:"database"`
-	Created    bool   `json:"created"`
-	Schema     int64  `json:"schema_version"`
-	ConfigFile string `json:"config_file,omitempty"`
+	Database   string               `json:"database"`
+	Created    bool                 `json:"created"`
+	Schema     int64                `json:"schema_version"`
+	ConfigFile string               `json:"config_file,omitempty"`
+	Skills     []skillInstallResult `json:"skills,omitempty"`
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -154,12 +156,29 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Install skill to detected AI agent directories
+	var skillResults []skillInstallResult
+	VerboseOutput("Checking for AI agent directories...\n")
+	skillInstallMulti, err := InstallSkill(initForce)
+	if err != nil {
+		// Non-fatal: warn but continue
+		VerboseOutput("Warning: failed to install skill: %v\n", err)
+	} else if skillInstallMulti != nil {
+		skillResults = skillInstallMulti.Targets
+		for _, r := range skillResults {
+			VerboseOutput("Installed skill to %s\n", r.Path)
+		}
+	} else {
+		VerboseOutput("No AI agent directories found (checked ~/.claude/ and ~/.openclaw/)\n")
+	}
+
 	if IsJSON() {
 		result := initResult{
 			Database:   displayPath,
 			Created:    true,
 			Schema:     version,
 			ConfigFile: configPath,
+			Skills:     skillResults,
 		}
 		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
@@ -170,6 +189,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	OutputLine("Schema version: %d", version)
 	if configPath != "" {
 		OutputLine("Created sample config at %s", configPath)
+	}
+	for _, r := range skillResults {
+		OutputLine("Installed skill to %s", r.Path)
 	}
 
 	return nil

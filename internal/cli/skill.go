@@ -1,58 +1,14 @@
 package cli
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/diogenes-ai-code/wark/internal/skill"
-	"github.com/spf13/cobra"
 )
-
-// Skill command flags
-var (
-	skillForce bool
-)
-
-func init() {
-	// skill install
-	skillInstallCmd.Flags().BoolVarP(&skillForce, "force", "f", false, "Overwrite existing files without confirmation")
-
-	// Add subcommands
-	skillCmd.AddCommand(skillInstallCmd)
-
-	rootCmd.AddCommand(skillCmd)
-}
-
-var skillCmd = &cobra.Command{
-	Use:   "skill",
-	Short: "Skill management commands",
-	Long:  `Manage the Wark skill for OpenClaw integration.`,
-}
-
-// skill install
-var skillInstallCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Install the Wark skill to OpenClaw",
-	Long: `Install the bundled Wark skill to ~/.openclaw/skills/wark/.
-
-This copies the SKILL.md and reference files that help AI agents
-understand how to use Wark effectively.
-
-If files already exist, you will be prompted to confirm overwriting
-unless --force is specified.
-
-Examples:
-  wark skill install          # Install with confirmation if files exist
-  wark skill install --force  # Overwrite without confirmation`,
-	Args: cobra.NoArgs,
-	RunE: runSkillInstall,
-}
 
 type skillInstallResult struct {
 	Installed   bool     `json:"installed"`
@@ -61,59 +17,58 @@ type skillInstallResult struct {
 	Overwritten bool     `json:"overwritten,omitempty"`
 }
 
-func runSkillInstall(cmd *cobra.Command, args []string) error {
-	// Get home directory
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return ErrGeneralWithCause(err, "failed to get home directory")
+type skillInstallMultiResult struct {
+	Targets []skillInstallResult `json:"targets"`
+}
+
+// detectSkillTargets returns all target directories for skill installation.
+// It checks for Claude Code (~/.claude/) and OpenClaw (~/.openclaw/).
+// Returns empty slice if neither exists.
+func detectSkillTargets(homeDir string) []string {
+	var targets []string
+
+	claudeDir := filepath.Join(homeDir, ".claude")
+	openclawDir := filepath.Join(homeDir, ".openclaw")
+
+	// Check Claude Code
+	if info, err := os.Stat(claudeDir); err == nil && info.IsDir() {
+		targets = append(targets, filepath.Join(claudeDir, "skills", "wark"))
 	}
 
-	targetDir := filepath.Join(homeDir, ".openclaw", "skills", "wark")
+	// Check OpenClaw
+	if info, err := os.Stat(openclawDir); err == nil && info.IsDir() {
+		targets = append(targets, filepath.Join(openclawDir, "skills", "wark"))
+	}
 
+	return targets
+}
+
+// installSkillToDir installs the skill files to a single directory.
+// Returns the result and any error encountered.
+func installSkillToDir(targetDir string, force bool) (*skillInstallResult, error) {
 	// Check if target directory exists and has files
 	existingFiles, err := listExistingFiles(targetDir)
 	if err != nil && !os.IsNotExist(err) {
-		return ErrGeneralWithCause(err, "failed to check existing files")
+		return nil, fmt.Errorf("failed to check existing files: %w", err)
 	}
 
-	// If files exist and not forcing, prompt for confirmation
+	// If files exist and not forcing, skip
 	overwritten := false
-	if len(existingFiles) > 0 && !skillForce {
-		if IsJSON() {
-			// In JSON mode, require --force for overwrites
-			return ErrStateErrorWithSuggestion(
-				"Use --force to overwrite existing files.",
-				"skill files already exist at %s", targetDir,
-			)
-		}
-
-		fmt.Printf("Skill files already exist at %s:\n", targetDir)
-		for _, f := range existingFiles {
-			fmt.Printf("  %s\n", f)
-		}
-		fmt.Print("\nThis will overwrite existing files. Continue? [y/N] ")
-
-		reader := bufio.NewReader(os.Stdin)
-		response, _ := reader.ReadString('\n')
-		response = strings.TrimSpace(strings.ToLower(response))
-
-		if response != "y" && response != "yes" {
-			return ErrGeneral("installation cancelled")
-		}
-		overwritten = true
+	if len(existingFiles) > 0 && !force {
+		return nil, fmt.Errorf("skill files already exist at %s (use --force to overwrite)", targetDir)
 	} else if len(existingFiles) > 0 {
 		overwritten = true
 	}
 
 	// Create target directory
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return ErrGeneralWithCause(err, "failed to create directory %s", targetDir)
+		return nil, fmt.Errorf("failed to create directory %s: %w", targetDir, err)
 	}
 
 	// Get embedded skill files
 	skillFS, err := skill.FS()
 	if err != nil {
-		return ErrGeneralWithCause(err, "failed to access embedded skill files")
+		return nil, fmt.Errorf("failed to access embedded skill files: %w", err)
 	}
 
 	// Copy all files
@@ -139,29 +94,40 @@ func runSkillInstall(cmd *cobra.Command, args []string) error {
 	})
 
 	if err != nil {
-		return ErrGeneralWithCause(err, "failed to install skill files")
+		return nil, fmt.Errorf("failed to install skill files: %w", err)
 	}
 
-	result := skillInstallResult{
+	return &skillInstallResult{
 		Installed:   true,
 		Path:        targetDir,
 		Files:       installedFiles,
 		Overwritten: overwritten,
+	}, nil
+}
+
+// InstallSkill installs the skill to all detected AI agent directories.
+// Returns the results for each target and any error if no targets found.
+func InstallSkill(force bool) (*skillInstallMultiResult, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	if IsJSON() {
-		data, _ := json.MarshalIndent(result, "", "  ")
-		fmt.Println(string(data))
-		return nil
+	targets := detectSkillTargets(homeDir)
+	if len(targets) == 0 {
+		return nil, nil // No targets found, not an error
 	}
 
-	OutputLine("Installed Wark skill to %s", targetDir)
-	OutputLine("Files:")
-	for _, f := range installedFiles {
-		OutputLine("  %s", f)
+	result := &skillInstallMultiResult{}
+	for _, targetDir := range targets {
+		installResult, err := installSkillToDir(targetDir, force)
+		if err != nil {
+			return nil, err
+		}
+		result.Targets = append(result.Targets, *installResult)
 	}
 
-	return nil
+	return result, nil
 }
 
 // listExistingFiles returns a list of files in the given directory

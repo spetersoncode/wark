@@ -454,6 +454,7 @@ Examples:
 type ticketShowResult struct {
 	*models.Ticket
 	Dependencies   []*models.Ticket       `json:"dependencies,omitempty"`
+	BlockingDeps   []*models.Ticket       `json:"blocking_deps,omitempty"` // Unresolved deps blocking this ticket
 	Dependents     []*models.Ticket       `json:"dependents,omitempty"`
 	History        []*models.ActivityLog  `json:"history,omitempty"`
 	Tasks          []*models.TicketTask   `json:"tasks,omitempty"`
@@ -513,9 +514,20 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		VerboseOutput("Warning: failed to get claim: %v\n", err)
 	}
 
+	// Identify blocking dependencies for blocked tickets
+	var blockingDeps []*models.Ticket
+	if ticket.Status == models.StatusBlocked {
+		for _, dep := range dependencies {
+			if !dep.IsClosedSuccessfully() {
+				blockingDeps = append(blockingDeps, dep)
+			}
+		}
+	}
+
 	result := ticketShowResult{
 		Ticket:       ticket,
 		Dependencies: dependencies,
+		BlockingDeps: blockingDeps,
 		Dependents:   dependents,
 		History:      history,
 		Claim:        claim,
@@ -539,7 +551,11 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s: %s\n", ticket.TicketKey, ticket.Title)
 	fmt.Println(strings.Repeat("=", 65))
 	fmt.Println()
-	fmt.Printf("Status:      %s\n", ticket.Status)
+	if ticket.Status == models.StatusBlocked && len(blockingDeps) > 0 {
+		fmt.Printf("Status:      %s ⛔ (blocked by %d ticket(s))\n", ticket.Status, len(blockingDeps))
+	} else {
+		fmt.Printf("Status:      %s\n", ticket.Status)
+	}
 	fmt.Printf("Priority:    %s\n", ticket.Priority)
 	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
 	if ticket.BranchName != "" {
@@ -551,6 +567,23 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Updated:     %s\n", ticket.UpdatedAt.Local().Format("2006-01-02 15:04:05"))
 	if ticket.CompletedAt != nil {
 		fmt.Printf("Completed:   %s\n", ticket.CompletedAt.Local().Format("2006-01-02 15:04:05"))
+	}
+
+	// Show blocking dependencies prominently for blocked tickets
+	if len(blockingDeps) > 0 {
+		fmt.Println()
+		fmt.Println(strings.Repeat("-", 65))
+		fmt.Printf("⛔ BLOCKING DEPENDENCIES (%d):\n", len(blockingDeps))
+		fmt.Println(strings.Repeat("-", 65))
+		for _, dep := range blockingDeps {
+			statusStr := string(dep.Status)
+			if dep.Status == models.StatusClosed && dep.Resolution != nil {
+				statusStr = fmt.Sprintf("closed:%s", *dep.Resolution)
+			}
+			fmt.Printf("  ⏳ %s: %s [%s]\n", dep.TicketKey, dep.Title, statusStr)
+		}
+		fmt.Println()
+		fmt.Println("  💡 This ticket cannot be worked until these dependencies are resolved.")
 	}
 
 	if claim != nil {

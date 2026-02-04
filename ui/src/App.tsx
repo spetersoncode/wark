@@ -1,5 +1,6 @@
 import {
 	BarChart3,
+	Flag,
 	FolderKanban,
 	Home,
 	Inbox as InboxIcon,
@@ -21,6 +22,8 @@ import {
 	ComponentDemo,
 	Dashboard,
 	Inbox,
+	MilestoneDetail,
+	Milestones,
 	NotFound,
 	Projects,
 	TicketDetail,
@@ -31,6 +34,7 @@ const NAV_ITEMS = [
 	{ to: "/", label: "Dashboard", icon: Home, end: true },
 	{ to: "/projects", label: "Projects", icon: FolderKanban },
 	{ to: "/tickets", label: "Tickets", icon: ListTodo },
+	{ to: "/milestones", label: "Milestones", icon: Flag },
 	{ to: "/board", label: "Board", icon: KanbanSquare },
 	{ to: "/inbox", label: "Inbox", icon: InboxIcon },
 	{ to: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -146,6 +150,8 @@ function App() {
 							<Route path="/dashboard" element={<Dashboard />} />
 							<Route path="/projects" element={<Projects />} />
 							<Route path="/tickets" element={<Tickets />} />
+							<Route path="/milestones" element={<Milestones />} />
+							<Route path="/milestones/*" element={<MilestoneDetail />} />
 							<Route path="/board" element={<Board />} />
 							<Route path="/inbox" element={<Inbox />} />
 							<Route path="/analytics" element={<Analytics />} />

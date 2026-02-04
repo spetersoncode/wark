@@ -649,3 +649,136 @@ export function AnalyticsSkeleton() {
 		</div>
 	);
 }
+
+/**
+ * Skeleton for a single milestone card
+ */
+export function MilestoneCardSkeleton() {
+	return (
+		<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+			<div className="flex items-start gap-3 mb-3">
+				<Skeleton className="w-5 h-5 rounded flex-shrink-0" />
+				<div className="flex-1 space-y-1.5">
+					<div className="flex items-center gap-2">
+						<Skeleton className="h-4 w-20 font-mono" />
+						<Skeleton className="h-5 w-16 rounded" />
+					</div>
+					<Skeleton className="h-5 w-48" />
+				</div>
+			</div>
+			<Skeleton className="h-4 w-full mb-3" />
+			<div className="space-y-1 mb-3">
+				<div className="flex justify-between">
+					<Skeleton className="h-4 w-16" />
+					<Skeleton className="h-4 w-20" />
+				</div>
+				<Skeleton className="h-1.5 w-full rounded-full" />
+			</div>
+			<div className="flex items-center gap-4">
+				<Skeleton className="h-4 w-20" />
+				<Skeleton className="h-4 w-24" />
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Skeleton for milestones list page
+ */
+export function MilestonesSkeleton() {
+	return (
+		<div className="space-y-8">
+			{/* Header */}
+			<Skeleton className="h-8 w-32" />
+
+			{/* Section heading */}
+			<div className="space-y-4">
+				<div className="flex items-center gap-2">
+					<Skeleton className="w-2 h-2 rounded-full" />
+					<Skeleton className="h-6 w-24" />
+				</div>
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					<MilestoneCardSkeleton />
+					<MilestoneCardSkeleton />
+					<MilestoneCardSkeleton />
+				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Skeleton for milestone detail page
+ */
+export function MilestoneDetailSkeleton() {
+	return (
+		<div className="space-y-6 max-w-5xl">
+			{/* Breadcrumb */}
+			<Skeleton className="h-4 w-24" />
+
+			{/* Title block */}
+			<div className="space-y-3">
+				<div className="flex items-center gap-3">
+					<Skeleton className="h-4 w-24 font-mono" />
+					<Skeleton className="h-5 w-16 rounded" />
+				</div>
+				<Skeleton className="h-8 w-72" />
+			</div>
+
+			{/* 2-column layout */}
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+				{/* Main content */}
+				<div className="lg:col-span-2 space-y-6">
+					{/* Goal section */}
+					<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+						<Skeleton className="h-4 w-12 mb-3" />
+						<Skeleton className="h-4 w-full mb-2" />
+						<Skeleton className="h-4 w-3/4 mb-2" />
+						<Skeleton className="h-4 w-1/2" />
+					</div>
+
+					{/* Tickets section */}
+					<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+						<Skeleton className="h-4 w-16 mb-4" />
+						<div className="space-y-2">
+							{Array.from({ length: 5 }, (_, i) => `ticket-${i}`).map((key) => (
+								<div key={key} className="flex items-center justify-between p-2">
+									<div className="flex items-center gap-2">
+										<Skeleton className="h-4 w-16 font-mono" />
+										<Skeleton className="h-4 w-48" />
+									</div>
+									<Skeleton className="h-5 w-20 rounded" />
+								</div>
+							))}
+						</div>
+					</div>
+				</div>
+
+				{/* Sidebar */}
+				<div className="space-y-4">
+					{/* Progress section */}
+					<div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+						<Skeleton className="h-4 w-16 mb-3" />
+						<div className="space-y-1 mb-4">
+							<div className="flex justify-between">
+								<Skeleton className="h-4 w-16" />
+								<Skeleton className="h-4 w-20" />
+							</div>
+							<Skeleton className="h-2 w-full rounded-full" />
+						</div>
+						<div className="space-y-2">
+							<div className="flex justify-between">
+								<Skeleton className="h-4 w-20" />
+								<Skeleton className="h-4 w-16" />
+							</div>
+							<div className="flex justify-between">
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-4 w-24" />
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}

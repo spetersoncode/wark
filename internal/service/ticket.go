@@ -679,57 +679,6 @@ func (s *TicketService) Reopen(ticketID int64) error {
 	return nil
 }
 
-// Promote promotes a draft ticket to ready (or blocked if it has unresolved dependencies).
-func (s *TicketService) Promote(ticketID int64) error {
-	ticket, err := s.ticketRepo.GetByID(ticketID)
-	if err != nil {
-		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
-	}
-	if ticket == nil {
-		return newTicketError(ErrCodeNotFound, "ticket not found", nil)
-	}
-
-	// Check if ticket can be promoted
-	if !state.CanBePromoted(ticket.Status) {
-		return newTicketError(ErrCodeInvalidState,
-			fmt.Sprintf("ticket cannot be promoted in status: %s (must be draft)", ticket.Status),
-			map[string]interface{}{"current_status": ticket.Status})
-	}
-
-	// Determine new status: blocked if has deps, ready otherwise
-	hasUnresolved, err := s.depRepo.HasUnresolvedDependencies(ticket.ID)
-	if err != nil {
-		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to check dependencies: %v", err), nil)
-	}
-
-	newStatus := models.StatusReady
-	if hasUnresolved {
-		newStatus = models.StatusBlocked
-	}
-
-	// Validate transition
-	if err := s.stateMachine.CanTransition(ticket, newStatus, state.TransitionTypeManual, "", nil); err != nil {
-		return newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot promote ticket: %v", err), nil)
-	}
-
-	// Update ticket
-	ticket.Status = newStatus
-	if err := s.ticketRepo.Update(ticket); err != nil {
-		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
-	}
-
-	// Log activity
-	if newStatus == models.StatusReady {
-		s.activityRepo.LogAction(ticket.ID, models.ActionPromoted, models.ActorTypeHuman, "",
-			"Promoted from draft to ready")
-	} else {
-		s.activityRepo.LogAction(ticket.ID, models.ActionBlocked, models.ActorTypeHuman, "",
-			"Promoted from draft but blocked by unresolved dependencies")
-	}
-
-	return nil
-}
-
 // ResumeResult contains the result of resuming a ticket.
 type ResumeResult struct {
 	Ticket *models.Ticket `json:"ticket"`

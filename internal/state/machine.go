@@ -1,9 +1,8 @@
 // Package state implements the ticket state machine for wark.
 //
-// State Machine (WARK-12, WARK-21):
+// State Machine (WARK-12):
 //
 // States:
-//   - draft: being planned, not ready for AI to work on
 //   - blocked: has open dependencies, cannot be worked
 //   - ready: no blockers, available for work
 //   - in_progress: actively being worked
@@ -12,14 +11,12 @@
 //   - closed: terminal state (with resolution enum)
 //
 // Auto-transitions (dependency-triggered):
-//   - ON create: if --draft flag → draft, else if has_open_deps → blocked, else → ready
+//   - ON create: if has_open_deps → blocked, else → ready
 //   - ON dep completed: if blocked ticket has all deps done → ready
 //   - ON dep added to ready ticket: if dep not closed(completed) → blocked
 //   - ON dep removed: if blocked and all deps done → ready
 //
 // Manual transitions:
-//   - draft → ready (promote)
-//   - draft → blocked (add dependency)
 //   - ready → in_progress (claim)
 //   - ready → human (escalate before starting)
 //   - in_progress → ready (release)
@@ -31,7 +28,7 @@
 //   - review → closed (accept)
 //   - {any except closed} → closed (cancel with resolution)
 //
-// Constraint: Dependencies can only be modified when ticket is draft, blocked, or ready.
+// Constraint: Dependencies can only be modified when ticket is blocked or ready.
 package state
 
 import (
@@ -100,29 +97,6 @@ type TransitionRule struct {
 
 // validTransitions defines all valid state transitions.
 var validTransitions = []TransitionRule{
-	// Draft transitions (WARK-21)
-	// draft → ready (promote)
-	{
-		From:         models.StatusDraft,
-		To:           models.StatusReady,
-		AllowedTypes: []TransitionType{TransitionTypeManual},
-		Description:  "Ticket promoted from draft to ready",
-	},
-	// draft → blocked (dependency added or promote with deps)
-	{
-		From:         models.StatusDraft,
-		To:           models.StatusBlocked,
-		AllowedTypes: []TransitionType{TransitionTypeAuto, TransitionTypeManual},
-		Description:  "Draft ticket blocked by unresolved dependency",
-	},
-	// draft → closed (cancel)
-	{
-		From:         models.StatusDraft,
-		To:           models.StatusClosed,
-		AllowedTypes: []TransitionType{TransitionTypeManual},
-		Description:  "Draft ticket closed",
-	},
-
 	// Auto-transitions (dependency-triggered)
 	// blocked → ready (all dependencies resolved)
 	{
@@ -228,12 +202,6 @@ var validTransitions = []TransitionRule{
 	},
 
 	// Reopen from closed
-	{
-		From:         models.StatusClosed,
-		To:           models.StatusDraft,
-		AllowedTypes: []TransitionType{TransitionTypeManual},
-		Description:  "Ticket reopened as draft",
-	},
 	{
 		From:         models.StatusClosed,
 		To:           models.StatusReady,
@@ -372,8 +340,6 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 	switch to {
 	case models.StatusReady:
 		switch from {
-		case models.StatusDraft:
-			return models.ActionPromoted
 		case models.StatusBlocked:
 			return models.ActionUnblocked
 		case models.StatusInProgress:
@@ -390,15 +356,7 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 		if from == models.StatusClosed {
 			return models.ActionReopened
 		}
-		if from == models.StatusDraft {
-			return models.ActionBlocked
-		}
 		return models.ActionBlocked
-	case models.StatusDraft:
-		if from == models.StatusClosed {
-			return models.ActionReopened
-		}
-		return models.ActionFieldChanged
 	case models.StatusInProgress:
 		if from == models.StatusHuman {
 			return models.ActionHumanResponded
@@ -436,7 +394,7 @@ func CanBeEscalated(status models.Status) bool {
 // CanBeClosed returns true if tickets in this status can be closed.
 func CanBeClosed(status models.Status) bool {
 	switch status {
-	case models.StatusDraft, models.StatusBlocked, models.StatusReady, models.StatusInProgress,
+	case models.StatusBlocked, models.StatusReady, models.StatusInProgress,
 		models.StatusHuman, models.StatusReview:
 		return true
 	}
@@ -451,10 +409,4 @@ func CanBeReopened(status models.Status) bool {
 // CanModifyDependencies returns true if dependencies can be modified in this status.
 func CanModifyDependencies(status models.Status) bool {
 	return status.CanModifyDependencies()
-}
-
-// CanBePromoted returns true if tickets in this status can be promoted.
-// Only draft tickets can be promoted to ready.
-func CanBePromoted(status models.Status) bool {
-	return status == models.StatusDraft
 }

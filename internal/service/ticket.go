@@ -730,6 +730,93 @@ func (s *TicketService) Promote(ticketID int64) error {
 	return nil
 }
 
+// ResumeResult contains the result of resuming a ticket.
+type ResumeResult struct {
+	Ticket *models.Ticket `json:"ticket"`
+	Claim  *models.Claim  `json:"claim"`
+	Branch string         `json:"branch"`
+}
+
+// Resume resumes work on a ticket that is in human status.
+// This is used when an agent wants to continue work after human input.
+// It creates a new claim and transitions the ticket to in_progress.
+func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Duration) (*ResumeResult, error) {
+	if workerID == "" {
+		return nil, newTicketError(ErrCodeInvalidReason, "worker ID is required", nil)
+	}
+
+	ticket, err := s.ticketRepo.GetByID(ticketID)
+	if err != nil {
+		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
+	}
+	if ticket == nil {
+		return nil, newTicketError(ErrCodeNotFound, "ticket not found", nil)
+	}
+
+	// Must be in human status
+	if ticket.Status != models.StatusHuman {
+		return nil, newTicketError(ErrCodeInvalidState,
+			fmt.Sprintf("ticket must be in human status to resume (current: %s)", ticket.Status),
+			map[string]interface{}{"current_status": ticket.Status})
+	}
+
+	// Validate state machine transition
+	if err := s.stateMachine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
+		return nil, newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot resume ticket: %v", err), nil)
+	}
+
+	// Check for existing active claim (shouldn't happen for human status, but be safe)
+	existingClaim, err := s.claimRepo.GetActiveByTicketID(ticket.ID)
+	if err != nil {
+		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to check existing claims: %v", err), nil)
+	}
+	if existingClaim != nil {
+		return nil, newTicketError(ErrCodeAlreadyClaimed,
+			fmt.Sprintf("ticket already has an active claim by %s", existingClaim.WorkerID),
+			map[string]interface{}{"worker_id": existingClaim.WorkerID})
+	}
+
+	// Create claim
+	claim := models.NewClaim(ticket.ID, workerID, duration)
+	if err := s.claimRepo.Create(claim); err != nil {
+		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to create claim: %v", err), nil)
+	}
+
+	// Update ticket status
+	previousReason := ticket.HumanFlagReason
+	ticket.Status = models.StatusInProgress
+	ticket.RetryCount = 0           // Reset retry count on resume
+	ticket.HumanFlagReason = ""     // Clear the flag reason
+	if err := s.ticketRepo.Update(ticket); err != nil {
+		// Rollback claim
+		s.claimRepo.Release(claim.ID, models.ClaimStatusReleased)
+		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket status: %v", err), nil)
+	}
+
+	// Log activity
+	durationMins := int(duration.Minutes())
+	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionHumanResponded, models.ActorTypeAgent, workerID,
+		fmt.Sprintf("Resumed work (expires in %dm)", durationMins),
+		map[string]interface{}{
+			"worker_id":          workerID,
+			"duration_mins":      durationMins,
+			"expires_at":         claim.ExpiresAt.Format(time.RFC3339),
+			"previous_flag_reason": previousReason,
+		})
+
+	// Generate branch name if needed
+	branchName := ticket.BranchName
+	if branchName == "" {
+		branchName = GenerateBranchName(ticket.ProjectKey, ticket.Number, ticket.Title)
+	}
+
+	return &ResumeResult{
+		Ticket: ticket,
+		Claim:  claim,
+		Branch: branchName,
+	}, nil
+}
+
 // GenerateBranchName generates a git branch name for a ticket.
 // This is exported for use by CLI when displaying branch info.
 func GenerateBranchName(projectKey string, number int, title string) string {

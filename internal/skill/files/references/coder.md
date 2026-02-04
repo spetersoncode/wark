@@ -21,13 +21,8 @@ The fundamental workflow: **claim → worktree → work → complete → cleanup
 # 1. Get the next available ticket (automatically claims it)
 wark ticket next --json
 
-# 2. Create isolated worktree
-cd ~/repos/<repo-name>
-BRANCH=$(wark ticket branch PROJ-42)
-DIR_NAME=${BRANCH#wark/}
-mkdir -p ~/repos/<repo-name>-worktrees
-git worktree add ~/repos/<repo-name>-worktrees/$DIR_NAME -b $BRANCH
-cd ~/repos/<repo-name>-worktrees/$DIR_NAME
+# 2. Create isolated worktree (run from main repo)
+cd $(wark worktree create PROJ-42)
 
 # 3. Implement the ticket
 # ... your work here ...
@@ -35,11 +30,8 @@ cd ~/repos/<repo-name>-worktrees/$DIR_NAME
 # 4. Complete the ticket
 wark ticket complete PROJ-42 --summary "Implemented feature X"
 
-# 5. Cleanup worktree after merge
-cd ~/repos/<repo-name>
-git worktree remove ~/repos/<repo-name>-worktrees/$DIR_NAME
-git branch -d $BRANCH
-git worktree prune
+# 5. Cleanup worktree after merge (run from main repo)
+wark worktree remove PROJ-42
 ```
 
 ---
@@ -77,32 +69,29 @@ The worktree directory uses the same name **without** the `wark/` prefix.
 ### Setup Worktree
 
 ```bash
-# From within the main repo
-REPO_NAME=$(basename "$PWD")
-BRANCH=$(wark ticket branch PROJ-42)
-DIR_NAME=${BRANCH#wark/}
-
-mkdir -p ~/repos/${REPO_NAME}-worktrees
-git worktree add ~/repos/${REPO_NAME}-worktrees/$DIR_NAME -b $BRANCH
-cd ~/repos/${REPO_NAME}-worktrees/$DIR_NAME
+# From within the main repo, create worktree and cd into it
+cd $(wark worktree create PROJ-42)
 ```
+
+This creates the worktree at `<repo>-worktrees/<ticket-slug>/` and outputs the path.
 
 ### Cleanup Worktree
 
 **Always clean up after work is merged:**
 
 ```bash
-cd ~/repos/<repo-name>
-git worktree remove ~/repos/<repo-name>-worktrees/$DIR_NAME
-git branch -d $BRANCH
-git worktree prune
+# From main repo
+wark worktree remove PROJ-42
 ```
+
+This removes the worktree directory, deletes the branch, and prunes stale references.
 
 ### Useful Commands
 
 ```bash
-git worktree list                           # List all worktrees
-git worktree remove --force <path>          # Force remove if stuck
+wark worktree list                          # List all wark worktrees
+wark worktree path PROJ-42                  # Get worktree path for scripting
+git worktree list                           # List all git worktrees
 ```
 
 ---

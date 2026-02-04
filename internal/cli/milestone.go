@@ -270,15 +270,51 @@ Examples:
 	RunE: runMilestoneShow,
 }
 
-type milestoneShowResult struct {
-	*models.MilestoneWithStats
-	Tickets []ticketSummary `json:"tickets,omitempty"`
+// ticketSummary represents a ticket in the milestone show output.
+type ticketSummary struct {
+	Key      string `json:"key"`
+	Title    string `json:"title"`
+	Status   string `json:"status"`
+	Priority string `json:"priority"`
 }
 
-type ticketSummary struct {
-	Key    string `json:"key"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
+// statusBreakdown shows counts per ticket status.
+type statusBreakdown struct {
+	Blocked    int `json:"blocked"`
+	Ready      int `json:"ready"`
+	InProgress int `json:"in_progress"`
+	Human      int `json:"human"`
+	Review     int `json:"review"`
+	Closed     int `json:"closed"`
+}
+
+// timeTracking provides timing information relative to target date.
+type timeTracking struct {
+	TargetDate    string `json:"target_date"`
+	DaysRemaining *int   `json:"days_remaining,omitempty"`
+	DaysOverdue   *int   `json:"days_overdue,omitempty"`
+	OnTrack       *bool  `json:"on_track,omitempty"`
+}
+
+// milestoneShowResult is the structured output for milestone show.
+type milestoneShowResult struct {
+	Key           string           `json:"key"`
+	Name          string           `json:"name"`
+	Status        string           `json:"status"`
+	Goal          string           `json:"goal"`
+	CreatedAt     time.Time        `json:"created_at"`
+	UpdatedAt     time.Time        `json:"updated_at"`
+	TimeTracking  *timeTracking    `json:"time_tracking,omitempty"`
+	Progress      progressSummary  `json:"progress"`
+	StatusCounts  statusBreakdown  `json:"status_counts"`
+	Tickets       []ticketSummary  `json:"tickets"`
+}
+
+// progressSummary provides overall progress statistics.
+type progressSummary struct {
+	TotalTickets   int     `json:"total_tickets"`
+	CompletedCount int     `json:"completed_count"`
+	CompletionPct  float64 `json:"completion_pct"`
 }
 
 func runMilestoneShow(cmd *cobra.Command, args []string) error {
@@ -330,18 +366,81 @@ func runMilestoneShow(cmd *cobra.Command, args []string) error {
 		return handleMilestoneError(err)
 	}
 
+	// Build ticket summaries and status counts
 	ticketSummaries := make([]ticketSummary, len(tickets))
+	statusCounts := statusBreakdown{}
+
 	for i, t := range tickets {
 		ticketSummaries[i] = ticketSummary{
-			Key:    t.Key(),
-			Title:  t.Title,
-			Status: string(t.Status),
+			Key:      t.Key(),
+			Title:    t.Title,
+			Status:   string(t.Status),
+			Priority: string(t.Priority),
+		}
+
+		// Count by status
+		switch t.Status {
+		case models.StatusBlocked:
+			statusCounts.Blocked++
+		case models.StatusReady:
+			statusCounts.Ready++
+		case models.StatusInProgress:
+			statusCounts.InProgress++
+		case models.StatusHuman:
+			statusCounts.Human++
+		case models.StatusReview:
+			statusCounts.Review++
+		case models.StatusClosed:
+			statusCounts.Closed++
 		}
 	}
 
+	// Build time tracking info
+	var tracking *timeTracking
+	if milestoneWithStats.TargetDate != nil {
+		tracking = &timeTracking{
+			TargetDate: milestoneWithStats.TargetDate.Format("2006-01-02"),
+		}
+
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		target := time.Date(
+			milestoneWithStats.TargetDate.Year(),
+			milestoneWithStats.TargetDate.Month(),
+			milestoneWithStats.TargetDate.Day(),
+			0, 0, 0, 0, now.Location(),
+		)
+
+		daysDiff := int(target.Sub(today).Hours() / 24)
+
+		if daysDiff >= 0 {
+			tracking.DaysRemaining = &daysDiff
+			onTrack := milestoneWithStats.Status == models.MilestoneStatusOpen
+			tracking.OnTrack = &onTrack
+		} else {
+			overdue := -daysDiff
+			tracking.DaysOverdue = &overdue
+			onTrack := false
+			tracking.OnTrack = &onTrack
+		}
+	}
+
+	// Build the result
 	result := milestoneShowResult{
-		MilestoneWithStats: milestoneWithStats,
-		Tickets:            ticketSummaries,
+		Key:       milestoneWithStats.FullKey(),
+		Name:      milestoneWithStats.Name,
+		Status:    milestoneWithStats.Status,
+		Goal:      milestoneWithStats.Goal,
+		CreatedAt: milestoneWithStats.CreatedAt,
+		UpdatedAt: milestoneWithStats.UpdatedAt,
+		TimeTracking: tracking,
+		Progress: progressSummary{
+			TotalTickets:   milestoneWithStats.TicketCount,
+			CompletedCount: milestoneWithStats.CompletedCount,
+			CompletionPct:  milestoneWithStats.CompletionPct,
+		},
+		StatusCounts: statusCounts,
+		Tickets:      ticketSummaries,
 	}
 
 	if IsJSON() {
@@ -350,30 +449,86 @@ func runMilestoneShow(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Human-readable output
+	fmt.Println(strings.Repeat("─", 60))
 	fmt.Printf("Milestone: %s\n", milestoneWithStats.FullKey())
-	fmt.Printf("Name: %s\n", milestoneWithStats.Name)
+	fmt.Println(strings.Repeat("─", 60))
+	fmt.Printf("Name:   %s\n", milestoneWithStats.Name)
 	fmt.Printf("Status: %s\n", milestoneWithStats.Status)
-	if milestoneWithStats.Goal != "" {
-		fmt.Printf("Goal: %s\n", milestoneWithStats.Goal)
-	}
-	if milestoneWithStats.TargetDate != nil {
-		fmt.Printf("Target Date: %s\n", milestoneWithStats.TargetDate.Format("2006-01-02"))
-	}
 	fmt.Printf("Created: %s\n", milestoneWithStats.CreatedAt.Local().Format("2006-01-02 15:04:05"))
-	fmt.Println()
 
-	// Progress stats
+	// Goal section (supports multi-line)
+	if milestoneWithStats.Goal != "" {
+		fmt.Println()
+		fmt.Println("Goal:")
+		// Indent each line of the goal
+		goalLines := strings.Split(milestoneWithStats.Goal, "\n")
+		for _, line := range goalLines {
+			fmt.Printf("  %s\n", line)
+		}
+	}
+
+	// Time tracking section
+	if tracking != nil {
+		fmt.Println()
+		fmt.Println("Time Tracking:")
+		fmt.Printf("  Target Date: %s\n", tracking.TargetDate)
+		if tracking.DaysRemaining != nil {
+			if *tracking.DaysRemaining == 0 {
+				fmt.Println("  Status: Due today!")
+			} else if *tracking.DaysRemaining == 1 {
+				fmt.Println("  Status: 1 day remaining")
+			} else {
+				fmt.Printf("  Status: %d days remaining\n", *tracking.DaysRemaining)
+			}
+		} else if tracking.DaysOverdue != nil {
+			if *tracking.DaysOverdue == 1 {
+				fmt.Println("  Status: 1 day overdue ⚠️")
+			} else {
+				fmt.Printf("  Status: %d days overdue ⚠️\n", *tracking.DaysOverdue)
+			}
+		}
+	}
+
+	// Progress section
+	fmt.Println()
 	fmt.Println("Progress:")
-	fmt.Printf("  Tickets: %d\n", milestoneWithStats.TicketCount)
-	fmt.Printf("  Completed: %d\n", milestoneWithStats.CompletedCount)
-	fmt.Printf("  Completion: %.1f%%\n", milestoneWithStats.CompletionPct)
-	fmt.Println()
+	fmt.Printf("  Total Tickets: %d\n", milestoneWithStats.TicketCount)
+	fmt.Printf("  Completed:     %d\n", milestoneWithStats.CompletedCount)
+	fmt.Printf("  Completion:    %.1f%%\n", milestoneWithStats.CompletionPct)
 
-	// Linked tickets
+	// Status breakdown (only show non-zero counts)
+	if milestoneWithStats.TicketCount > 0 {
+		fmt.Println()
+		fmt.Println("Status Breakdown:")
+		if statusCounts.Blocked > 0 {
+			fmt.Printf("  blocked:     %d\n", statusCounts.Blocked)
+		}
+		if statusCounts.Ready > 0 {
+			fmt.Printf("  ready:       %d\n", statusCounts.Ready)
+		}
+		if statusCounts.InProgress > 0 {
+			fmt.Printf("  in_progress: %d\n", statusCounts.InProgress)
+		}
+		if statusCounts.Human > 0 {
+			fmt.Printf("  human:       %d\n", statusCounts.Human)
+		}
+		if statusCounts.Review > 0 {
+			fmt.Printf("  review:      %d\n", statusCounts.Review)
+		}
+		if statusCounts.Closed > 0 {
+			fmt.Printf("  closed:      %d\n", statusCounts.Closed)
+		}
+	}
+
+	// Linked tickets list
+	fmt.Println()
 	if len(tickets) > 0 {
 		fmt.Println("Linked Tickets:")
+		fmt.Printf("  %-12s %-12s %-8s %s\n", "KEY", "STATUS", "PRIORITY", "TITLE")
+		fmt.Printf("  %s\n", strings.Repeat("-", 56))
 		for _, t := range ticketSummaries {
-			fmt.Printf("  %-12s %-10s %s\n", t.Key, t.Status, truncate(t.Title, 50))
+			fmt.Printf("  %-12s %-12s %-8s %s\n", t.Key, t.Status, t.Priority, truncate(t.Title, 40))
 		}
 	} else {
 		fmt.Println("No tickets linked to this milestone.")

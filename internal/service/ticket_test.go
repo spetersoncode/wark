@@ -255,6 +255,92 @@ func TestTicketService_Reject(t *testing.T) {
 	})
 }
 
+func TestTicketService_Release_EscalatesToHumanOnMaxRetries(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	project := createTicketTestProject(t, database, "TEST")
+
+	// Create ticket with retry count at max-1 (so next release will trigger escalation)
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID:  project.ID,
+		Number:     1,
+		Title:      "Test Ticket",
+		Status:     models.StatusReady,
+		Priority:   models.PriorityMedium,
+		Complexity: models.ComplexityMedium,
+		MaxRetries: 3,
+		RetryCount: 2, // At 2, next failure (3) will hit max
+	}
+	err := ticketRepo.Create(ticket)
+	require.NoError(t, err)
+
+	svc := NewTicketService(database.DB)
+
+	// Claim the ticket
+	_, err = svc.Claim(ticket.ID, "worker-123", 60*time.Minute)
+	require.NoError(t, err)
+
+	// Release should escalate to human
+	err = svc.Release(ticket.ID, "still failing")
+	require.NoError(t, err)
+
+	// Verify ticket is escalated to human, not ready
+	updatedTicket, _ := svc.GetTicketByID(ticket.ID)
+	assert.Equal(t, models.StatusHuman, updatedTicket.Status)
+	assert.Equal(t, 3, updatedTicket.RetryCount)
+	assert.Equal(t, string(models.FlagReasonMaxRetriesExceeded), updatedTicket.HumanFlagReason)
+
+	// Verify inbox message was created
+	inboxRepo := db.NewInboxRepo(database.DB)
+	messages, err := inboxRepo.List(db.InboxFilter{TicketID: &ticket.ID})
+	require.NoError(t, err)
+	assert.Len(t, messages, 1)
+	assert.Equal(t, models.MessageTypeEscalation, messages[0].MessageType)
+}
+
+func TestTicketService_Reject_EscalatesToHumanOnMaxRetries(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	project := createTicketTestProject(t, database, "TEST")
+
+	// Create ticket in review with retry count at max-1
+	ticketRepo := db.NewTicketRepo(database.DB)
+	ticket := &models.Ticket{
+		ProjectID:  project.ID,
+		Number:     1,
+		Title:      "Test Ticket",
+		Status:     models.StatusReview,
+		Priority:   models.PriorityMedium,
+		Complexity: models.ComplexityMedium,
+		MaxRetries: 3,
+		RetryCount: 2, // At 2, next failure (3) will hit max
+	}
+	err := ticketRepo.Create(ticket)
+	require.NoError(t, err)
+
+	svc := NewTicketService(database.DB)
+
+	// Reject should escalate to human
+	err = svc.Reject(ticket.ID, "tests still failing")
+	require.NoError(t, err)
+
+	// Verify ticket is escalated to human, not ready
+	updatedTicket, _ := svc.GetTicketByID(ticket.ID)
+	assert.Equal(t, models.StatusHuman, updatedTicket.Status)
+	assert.Equal(t, 3, updatedTicket.RetryCount)
+	assert.Equal(t, string(models.FlagReasonMaxRetriesExceeded), updatedTicket.HumanFlagReason)
+
+	// Verify inbox message was created
+	inboxRepo := db.NewInboxRepo(database.DB)
+	messages, err := inboxRepo.List(db.InboxFilter{TicketID: &ticket.ID})
+	require.NoError(t, err)
+	assert.Len(t, messages, 1)
+	assert.Equal(t, models.MessageTypeEscalation, messages[0].MessageType)
+}
+
 func TestTicketService_Flag(t *testing.T) {
 	database, _, cleanup := testDB(t)
 	defer cleanup()

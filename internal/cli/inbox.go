@@ -68,8 +68,8 @@ func runInboxList(cmd *cobra.Command, args []string) error {
 		Pending:    true, // Inbox only shows pending messages
 	}
 
-	// Parse message type
-	if inboxType != "" {
+	// Parse message type (only filter if explicitly provided)
+	if cmd.Flags().Changed("type") && inboxType != "" {
 		msgType := models.MessageType(strings.ToLower(inboxType))
 		if !msgType.IsValid() {
 			return fmt.Errorf("invalid message type: %s (must be question, decision, review, escalation, or info)", inboxType)

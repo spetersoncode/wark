@@ -217,6 +217,7 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 
 // Release releases a claimed ticket back to the ready queue.
 // The ticket must be in in_progress status with an active claim.
+// If retry count reaches max retries, the ticket is escalated to human status.
 func (s *TicketService) Release(ticketID int64, reason string) error {
 	ticket, err := s.ticketRepo.GetByID(ticketID)
 	if err != nil {
@@ -247,9 +248,17 @@ func (s *TicketService) Release(ticketID int64, reason string) error {
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to release claim: %v", err), nil)
 	}
 
-	// Update ticket status
-	ticket.Status = models.StatusReady
+	// Increment retry count and determine new status
 	ticket.RetryCount++
+	escalateToHuman := ticket.RetryCount >= ticket.MaxRetries
+
+	if escalateToHuman {
+		ticket.Status = models.StatusHuman
+		ticket.HumanFlagReason = string(models.FlagReasonMaxRetriesExceeded)
+	} else {
+		ticket.Status = models.StatusReady
+	}
+
 	if err := s.ticketRepo.Update(ticket); err != nil {
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket status: %v", err), nil)
 	}
@@ -259,14 +268,32 @@ func (s *TicketService) Release(ticketID int64, reason string) error {
 	if reason != "" {
 		activitySummary = fmt.Sprintf("Released: %s", reason)
 	}
+	if escalateToHuman {
+		activitySummary = fmt.Sprintf("Released - escalated to human (retry %d/%d)", ticket.RetryCount, ticket.MaxRetries)
+		if reason != "" {
+			activitySummary = fmt.Sprintf("Released: %s - escalated to human (retry %d/%d)", reason, ticket.RetryCount, ticket.MaxRetries)
+		}
+	}
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionReleased, models.ActorTypeAgent, claim.WorkerID,
 		activitySummary,
 		map[string]interface{}{
-			"reason":      reason,
-			"retry_count": ticket.RetryCount,
-			"from_status": string(models.StatusInProgress),
-			"to_status":   string(ticket.Status),
+			"reason":            reason,
+			"retry_count":       ticket.RetryCount,
+			"max_retries":       ticket.MaxRetries,
+			"escalated":         escalateToHuman,
+			"from_status":       string(models.StatusInProgress),
+			"to_status":         string(ticket.Status),
 		})
+
+	// Create inbox message if escalated
+	if escalateToHuman {
+		escalationMsg := fmt.Sprintf("Ticket released %d times (max retries reached). Needs human review.", ticket.RetryCount)
+		if reason != "" {
+			escalationMsg = fmt.Sprintf("Ticket released %d times (max retries reached). Last release reason: %s", ticket.RetryCount, reason)
+		}
+		inboxMsg := models.NewInboxMessage(ticket.ID, models.MessageTypeEscalation, escalationMsg, claim.WorkerID)
+		s.inboxRepo.Create(inboxMsg) // Best effort - don't fail if this errors
+	}
 
 	return nil
 }
@@ -466,6 +493,7 @@ func (s *TicketService) Accept(ticketID int64) (*AcceptResult, error) {
 
 // Reject rejects completed work and returns the ticket to ready status.
 // The ticket must be in review status. Reason is required.
+// If retry count reaches max retries, the ticket is escalated to human status.
 func (s *TicketService) Reject(ticketID int64, reason string) error {
 	if reason == "" {
 		return newTicketError(ErrCodeInvalidReason, "reason is required for rejection", nil)
@@ -486,33 +514,53 @@ func (s *TicketService) Reject(ticketID int64, reason string) error {
 			map[string]interface{}{"current_status": ticket.Status})
 	}
 
-	// Validate transition (reject goes back to ready for fresh pickup)
-	if err := s.stateMachine.CanTransition(ticket, models.StatusReady, state.TransitionTypeManual, reason, nil); err != nil {
-		return newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot reject ticket: %v", err), nil)
-	}
-
 	// Release any active claim so ticket can be picked up fresh
 	claim, _ := s.claimRepo.GetActiveByTicketID(ticket.ID)
 	if claim != nil {
 		s.claimRepo.Release(claim.ID, models.ClaimStatusReleased)
 	}
 
-	// Update ticket
-	ticket.Status = models.StatusReady
+	// Increment retry count and determine new status
 	ticket.RetryCount++
+	escalateToHuman := ticket.RetryCount >= ticket.MaxRetries
+
+	if escalateToHuman {
+		ticket.Status = models.StatusHuman
+		ticket.HumanFlagReason = string(models.FlagReasonMaxRetriesExceeded)
+	} else {
+		// Validate transition (reject goes back to ready for fresh pickup)
+		if err := s.stateMachine.CanTransition(ticket, models.StatusReady, state.TransitionTypeManual, reason, nil); err != nil {
+			return newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot reject ticket: %v", err), nil)
+		}
+		ticket.Status = models.StatusReady
+	}
+
 	if err := s.ticketRepo.Update(ticket); err != nil {
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
 	}
 
 	// Log activity with state transition details
+	activitySummary := fmt.Sprintf("Rejected: %s", reason)
+	if escalateToHuman {
+		activitySummary = fmt.Sprintf("Rejected: %s - escalated to human (retry %d/%d)", reason, ticket.RetryCount, ticket.MaxRetries)
+	}
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionRejected, models.ActorTypeHuman, "",
-		fmt.Sprintf("Rejected: %s", reason),
+		activitySummary,
 		map[string]interface{}{
 			"reason":      reason,
 			"retry_count": ticket.RetryCount,
+			"max_retries": ticket.MaxRetries,
+			"escalated":   escalateToHuman,
 			"from_status": string(models.StatusReview),
-			"to_status":   string(models.StatusReady),
+			"to_status":   string(ticket.Status),
 		})
+
+	// Create inbox message if escalated
+	if escalateToHuman {
+		escalationMsg := fmt.Sprintf("Ticket rejected %d times (max retries reached). Rejection reason: %s", ticket.RetryCount, reason)
+		inboxMsg := models.NewInboxMessage(ticket.ID, models.MessageTypeEscalation, escalationMsg, "")
+		s.inboxRepo.Create(inboxMsg) // Best effort - don't fail if this errors
+	}
 
 	return nil
 }

@@ -173,6 +173,14 @@ var validTransitions = []TransitionRule{
 		RequireReason: true,
 		Description:   "Work rejected, returned to queue",
 	},
+	// review → human (max retries exceeded)
+	{
+		From:          models.StatusReview,
+		To:            models.StatusHuman,
+		AllowedTypes:  []TransitionType{TransitionTypeManual, TransitionTypeAuto},
+		RequireReason: true,
+		Description:   "Escalated for human decision (max retries)",
+	},
 	// review → closed (accept)
 	{
 		From:         models.StatusReview,

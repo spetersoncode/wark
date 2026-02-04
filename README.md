@@ -106,7 +106,7 @@ wark inbox list
 
 Wark is designed for AI agent orchestration. For comprehensive agent documentation, see:
 
-- **[skill/SKILL.md](skill/SKILL.md)** - Complete guide for AI agents
+- **[internal/skill/files/skill.yaml](internal/skill/files/skill.yaml)** - Complete guide for AI agents
 - **[docs/CLI_COMMAND_REFERENCE.md](docs/CLI_COMMAND_REFERENCE.md)** - Full CLI reference
 
 ### Agent Workflow Summary
@@ -124,7 +124,7 @@ If blocked or uncertain:
 | Document | Description |
 |----------|-------------|
 | [CLI Reference](docs/CLI_COMMAND_REFERENCE.md) | Complete CLI command documentation |
-| [Agent Skill Guide](skill/SKILL.md) | AI agent integration guide |
+| [Agent Skill Guide](internal/skill/files/skill.yaml) | AI agent integration guide |
 
 ## Development
 
@@ -154,7 +154,7 @@ wark/
 │   ├── state/         # State machine engine
 │   └── tasks/         # Background task services
 ├── docs/              # Documentation
-└── skill/             # Agent skill package
+└── internal/skill/    # Embedded agent skill
 ```
 
 ## License

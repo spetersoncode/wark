@@ -168,10 +168,14 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 		}
 	}
 
-	// Log activity
+	// Log activity with state transition details
 	claimType := "Claimed"
+	fromStatus := string(models.StatusReady)
+	toStatus := string(models.StatusInProgress)
 	if isReviewClaim {
 		claimType = "Claimed for review"
+		fromStatus = string(models.StatusReview)
+		toStatus = string(models.StatusReview)
 	}
 	durationMins := int(duration.Minutes())
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionClaimed, models.ActorTypeAgent, workerID,
@@ -181,6 +185,8 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 			"duration_mins": durationMins,
 			"expires_at":    claim.ExpiresAt.Format(time.RFC3339),
 			"review_claim":  isReviewClaim,
+			"from_status":   fromStatus,
+			"to_status":     toStatus,
 		})
 
 	// Generate branch name if needed
@@ -248,18 +254,18 @@ func (s *TicketService) Release(ticketID int64, reason string) error {
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket status: %v", err), nil)
 	}
 
-	// Log activity
-	summary := "Released"
+	// Log activity with state transition details
+	activitySummary := "Released"
 	if reason != "" {
-		summary = fmt.Sprintf("Released: %s", reason)
+		activitySummary = fmt.Sprintf("Released: %s", reason)
 	}
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionReleased, models.ActorTypeAgent, claim.WorkerID,
-		summary,
+		activitySummary,
 		map[string]interface{}{
-			"reason":          reason,
-			"retry_count":     ticket.RetryCount,
-			"previous_status": string(models.StatusInProgress),
-			"new_status":      string(ticket.Status),
+			"reason":      reason,
+			"retry_count": ticket.RetryCount,
+			"from_status": string(models.StatusInProgress),
+			"to_status":   string(ticket.Status),
 		})
 
 	return nil
@@ -343,7 +349,7 @@ func (s *TicketService) Complete(ticketID int64, summary string, autoAccept bool
 		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
 	}
 
-	// Log activity
+	// Log activity with state transition details
 	activitySummary := "Work completed"
 	if summary != "" {
 		activitySummary = summary
@@ -360,6 +366,8 @@ func (s *TicketService) Complete(ticketID int64, summary string, autoAccept bool
 			"summary":     summary,
 			"auto_accept": autoAccept,
 			"tasks_total": taskCounts.Total,
+			"from_status": string(models.StatusInProgress),
+			"to_status":   string(finalStatus),
 		})
 
 	result := &CompleteResult{
@@ -433,8 +441,14 @@ func (s *TicketService) Accept(ticketID int64) (*AcceptResult, error) {
 		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
 	}
 
-	// Log activity
-	s.activityRepo.LogAction(ticket.ID, models.ActionAccepted, models.ActorTypeHuman, "", "Work accepted")
+	// Log activity with state transition details
+	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionAccepted, models.ActorTypeHuman, "",
+		"Work accepted",
+		map[string]interface{}{
+			"from_status": string(models.StatusReview),
+			"to_status":   string(models.StatusClosed),
+			"resolution":  string(resolution),
+		})
 
 	result := &AcceptResult{
 		Ticket: ticket,
@@ -490,12 +504,14 @@ func (s *TicketService) Reject(ticketID int64, reason string) error {
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
 	}
 
-	// Log activity
+	// Log activity with state transition details
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionRejected, models.ActorTypeHuman, "",
 		fmt.Sprintf("Rejected: %s", reason),
 		map[string]interface{}{
 			"reason":      reason,
 			"retry_count": ticket.RetryCount,
+			"from_status": string(models.StatusReview),
+			"to_status":   string(models.StatusReady),
 		})
 
 	return nil
@@ -558,14 +574,15 @@ func (s *TicketService) Flag(ticketID int64, reason models.FlagReason, message s
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to create inbox message: %v", err), nil)
 	}
 
-	// Log activity
+	// Log activity with state transition details
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionEscalated, models.ActorTypeAgent, workerID,
 		fmt.Sprintf("Flagged: %s", reason),
 		map[string]interface{}{
 			"reason":           string(reason),
 			"message":          message,
 			"inbox_message_id": inboxMsg.ID,
-			"previous_status":  string(previousStatus),
+			"from_status":      string(previousStatus),
+			"to_status":        string(models.StatusHuman),
 		})
 
 	return nil
@@ -601,6 +618,9 @@ func (s *TicketService) Close(ticketID int64, resolution models.Resolution, reas
 		s.claimRepo.Release(claim.ID, models.ClaimStatusReleased)
 	}
 
+	// Capture previous status for logging
+	previousStatus := ticket.Status
+
 	// Update ticket
 	ticket.Status = models.StatusClosed
 	ticket.Resolution = &resolution
@@ -610,16 +630,18 @@ func (s *TicketService) Close(ticketID int64, resolution models.Resolution, reas
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
 	}
 
-	// Log activity
-	summary := fmt.Sprintf("Ticket closed: %s", resolution)
+	// Log activity with state transition details
+	closeSummary := fmt.Sprintf("Ticket closed: %s", resolution)
 	if reason != "" {
-		summary = fmt.Sprintf("Closed (%s): %s", resolution, reason)
+		closeSummary = fmt.Sprintf("Closed (%s): %s", resolution, reason)
 	}
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionClosed, models.ActorTypeHuman, "",
-		summary,
+		closeSummary,
 		map[string]interface{}{
-			"resolution": string(resolution),
-			"reason":     reason,
+			"resolution":  string(resolution),
+			"reason":      reason,
+			"from_status": string(previousStatus),
+			"to_status":   string(models.StatusClosed),
 		})
 
 	return nil
@@ -665,15 +687,16 @@ func (s *TicketService) Reopen(ticketID int64) error {
 		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
 	}
 
-	// Log activity
+	// Log activity with state transition details
 	details := map[string]interface{}{
-		"previous_status": string(previousStatus),
+		"from_status": string(previousStatus),
+		"to_status":   string(newStatus),
 	}
 	if previousResolution != nil {
 		details["previous_resolution"] = string(*previousResolution)
 	}
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionReopened, models.ActorTypeHuman, "",
-		fmt.Sprintf("Reopened from %s", previousStatus),
+		fmt.Sprintf("Reopened: %s → %s", previousStatus, newStatus),
 		details)
 
 	return nil
@@ -742,15 +765,17 @@ func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Du
 		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket status: %v", err), nil)
 	}
 
-	// Log activity
+	// Log activity with state transition details
 	durationMins := int(duration.Minutes())
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionHumanResponded, models.ActorTypeAgent, workerID,
 		fmt.Sprintf("Resumed work (expires in %dm)", durationMins),
 		map[string]interface{}{
-			"worker_id":          workerID,
-			"duration_mins":      durationMins,
-			"expires_at":         claim.ExpiresAt.Format(time.RFC3339),
+			"worker_id":            workerID,
+			"duration_mins":        durationMins,
+			"expires_at":           claim.ExpiresAt.Format(time.RFC3339),
 			"previous_flag_reason": previousReason,
+			"from_status":          string(models.StatusHuman),
+			"to_status":            string(models.StatusInProgress),
 		})
 
 	// Generate branch name if needed

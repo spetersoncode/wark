@@ -4,8 +4,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { KanbanCard, KanbanColumn } from "@/components/board";
 import { BoardSkeleton } from "@/components/skeletons";
 import {
+	listMilestones,
 	listProjects,
 	listTickets,
+	type MilestoneWithStats,
 	type ProjectWithStats,
 	type Ticket,
 	type TicketComplexity,
@@ -69,6 +71,7 @@ const COMPLEXITIES: { value: TicketComplexity; label: string }[] = [
 export default function Board() {
 	const [tickets, setTickets] = useState<Ticket[]>([]);
 	const [projects, setProjects] = useState<ProjectWithStats[]>([]);
+	const [milestones, setMilestones] = useState<MilestoneWithStats[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -78,8 +81,9 @@ export default function Board() {
 	const filterProject = searchParams.get("project");
 	const filterPriority = searchParams.get("priority") as TicketPriority | null;
 	const filterComplexity = searchParams.get("complexity") as TicketComplexity | null;
+	const filterMilestone = searchParams.get("milestone");
 
-	const hasActiveFilters = filterProject || filterPriority || filterComplexity;
+	const hasActiveFilters = filterProject || filterPriority || filterComplexity || filterMilestone;
 
 	// Update a single filter in URL params
 	const setFilter = useCallback(
@@ -104,6 +108,7 @@ export default function Board() {
 			next.delete("project");
 			next.delete("priority");
 			next.delete("complexity");
+			next.delete("milestone");
 			// Keep status filter if present (column filter)
 			return next;
 		});
@@ -112,26 +117,29 @@ export default function Board() {
 	const fetchData = useCallback(async () => {
 		try {
 			// Fetch tickets with API-supported filters
-			const ticketParams: { project?: string; priority?: TicketPriority; limit: number } = {
+			const ticketParams: { project?: string; priority?: TicketPriority; milestone?: string; limit: number } = {
 				limit: 200,
 			};
 			if (filterProject) ticketParams.project = filterProject;
 			if (filterPriority) ticketParams.priority = filterPriority;
+			if (filterMilestone) ticketParams.milestone = filterMilestone;
 
-			const [ticketData, projectData] = await Promise.all([
+			const [ticketData, projectData, milestoneData] = await Promise.all([
 				listTickets(ticketParams),
 				listProjects(),
+				listMilestones(),
 			]);
 
 			setTickets(ticketData);
 			setProjects(projectData);
+			setMilestones(milestoneData);
 			setError(null);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Failed to fetch data");
 		} finally {
 			setLoading(false);
 		}
-	}, [filterProject, filterPriority]);
+	}, [filterProject, filterPriority, filterMilestone]);
 
 	// Initial fetch
 	useEffect(() => {
@@ -247,6 +255,20 @@ export default function Board() {
 					{COMPLEXITIES.map((c) => (
 						<option key={c.value} value={c.value}>
 							{c.label}
+						</option>
+					))}
+				</select>
+
+				{/* Milestone Filter */}
+				<select
+					value={filterMilestone || ""}
+					onChange={(e) => setFilter("milestone", e.target.value || null)}
+					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+				>
+					<option value="">All Milestones</option>
+					{milestones.map((m) => (
+						<option key={`${m.project_key}/${m.key}`} value={`${m.project_key}/${m.key}`}>
+							{m.project_key}/{m.key} - {m.name}
 						</option>
 					))}
 				</select>

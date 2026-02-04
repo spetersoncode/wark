@@ -89,6 +89,7 @@ export interface Ticket {
 	retry_count: number;
 	max_retries: number;
 	parent_ticket_id?: number;
+	milestone_key?: string;
 	created_at: string;
 	updated_at: string;
 	completed_at?: string;
@@ -178,6 +179,7 @@ export interface TicketListParams {
 	status?: TicketStatus;
 	priority?: TicketPriority;
 	complexity?: TicketComplexity;
+	milestone?: string;
 	workable?: boolean;
 	limit?: number;
 }
@@ -188,6 +190,7 @@ export const listTickets = (params?: TicketListParams) => {
 	if (params?.status) query.set("status", params.status);
 	if (params?.priority) query.set("priority", params.priority);
 	if (params?.complexity) query.set("complexity", params.complexity);
+	if (params?.milestone) query.set("milestone", params.milestone);
 	if (params?.workable) query.set("workable", "true");
 	if (params?.limit) query.set("limit", params.limit.toString());
 	const queryStr = query.toString();

@@ -106,8 +106,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 					return fmt.Errorf("aborted: confirmation not received")
 				}
 			} else {
-				// Non-interactive mode (piped/scripted): proceed without confirmation
-				fmt.Fprintln(os.Stderr, "(non-interactive mode: proceeding without confirmation)")
+				// Non-interactive mode: refuse to destroy data without interactive confirmation
+				return fmt.Errorf("cannot destroy database with data in non-interactive mode\n\nRun interactively to confirm, or use a fresh database path")
 			}
 		}
 

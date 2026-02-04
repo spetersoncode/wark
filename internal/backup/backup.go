@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/config"
+	"github.com/spetersoncode/wark/internal/config"
 )
 
 const (

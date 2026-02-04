@@ -4,9 +4,9 @@ package service
 import (
 	"fmt"
 
-	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/errors"
-	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/errors"
+	"github.com/spetersoncode/wark/internal/models"
 )
 
 // InboxService provides business logic for inbox message operations.

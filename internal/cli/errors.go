@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	werrors "github.com/diogenes-ai-code/wark/internal/errors"
+	werrors "github.com/spetersoncode/wark/internal/errors"
 )
 
 // WarkError is an error with an exit code and optional suggestion.

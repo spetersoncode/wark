@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/diogenes-ai-code/wark/internal/config"
-	"github.com/diogenes-ai-code/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/config"
+	"github.com/spetersoncode/wark/internal/db"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

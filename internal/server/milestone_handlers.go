@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/models"
-	"github.com/diogenes-ai-code/wark/internal/service"
+	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/service"
 )
 
 // MilestoneResponse represents a milestone in API responses.

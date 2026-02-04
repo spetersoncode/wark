@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/server"
+	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/server"
 	"github.com/spf13/cobra"
 )
 

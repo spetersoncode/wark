@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/models"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

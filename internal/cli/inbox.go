@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/diogenes-ai-code/wark/internal/common"
-	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/errors"
-	"github.com/diogenes-ai-code/wark/internal/models"
-	"github.com/diogenes-ai-code/wark/internal/service"
+	"github.com/spetersoncode/wark/internal/common"
+	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/errors"
+	"github.com/spetersoncode/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/service"
 	"github.com/spf13/cobra"
 )
 

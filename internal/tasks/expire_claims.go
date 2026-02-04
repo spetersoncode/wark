@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/models"
 )
 
 // ExpirationResult represents the result of processing a single expired claim.

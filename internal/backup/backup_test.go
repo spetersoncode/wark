@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/config"
+	"github.com/spetersoncode/wark/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

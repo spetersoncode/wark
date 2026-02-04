@@ -1,4 +1,4 @@
-module github.com/diogenes-ai-code/wark
+module github.com/spetersoncode/wark
 
 go 1.25.6
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/diogenes-ai-code/wark/internal/cli"
+	"github.com/spetersoncode/wark/internal/cli"
 )
 
 func main() {

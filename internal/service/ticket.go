@@ -9,10 +9,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/diogenes-ai-code/wark/internal/db"
-	"github.com/diogenes-ai-code/wark/internal/models"
-	"github.com/diogenes-ai-code/wark/internal/state"
-	"github.com/diogenes-ai-code/wark/internal/tasks"
+	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/state"
+	"github.com/spetersoncode/wark/internal/tasks"
 )
 
 // TicketService provides business logic for ticket workflow operations.

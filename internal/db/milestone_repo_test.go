@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/models"
 
 	_ "modernc.org/sqlite"
 )

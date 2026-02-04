@@ -23,7 +23,7 @@ Wark is a command-line task management tool inspired by Jira, purpose-built for 
 
 ```bash
 # Clone the repository
-git clone https://github.com/diogenes-ai-code/wark.git
+git clone https://github.com/spetersoncode/wark.git
 cd wark
 
 # Build and install
@@ -34,7 +34,7 @@ make install
 ### Using Go Install
 
 ```bash
-go install github.com/diogenes-ai-code/wark/cmd/wark@latest
+go install github.com/spetersoncode/wark/cmd/wark@latest
 ```
 
 ### Verify Installation

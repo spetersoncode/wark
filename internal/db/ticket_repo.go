@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/models"
 )
 
 // TicketRepo provides database operations for tickets.

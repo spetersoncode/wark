@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/diogenes-ai-code/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/db"
 	"github.com/spf13/cobra"
 )
 

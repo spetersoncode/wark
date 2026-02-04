@@ -3,7 +3,7 @@ package state
 import (
 	"time"
 
-	"github.com/diogenes-ai-code/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/models"
 )
 
 // DependencyChecker provides dependency checking operations.

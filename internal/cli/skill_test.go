@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/diogenes-ai-code/wark/internal/skill"
+	"github.com/spetersoncode/wark/internal/skill"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

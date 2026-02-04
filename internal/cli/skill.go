@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/diogenes-ai-code/wark/internal/skill"
+	"github.com/spetersoncode/wark/internal/skill"
 )
 
 type skillInstallResult struct {

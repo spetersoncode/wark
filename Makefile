@@ -8,7 +8,7 @@ BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 GO_VERSION := $(shell go version | cut -d' ' -f3)
 
 # Build flags - inject version info into cli package
-CLI_PKG := github.com/diogenes-ai-code/wark/internal/cli
+CLI_PKG := github.com/spetersoncode/wark/internal/cli
 LDFLAGS := -ldflags "-X $(CLI_PKG).Version=$(VERSION) -X $(CLI_PKG).GitCommit=$(GIT_COMMIT) -X $(CLI_PKG).BuildDate=$(BUILD_TIME)"
 
 # Directories

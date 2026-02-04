@@ -233,6 +233,36 @@ func TestDefaultConfigPath(t *testing.T) {
 	assert.Contains(t, path, "config.toml")
 }
 
+func TestWARKDBPathPrecedence(t *testing.T) {
+	// WARK_DB_PATH should take precedence over WARK_DB
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	content := `db = "/file/db.db"`
+	err := os.WriteFile(configPath, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Case 1: Only WARK_DB set
+	t.Setenv("WARK_DB", "/wark-db-path.db")
+	cfg, err := LoadFromPath(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, "/wark-db-path.db", cfg.DB)
+
+	// Case 2: Only WARK_DB_PATH set
+	t.Setenv("WARK_DB", "")
+	t.Setenv("WARK_DB_PATH", "/wark-db-path-explicit.db")
+	cfg, err = LoadFromPath(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, "/wark-db-path-explicit.db", cfg.DB)
+
+	// Case 3: Both set -> WARK_DB_PATH wins
+	t.Setenv("WARK_DB", "/should-be-ignored.db")
+	t.Setenv("WARK_DB_PATH", "/should-win.db")
+	cfg, err = LoadFromPath(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, "/should-win.db", cfg.DB)
+}
+
 func TestPriorityOrder(t *testing.T) {
 	// This test verifies the priority order:
 	// 1. Environment variables

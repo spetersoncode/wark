@@ -11,7 +11,7 @@ import (
 )
 
 func TestClaimListActive(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -45,7 +45,7 @@ func TestClaimListActive(t *testing.T) {
 }
 
 func TestClaimExpired(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -83,7 +83,7 @@ func TestClaimExpired(t *testing.T) {
 }
 
 func TestClaimExpireAll(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -128,7 +128,7 @@ func TestClaimExpireAll(t *testing.T) {
 }
 
 func TestClaimRelease(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -163,7 +163,7 @@ func TestClaimRelease(t *testing.T) {
 }
 
 func TestClaimHasActive(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -296,7 +296,7 @@ func TestClaimTimeRemaining(t *testing.T) {
 // TestClaimRaceConditionPrevented verifies that the unique index prevents concurrent claims
 // at the database level. This is the real safety net - the CLI pre-check is for UX.
 func TestClaimRaceConditionPrevented(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project and ticket
@@ -344,7 +344,7 @@ func TestClaimRaceConditionPrevented(t *testing.T) {
 
 // TestClaimReleaseActivityLog verifies that releasing a claim logs an activity entry
 func TestClaimReleaseActivityLog(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup project and ticket

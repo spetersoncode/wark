@@ -10,7 +10,7 @@ import (
 )
 
 func TestInboxCreate(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create project and ticket
@@ -40,7 +40,7 @@ func TestInboxCreate(t *testing.T) {
 }
 
 func TestInboxList(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -84,7 +84,7 @@ func TestInboxList(t *testing.T) {
 }
 
 func TestInboxRespond(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -119,7 +119,7 @@ func TestInboxRespond(t *testing.T) {
 }
 
 func TestInboxCountPending(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup
@@ -211,7 +211,7 @@ func TestInboxMessageTypes(t *testing.T) {
 }
 
 func TestInboxRespondLogsActivityToTicket(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project and ticket
@@ -277,7 +277,7 @@ func TestInboxRespondLogsActivityToTicket(t *testing.T) {
 }
 
 func TestInboxRespondActivityIncludesMessageContent(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project and ticket

@@ -173,7 +173,7 @@ func runCmdJSON(t *testing.T, testDBPath string, result interface{}, args ...str
 // =============================================================================
 
 func TestCmdVersion(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	output, err := runCmd(t, dbPath, "version")
@@ -182,7 +182,7 @@ func TestCmdVersion(t *testing.T) {
 }
 
 func TestCmdVersionJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	var result map[string]interface{}
@@ -196,7 +196,7 @@ func TestCmdVersionJSON(t *testing.T) {
 // =============================================================================
 
 func TestCmdProjectCreate(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create a project
@@ -207,7 +207,7 @@ func TestCmdProjectCreate(t *testing.T) {
 }
 
 func TestCmdProjectCreateJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	var result models.Project
@@ -219,7 +219,7 @@ func TestCmdProjectCreateJSON(t *testing.T) {
 }
 
 func TestCmdProjectCreateDuplicate(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create first project
@@ -233,7 +233,7 @@ func TestCmdProjectCreateDuplicate(t *testing.T) {
 }
 
 func TestCmdProjectCreateInvalidKey(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -257,7 +257,7 @@ func TestCmdProjectCreateInvalidKey(t *testing.T) {
 }
 
 func TestCmdProjectList(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create projects
@@ -275,7 +275,7 @@ func TestCmdProjectList(t *testing.T) {
 }
 
 func TestCmdProjectListEmpty(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	output, err := runCmd(t, dbPath, "project", "list")
@@ -284,7 +284,7 @@ func TestCmdProjectListEmpty(t *testing.T) {
 }
 
 func TestCmdProjectListJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create projects
@@ -298,7 +298,7 @@ func TestCmdProjectListJSON(t *testing.T) {
 }
 
 func TestCmdProjectShow(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create project and add a ticket (fixes NULL stats bug)
@@ -315,7 +315,7 @@ func TestCmdProjectShow(t *testing.T) {
 }
 
 func TestCmdProjectShowNotFound(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, err := runCmd(t, dbPath, "project", "show", "NOTFOUND")
@@ -324,7 +324,7 @@ func TestCmdProjectShowNotFound(t *testing.T) {
 }
 
 func TestCmdProjectShowJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "JSON", "--name", "JSON Test")
@@ -342,7 +342,7 @@ func TestCmdProjectShowJSON(t *testing.T) {
 // =============================================================================
 
 func TestCmdTicketCreate(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create project first
@@ -357,7 +357,7 @@ func TestCmdTicketCreate(t *testing.T) {
 }
 
 func TestCmdTicketCreateWithOptions(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "OPT", "--name", "Options")
@@ -372,7 +372,7 @@ func TestCmdTicketCreateWithOptions(t *testing.T) {
 }
 
 func TestCmdTicketCreateJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "JSON", "--name", "JSON")
@@ -387,7 +387,7 @@ func TestCmdTicketCreateJSON(t *testing.T) {
 }
 
 func TestCmdTicketCreateNoProject(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, err := runCmd(t, dbPath, "ticket", "create", "NOEXIST", "--title", "No Project")
@@ -396,7 +396,7 @@ func TestCmdTicketCreateNoProject(t *testing.T) {
 }
 
 func TestCmdTicketCreateInvalidPriority(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "INV", "--name", "Invalid")
@@ -407,7 +407,7 @@ func TestCmdTicketCreateInvalidPriority(t *testing.T) {
 }
 
 func TestCmdTicketCreateWithDependency(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "DEP", "--name", "Dependencies")
@@ -424,7 +424,7 @@ func TestCmdTicketCreateWithDependency(t *testing.T) {
 }
 
 func TestCmdTicketList(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "LIST", "--name", "Listing")
@@ -441,7 +441,7 @@ func TestCmdTicketList(t *testing.T) {
 }
 
 func TestCmdTicketListFilters(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "FILT", "--name", "Filters")
@@ -456,7 +456,7 @@ func TestCmdTicketListFilters(t *testing.T) {
 }
 
 func TestCmdTicketListWorkable(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "WORK", "--name", "Workable")
@@ -481,7 +481,7 @@ func TestCmdTicketListWorkable(t *testing.T) {
 }
 
 func TestCmdTicketListReviewable(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "REV", "--name", "Reviewable")
@@ -514,7 +514,7 @@ func TestCmdTicketListReviewable(t *testing.T) {
 }
 
 func TestCmdTicketListEmpty(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	output, err := runCmd(t, dbPath, "ticket", "list")
@@ -523,7 +523,7 @@ func TestCmdTicketListEmpty(t *testing.T) {
 }
 
 func TestCmdTicketListJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "JLIST", "--name", "JSON List")
@@ -537,7 +537,7 @@ func TestCmdTicketListJSON(t *testing.T) {
 }
 
 func TestCmdTicketShow(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "SHOW", "--name", "Show")
@@ -553,7 +553,7 @@ func TestCmdTicketShow(t *testing.T) {
 }
 
 func TestCmdTicketShowJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "JSHOW", "--name", "JSON Show")
@@ -567,7 +567,7 @@ func TestCmdTicketShowJSON(t *testing.T) {
 }
 
 func TestCmdTicketShowNotFound(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, err := runCmd(t, dbPath, "ticket", "show", "NOPE-999")
@@ -576,7 +576,7 @@ func TestCmdTicketShowNotFound(t *testing.T) {
 }
 
 func TestCmdTicketEdit(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "EDIT", "--name", "Edit")
@@ -594,7 +594,7 @@ func TestCmdTicketEdit(t *testing.T) {
 }
 
 func TestCmdTicketEditAddDependency(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "ADEP", "--name", "Add Dep")
@@ -616,7 +616,7 @@ func TestCmdTicketEditAddDependency(t *testing.T) {
 // =============================================================================
 
 func TestCmdTicketClaim(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "CLM", "--name", "Claim")
@@ -630,7 +630,7 @@ func TestCmdTicketClaim(t *testing.T) {
 }
 
 func TestCmdTicketClaimJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "JCLM", "--name", "JSON Claim")
@@ -645,7 +645,7 @@ func TestCmdTicketClaimJSON(t *testing.T) {
 }
 
 func TestCmdTicketClaimAlreadyClaimed(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "DUP", "--name", "Duplicate Claim")
@@ -662,7 +662,7 @@ func TestCmdTicketClaimAlreadyClaimed(t *testing.T) {
 }
 
 func TestCmdTicketClaimBlockedTicket(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "BLK", "--name", "Blocked")
@@ -676,7 +676,7 @@ func TestCmdTicketClaimBlockedTicket(t *testing.T) {
 }
 
 func TestCmdTicketRelease(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "REL", "--name", "Release")
@@ -690,7 +690,7 @@ func TestCmdTicketRelease(t *testing.T) {
 }
 
 func TestCmdTicketReleaseNotClaimed(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "NR", "--name", "Not Released")
@@ -702,7 +702,7 @@ func TestCmdTicketReleaseNotClaimed(t *testing.T) {
 }
 
 func TestCmdTicketReleaseJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "RELJSON", "--name", "Release JSON")
@@ -723,7 +723,7 @@ func TestCmdTicketReleaseJSON(t *testing.T) {
 }
 
 func TestCmdTicketReleaseStatusTransition(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "RELST", "--name", "Release Status")
@@ -748,7 +748,7 @@ func TestCmdTicketReleaseStatusTransition(t *testing.T) {
 }
 
 func TestCmdTicketComplete(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "COMP", "--name", "Complete")
@@ -762,7 +762,7 @@ func TestCmdTicketComplete(t *testing.T) {
 }
 
 func TestCmdTicketCompleteAutoAccept(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "AUTO", "--name", "Auto")
@@ -776,7 +776,7 @@ func TestCmdTicketCompleteAutoAccept(t *testing.T) {
 }
 
 func TestCmdTicketFlag(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "FLAG", "--name", "Flag")
@@ -791,7 +791,7 @@ func TestCmdTicketFlag(t *testing.T) {
 }
 
 func TestCmdTicketFlagInvalidReason(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "INVF", "--name", "Invalid Flag")
@@ -804,7 +804,7 @@ func TestCmdTicketFlagInvalidReason(t *testing.T) {
 }
 
 func TestCmdTicketCompleteBlockedByIncompleteTasks(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup: create project and ticket
@@ -832,7 +832,7 @@ func TestCmdTicketCompleteBlockedByIncompleteTasks(t *testing.T) {
 }
 
 func TestCmdTicketAcceptBlockedByIncompleteTasks(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup: create project, ticket, and put it in review status
@@ -866,7 +866,7 @@ func TestCmdTicketAcceptBlockedByIncompleteTasks(t *testing.T) {
 }
 
 func TestCmdTicketCompleteWithAllTasksDone(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup: create project and ticket
@@ -897,7 +897,7 @@ func TestCmdTicketCompleteWithAllTasksDone(t *testing.T) {
 }
 
 func TestCmdTicketAcceptWithAllTasksDone(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup: create project, ticket in review status with completed tasks
@@ -937,7 +937,7 @@ func TestCmdTicketAcceptWithAllTasksDone(t *testing.T) {
 // =============================================================================
 
 func TestCmdInboxList(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup: create project, ticket, and inbox message directly
@@ -960,7 +960,7 @@ func TestCmdInboxList(t *testing.T) {
 }
 
 func TestCmdInboxListEmpty(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	output, err := runCmd(t, dbPath, "inbox", "list")
@@ -969,7 +969,7 @@ func TestCmdInboxListEmpty(t *testing.T) {
 }
 
 func TestCmdInboxShow(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup
@@ -993,7 +993,7 @@ func TestCmdInboxShow(t *testing.T) {
 }
 
 func TestCmdInboxShowNotFound(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, err := runCmd(t, dbPath, "inbox", "show", "999")
@@ -1002,7 +1002,7 @@ func TestCmdInboxShowNotFound(t *testing.T) {
 }
 
 func TestCmdInboxRespond(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup
@@ -1025,7 +1025,7 @@ func TestCmdInboxRespond(t *testing.T) {
 }
 
 func TestCmdInboxRespondAlreadyAnswered(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup
@@ -1051,7 +1051,7 @@ func TestCmdInboxRespondAlreadyAnswered(t *testing.T) {
 }
 
 func TestCmdInboxSend(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "SEND", "--name", "Send")
@@ -1068,7 +1068,7 @@ func TestCmdInboxSend(t *testing.T) {
 // =============================================================================
 
 func TestCmdStatus(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "STAT", "--name", "Status")
@@ -1081,7 +1081,7 @@ func TestCmdStatus(t *testing.T) {
 }
 
 func TestCmdStatusJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "JSTAT", "--name", "JSON Status")
@@ -1111,7 +1111,7 @@ func TestCmdMissingDatabase(t *testing.T) {
 }
 
 func TestCmdInvalidCommand(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, err := runCmd(t, dbPath, "notacommand")
@@ -1123,7 +1123,7 @@ func TestCmdInvalidCommand(t *testing.T) {
 // =============================================================================
 
 func TestCmdQuietMode(t *testing.T) {
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Setup database with a project (needed for list to work)
@@ -1145,7 +1145,7 @@ func TestCmdQuietMode(t *testing.T) {
 }
 
 func TestCmdLowercaseProjectKey(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Lowercase should be automatically uppercased
@@ -1155,7 +1155,7 @@ func TestCmdLowercaseProjectKey(t *testing.T) {
 }
 
 func TestCmdCompleteWorkflow(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Full workflow: create project → create ticket → claim → complete → accept
@@ -1187,7 +1187,7 @@ func TestCmdCompleteWorkflow(t *testing.T) {
 }
 
 func TestCmdDependencyUnblocking(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create project with dependency chain
@@ -1215,7 +1215,7 @@ func TestCmdDependencyUnblocking(t *testing.T) {
 // =============================================================================
 
 func TestCmdTicketAccept(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "ACC", "--name", "Accept")
@@ -1231,7 +1231,7 @@ func TestCmdTicketAccept(t *testing.T) {
 }
 
 func TestCmdTicketAcceptNotInReview(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "NRV", "--name", "Not Review")
@@ -1243,7 +1243,7 @@ func TestCmdTicketAcceptNotInReview(t *testing.T) {
 }
 
 func TestCmdTicketReject(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "REJ", "--name", "Reject")
@@ -1259,7 +1259,7 @@ func TestCmdTicketReject(t *testing.T) {
 }
 
 func TestCmdTicketClose(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "CLS", "--name", "Close")
@@ -1272,7 +1272,7 @@ func TestCmdTicketClose(t *testing.T) {
 }
 
 func TestCmdTicketCloseInvalidResolution(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "INVR", "--name", "Invalid Resolution")
@@ -1284,7 +1284,7 @@ func TestCmdTicketCloseInvalidResolution(t *testing.T) {
 }
 
 func TestCmdTicketReopen(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "REOP", "--name", "Reopen")
@@ -1298,7 +1298,7 @@ func TestCmdTicketReopen(t *testing.T) {
 }
 
 func TestCmdTicketReopenNotClosed(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "NRC", "--name", "Not Reopenable")
@@ -1314,7 +1314,7 @@ func TestCmdTicketReopenNotClosed(t *testing.T) {
 // =============================================================================
 
 func TestCmdTicketNext(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "NXT", "--name", "Next")
@@ -1328,7 +1328,7 @@ func TestCmdTicketNext(t *testing.T) {
 }
 
 func TestCmdTicketNextDryRun(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "DRY", "--name", "Dry Run")
@@ -1342,7 +1342,7 @@ func TestCmdTicketNextDryRun(t *testing.T) {
 }
 
 func TestCmdTicketNextNoWorkable(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	output, err := runCmd(t, dbPath, "ticket", "next")
@@ -1351,7 +1351,7 @@ func TestCmdTicketNextNoWorkable(t *testing.T) {
 }
 
 func TestCmdTicketNextComplexityFilter(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "CPLX", "--name", "Complexity")
@@ -1366,7 +1366,7 @@ func TestCmdTicketNextComplexityFilter(t *testing.T) {
 }
 
 func TestCmdTicketBranch(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "BRN", "--name", "Branch")
@@ -1378,7 +1378,7 @@ func TestCmdTicketBranch(t *testing.T) {
 }
 
 func TestCmdTicketBranchSet(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "BSET", "--name", "Branch Set")
@@ -1394,7 +1394,7 @@ func TestCmdTicketBranchSet(t *testing.T) {
 }
 
 func TestCmdTicketLog(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "LOG", "--name", "Log")
@@ -1410,7 +1410,7 @@ func TestCmdTicketLog(t *testing.T) {
 }
 
 func TestCmdTicketLogJSON(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "JLOG", "--name", "JSON Log")
@@ -1427,7 +1427,7 @@ func TestCmdTicketLogJSON(t *testing.T) {
 // =============================================================================
 
 func TestCmdClaimList(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "CLST", "--name", "Claim List")
@@ -1441,7 +1441,7 @@ func TestCmdClaimList(t *testing.T) {
 }
 
 func TestCmdClaimShow(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "CLSH", "--name", "Claim Show")
@@ -1459,7 +1459,7 @@ func TestCmdClaimShow(t *testing.T) {
 // =============================================================================
 
 func TestCmdTicketWithParent(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "PAR", "--name", "Parent")
@@ -1474,7 +1474,7 @@ func TestCmdTicketWithParent(t *testing.T) {
 }
 
 func TestCmdMultipleProjects(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "PRJA", "--name", "Project A")
@@ -1493,7 +1493,7 @@ func TestCmdMultipleProjects(t *testing.T) {
 }
 
 func TestCmdRejectionRetryCount(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "RTRY", "--name", "Retry")
@@ -1513,7 +1513,7 @@ func TestCmdRejectionRetryCount(t *testing.T) {
 }
 
 func TestCmdCrossProjectDependency(t *testing.T) {
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "CPDA", "--name", "Cross A")
@@ -1541,7 +1541,7 @@ func TestCmdHumanInTheLoopEscalationFlow(t *testing.T) {
 	// 3. Ticket transitions to `human` status
 	// 4. Human responds via `inbox respond`
 	// 5. Ticket transitions back to `ready` status
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Step 1: Create project and ticket
@@ -1604,7 +1604,7 @@ func TestCmdHumanInTheLoopEscalationFlow(t *testing.T) {
 
 func TestCmdInboxSendTransitionsToHumanStatus(t *testing.T) {
 	// Test that inbox send with types that require response transitions ticket to human
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "IBOX", "--name", "Inbox Test")
@@ -1646,7 +1646,7 @@ func TestCmdInboxSendTransitionsToHumanStatus(t *testing.T) {
 func TestCmdInboxSendInfoTypeNoStatusChange(t *testing.T) {
 	// Test that inbox send with info type does NOT transition to human
 	// (info messages are one-way and don't require response)
-	_, dbPath, cleanup := testDB(t)
+	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	_, _ = runCmd(t, dbPath, "project", "create", "INFO", "--name", "Info Test")
@@ -1669,7 +1669,7 @@ func TestCmdInboxSendInfoTypeNoStatusChange(t *testing.T) {
 
 func TestCmdInboxRespondResetsRetryCount(t *testing.T) {
 	// Test that human response resets the retry count
-	database, dbPath, cleanup := testDB(t)
+	database, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
 	// Create project and ticket

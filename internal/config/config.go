@@ -88,8 +88,13 @@ func LoadFromPath(configPath string) (*Config, error) {
 
 // applyEnv applies environment variable overrides to the config.
 func (c *Config) applyEnv() {
+	// Check WARK_DB first
 	if db := os.Getenv("WARK_DB"); db != "" {
 		c.DB = db
+	}
+	// WARK_DB_PATH takes precedence over WARK_DB (more explicit name)
+	if dbPath := os.Getenv("WARK_DB_PATH"); dbPath != "" {
+		c.DB = dbPath
 	}
 
 	// WARK_NO_COLOR - any value means true
@@ -133,7 +138,7 @@ func SampleConfig() string {
 
 # Path to the database file
 # Default: ~/.wark/wark.db
-# Environment: WARK_DB
+# Environment: WARK_DB or WARK_DB_PATH (WARK_DB_PATH takes precedence)
 # db = "/path/to/wark.db"
 
 # Disable colored output

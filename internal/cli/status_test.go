@@ -11,7 +11,7 @@ import (
 )
 
 func TestStatusOverview(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup project
@@ -106,7 +106,7 @@ func TestStatusOverview(t *testing.T) {
 }
 
 func TestStatusByProject(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Create multiple projects
@@ -187,7 +187,7 @@ func TestStatusResultStruct(t *testing.T) {
 }
 
 func TestExpiringSoonDetection(t *testing.T) {
-	database, _, cleanup := testDB(t)
+	database, cleanup := testDB(t)
 	defer cleanup()
 
 	// Setup

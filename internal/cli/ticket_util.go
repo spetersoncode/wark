@@ -372,8 +372,8 @@ func runTicketLog(cmd *cobra.Command, args []string) error {
 	// Display formatted output
 	fmt.Printf("Activity Log: %s - %s\n", ticket.TicketKey, ticket.Title)
 	fmt.Println()
-	fmt.Printf("%-20s %-18s %-20s %s\n", "TIME", "ACTION", "ACTOR", "SUMMARY")
-	fmt.Println(strings.Repeat("-", 85))
+	fmt.Printf("%-20s %-18s %-20s %-20s %s\n", "TIME", "ACTION", "ACTOR", "TRANSITION", "SUMMARY")
+	fmt.Println(strings.Repeat("-", 105))
 
 	for _, log := range logs {
 		actor := string(log.ActorType)
@@ -384,18 +384,35 @@ func runTicketLog(cmd *cobra.Command, args []string) error {
 			actor = actor[:17] + "..."
 		}
 
+		// Extract state transition from details if available
+		transition := ""
+		if log.Details != "" {
+			details, err := log.GetDetails()
+			if err == nil && details != nil {
+				fromStatus, hasFrom := details["from_status"].(string)
+				toStatus, hasTo := details["to_status"].(string)
+				if hasFrom && hasTo && fromStatus != toStatus {
+					transition = fmt.Sprintf("%s → %s", fromStatus, toStatus)
+				}
+			}
+		}
+		if len(transition) > 20 {
+			transition = transition[:17] + "..."
+		}
+
 		summary := log.Summary
 		if summary == "" {
 			summary = string(log.Action)
 		}
-		if len(summary) > 40 {
-			summary = summary[:37] + "..."
+		if len(summary) > 35 {
+			summary = summary[:32] + "..."
 		}
 
-		fmt.Printf("%-20s %-18s %-20s %s\n",
+		fmt.Printf("%-20s %-18s %-20s %-20s %s\n",
 			log.CreatedAt.Local().Format("2006-01-02 15:04:05"),
 			log.Action,
 			actor,
+			transition,
 			summary,
 		)
 	}

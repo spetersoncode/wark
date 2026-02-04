@@ -118,7 +118,11 @@ func TestStatusService_GetSummary(t *testing.T) {
 	assert.Equal(t, 2, summary.BlockedHuman)
 	assert.Equal(t, 3, summary.PendingInbox)
 	assert.Len(t, summary.ExpiringSoon, 1)
-	assert.Len(t, summary.RecentActivity, 1)
+	// RecentActivity includes ticket creations from the trigger + our explicit claim log
+	// The activity log limit is 5, so we should have 5 entries (limit)
+	assert.Len(t, summary.RecentActivity, 5)
+	// Most recent should be the claimed action (added last)
+	assert.Equal(t, "claimed", summary.RecentActivity[0].Action)
 }
 
 func TestStatusService_GetSummary_ByProject(t *testing.T) {

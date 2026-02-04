@@ -125,7 +125,6 @@ If blocked or uncertain:
 |----------|-------------|
 | [CLI Reference](docs/CLI_COMMAND_REFERENCE.md) | Complete CLI command documentation |
 | [Agent Skill Guide](skill/SKILL.md) | AI agent integration guide |
-| [Implementation Plan](IMPLEMENTATION_PLAN.md) | Development roadmap |
 
 ## Development
 

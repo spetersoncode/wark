@@ -80,10 +80,10 @@ func (r *AnalyticsRepo) GetSuccessMetrics(filter AnalyticsFilter) (*SuccessMetri
 
 	// Total closed and by resolution
 	query := fmt.Sprintf(`
-		SELECT 
+		SELECT
 			COUNT(*) as total_closed,
-			SUM(CASE WHEN resolution = 'completed' THEN 1 ELSE 0 END) as completed,
-			SUM(CASE WHEN resolution != 'completed' OR resolution IS NULL THEN 1 ELSE 0 END) as other
+			COALESCE(SUM(CASE WHEN resolution = 'completed' THEN 1 ELSE 0 END), 0) as completed,
+			COALESCE(SUM(CASE WHEN resolution != 'completed' OR resolution IS NULL THEN 1 ELSE 0 END), 0) as other
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
 		WHERE t.status = 'closed' %s
@@ -105,9 +105,9 @@ func (r *AnalyticsRepo) GetSuccessMetrics(filter AnalyticsFilter) (*SuccessMetri
 	// Retry metrics
 	where2, args2 := r.buildFilterWhere(filter, "t")
 	query2 := fmt.Sprintf(`
-		SELECT 
+		SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN retry_count > 0 THEN 1 ELSE 0 END) as with_retries
+			COALESCE(SUM(CASE WHEN retry_count > 0 THEN 1 ELSE 0 END), 0) as with_retries
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
 		WHERE t.status = 'closed' %s
@@ -189,12 +189,12 @@ func (r *AnalyticsRepo) GetHumanInteractionMetrics(filter AnalyticsFilter) (*Hum
 	// Inbox response time metrics
 	where3, args3 := r.buildFilterWhere(filter, "t")
 	query3 := fmt.Sprintf(`
-		SELECT 
+		SELECT
 			COUNT(*) as total_messages,
-			SUM(CASE WHEN m.responded_at IS NOT NULL THEN 1 ELSE 0 END) as responded,
+			COALESCE(SUM(CASE WHEN m.responded_at IS NOT NULL THEN 1 ELSE 0 END), 0) as responded,
 			AVG(
-				CASE WHEN m.responded_at IS NOT NULL 
-				THEN (julianday(m.responded_at) - julianday(m.created_at)) * 24 
+				CASE WHEN m.responded_at IS NOT NULL
+				THEN (julianday(m.responded_at) - julianday(m.created_at)) * 24
 				ELSE NULL END
 			) as avg_response_hours
 		FROM inbox_messages m

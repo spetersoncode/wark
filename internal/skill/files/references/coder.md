@@ -19,7 +19,7 @@ The fundamental workflow: **claim → worktree → work → complete → cleanup
 
 ```bash
 # 1. Get the next available ticket (automatically claims it)
-wark ticket next --json
+wark ticket next
 
 # 2. Create isolated worktree (run from main repo)
 cd $(wark worktree create PROJ-42)
@@ -167,8 +167,8 @@ wark inbox send PROJ-42 --type question "Should login form remember email?"
 ### Checking for Responses
 
 ```bash
-wark inbox list --json                      # List messages
-wark inbox show 12 --json                   # View specific message
+wark inbox list                             # List messages
+wark inbox show 12                          # View specific message
 ```
 
 ---
@@ -241,7 +241,7 @@ Claims expire after 60 minutes. For long tasks:
 ### 3. Check Status Before Acting
 
 ```bash
-wark ticket show PROJ-42 --json | jq '.status'
+wark ticket show PROJ-42 | jq '.status'
 ```
 
 ### 4. Flag Early, Not Late

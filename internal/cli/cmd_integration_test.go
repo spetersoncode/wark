@@ -71,7 +71,8 @@ func captureOutput(fn func()) (string, string) {
 func resetGlobalFlags() {
 	// Root command flags
 	dbPath = ""
-	jsonOut = false
+	jsonOut = true
+	textOut = false
 	quiet = false
 	verbose = false
 
@@ -126,12 +127,13 @@ func resetGlobalFlags() {
 
 // runCmd executes a command with the given args and returns output and error.
 // It resets flags before running and uses the provided database path.
+// Uses --text flag for human-readable output (JSON is the default).
 func runCmd(t *testing.T, testDBPath string, args ...string) (string, error) {
 	t.Helper()
 	resetGlobalFlags()
 
-	// Prepend --db flag
-	fullArgs := append([]string{"--db", testDBPath}, args...)
+	// Prepend --db and --text flags (JSON is default, tests expect text)
+	fullArgs := append([]string{"--db", testDBPath, "--text"}, args...)
 
 	rootCmd.SetArgs(fullArgs)
 

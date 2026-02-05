@@ -57,7 +57,8 @@ These flags are available on all commands:
 | Flag | Short | Description | Default |
 |------|-------|-------------|---------|
 | `--db` | | Path to database file | `~/.wark/wark.db` |
-| `--json` | `-j` | Output in JSON format | `false` |
+| `--json` | `-j` | Output in JSON format | `true` |
+| `--text` | | Output in human-readable text format | `false` |
 | `--quiet` | `-q` | Suppress non-essential output | `false` |
 | `--verbose` | `-v` | Verbose output | `false` |
 | `--help` | `-h` | Show help | |

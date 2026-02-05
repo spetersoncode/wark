@@ -20,20 +20,20 @@
 
 ```bash
 # List tickets awaiting review
-wark ticket list --status review --json
+wark ticket list --status review
 
 # Get next review ticket (if review queue is prioritized)
-wark ticket next --status review --json
+wark ticket next --status review
 ```
 
 ### Review Process
 
 ```bash
 # 1. Claim the review ticket
-wark ticket claim PROJ-42 --json
+wark ticket claim PROJ-42
 
 # 2. View ticket details and summary
-wark ticket show PROJ-42 --json
+wark ticket show PROJ-42
 
 # 3. Check the branch
 BRANCH=$(wark ticket branch PROJ-42)

@@ -18,7 +18,7 @@ The fundamental workflow: **claim → work → complete**
 
 ```bash
 # 1. Get the next available ticket (automatically claims it)
-wark ticket next --json
+wark ticket next
 
 # 2. View ticket details
 wark ticket show PROJ-42

@@ -14,10 +14,10 @@ When this skill is invoked, follow these steps:
 **Step 1: Check system status**
 
 ```bash
-wark status --json
+wark status
 ```
 
-This returns counts of tickets by status and any active claims.
+This returns counts of tickets by status and any active claims. JSON is the default output format.
 
 **Step 2: Determine your role based on ticket status**
 
@@ -81,10 +81,10 @@ created → ready → in_progress → review → done → closed
 ### Getting Work
 
 ```bash
-wark ticket next --json                    # Get and claim next available ticket
-wark ticket next --project MYAPP --json    # From specific project
-wark ticket next --dry-run --json          # Preview without claiming
-wark ticket list --workable --json         # List all available tickets
+wark ticket next                           # Get and claim next available ticket
+wark ticket next --project MYAPP           # From specific project
+wark ticket next --dry-run                 # Preview without claiming
+wark ticket list --workable                # List all available tickets
 ```
 
 **Selection priority:** highest priority first, then oldest first.
@@ -92,14 +92,14 @@ wark ticket list --workable --json         # List all available tickets
 ### Viewing Tickets
 
 ```bash
-wark ticket show PROJ-42 --json            # View ticket details
+wark ticket show PROJ-42                   # View ticket details
 wark ticket branch PROJ-42                 # Get branch name (e.g., wark/PROJ-42-add-login)
 ```
 
 ### Claiming & Releasing
 
 ```bash
-wark ticket claim PROJ-42 --json           # Claim a ticket (60 min default)
+wark ticket claim PROJ-42                  # Claim a ticket (60 min default)
 wark ticket claim PROJ-42 --duration 120   # Claim for 120 minutes
 wark ticket release PROJ-42 --reason "..." # Release without completing
 ```
@@ -114,13 +114,13 @@ wark ticket complete PROJ-42 --auto-accept   # Skip review (trivial changes only
 ### Status & Claims
 
 ```bash
-wark status --json                         # Overall system status
-wark claim list --json                     # Active claims
+wark status                                # Overall system status
+wark claim list                            # Active claims
 ```
 
 ## JSON Output Format
 
-Always use `--json` for machine-readable output.
+JSON is the default output format. Use `--text` for human-readable output.
 
 ### Ticket Object
 

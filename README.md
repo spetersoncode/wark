@@ -15,7 +15,7 @@ Wark is a command-line task management tool inspired by Jira, purpose-built for 
 - **Human-in-the-loop support** - Inbox system for escalations and questions
 - **Branch tracking** - Suggested branch names for seamless agent handoffs
 - **Full audit trail** - Activity logging for all ticket operations
-- **JSON output** - Machine-readable output for agent integration
+- **JSON by default** - Machine-readable output for agent integration; use `--text` for human-readable output
 
 ## Installation
 
@@ -76,10 +76,10 @@ wark ticket create MYAPP --title "Fix login bug" --priority high
 
 ```bash
 # Get the next available ticket (automatically claims it)
-wark ticket next --json
+wark ticket next
 
 # View ticket details
-wark ticket show MYAPP-1 --json
+wark ticket show MYAPP-1
 
 # Get the suggested git branch
 wark ticket branch MYAPP-1
@@ -111,7 +111,7 @@ Wark is designed for AI agent orchestration. For comprehensive agent documentati
 
 ### Agent Workflow Summary
 
-1. **Claim work**: `wark ticket next --json`
+1. **Claim work**: `wark ticket next`
 2. **Work on ticket**: Create branch, implement changes
 3. **Complete**: `wark ticket complete PROJ-42 --summary "..."`
 

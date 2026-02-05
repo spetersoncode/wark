@@ -21,6 +21,7 @@ var (
 var (
 	dbPath  string
 	jsonOut bool
+	textOut bool
 	quiet   bool
 	verbose bool
 	noColor bool
@@ -78,7 +79,8 @@ func init() {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&dbPath, "db", "", "Path to database file (default ~/.wark/wark.db)")
-	rootCmd.PersistentFlags().BoolVarP(&jsonOut, "json", "j", false, "Output in JSON format")
+	rootCmd.PersistentFlags().BoolVarP(&jsonOut, "json", "j", true, "Output in JSON format (default)")
+	rootCmd.PersistentFlags().BoolVar(&textOut, "text", false, "Output in human-readable text format")
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress non-essential output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
@@ -190,9 +192,10 @@ func GetDBPath() string {
 	return "" // Will use default in db.Open
 }
 
-// IsJSON returns whether JSON output is requested
+// IsJSON returns whether JSON output is requested.
+// JSON is default unless --text is specified.
 func IsJSON() bool {
-	return jsonOut
+	return !textOut
 }
 
 // IsNoColor returns whether colored output should be disabled.

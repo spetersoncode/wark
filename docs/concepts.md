@@ -26,7 +26,7 @@ Tickets are numbered within their project: `WEBAPP-1`, `WEBAPP-2`, etc.
 
 Tickets are the primary unit of work. Each ticket has:
 
-- **Status** - Current state in the workflow (draft, ready, in_progress, etc.)
+- **Status** - Current state in the workflow (draft, ready, working, etc.)
 - **Priority** - Importance level (highest, high, medium, low, lowest)
 - **Complexity** - Estimated effort (trivial, small, medium, large, xlarge)
 - **Branch** - Suggested git branch name for the work
@@ -35,15 +35,15 @@ Tickets are the primary unit of work. Each ticket has:
 ### Ticket Lifecycle
 
 ```
-draft → ready → in_progress → review → closed
+draft → ready → working → review → closed
                     ↓
-               needs_human
+               human
 ```
 
 - **draft** - Initial state, not yet ready for work
 - **ready** - Vetted and available for agents to claim
-- **in_progress** - Currently being worked on (claimed)
-- **needs_human** - Flagged for human input
+- **working** - Currently being worked on (claimed)
+- **human** - Flagged for human input
 - **review** - Work complete, awaiting acceptance
 - **closed** - Work accepted and done
 

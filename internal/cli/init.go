@@ -16,11 +16,13 @@ import (
 var (
 	initForce      bool
 	initWithConfig bool
+	initJSON       bool // init-specific JSON flag (defaults to false for human-friendly output)
 )
 
 func init() {
 	initCmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing database")
 	initCmd.Flags().BoolVar(&initWithConfig, "with-config", false, "Create a sample config file")
+	initCmd.Flags().BoolVarP(&initJSON, "json", "j", false, "Output in JSON format")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -58,7 +60,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// If database already exists and no skills needed, exit early (unless force)
 	if dbExists && !skillsNeeded && !initForce {
-		if IsJSON() {
+		if initJSON {
 			result := initResult{
 				Database: dbPath,
 				Created:  false,
@@ -181,7 +183,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		VerboseOutput("No AI agent directories found (checked ~/.claude/ and ~/.openclaw/)\n")
 	}
 
-	if IsJSON() {
+	if initJSON {
 		result := initResult{
 			Database:   displayPath,
 			Created:    true,
@@ -304,7 +306,7 @@ func runSkillOnlyInit(dbPath string) error {
 		}
 	}
 
-	if IsJSON() {
+	if initJSON {
 		result := initResult{
 			Database: displayPath,
 			Created:  false,

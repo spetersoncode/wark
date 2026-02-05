@@ -278,7 +278,7 @@ func TestTicketWorkable(t *testing.T) {
 	}{
 		{"Review ticket", models.StatusReview},
 		{"Ready ticket", models.StatusReady},
-		{"In progress ticket", models.StatusInProgress},
+		{"In progress ticket", models.StatusWorking},
 		{"Blocked ticket", models.StatusBlocked},
 	}
 
@@ -485,7 +485,7 @@ func TestProjectStats(t *testing.T) {
 		{models.StatusReady, nil},
 		{models.StatusReady, nil},
 		{models.StatusReady, nil},
-		{models.StatusInProgress, nil},
+		{models.StatusWorking, nil},
 		{models.StatusClosed, &completedRes},
 		{models.StatusClosed, &completedRes},
 		{models.StatusClosed, &wontDoRes},
@@ -508,7 +508,7 @@ func TestProjectStats(t *testing.T) {
 
 	assert.Equal(t, 7, stats.TotalTickets)
 	assert.Equal(t, 3, stats.ReadyCount)
-	assert.Equal(t, 1, stats.InProgressCount)
+	assert.Equal(t, 1, stats.WorkingCount)
 	assert.Equal(t, 2, stats.ClosedCompletedCount)
 	assert.Equal(t, 1, stats.ClosedOtherCount)
 }
@@ -570,5 +570,5 @@ func TestEnumValidation(t *testing.T) {
 	// Terminal states
 	assert.True(t, models.StatusClosed.IsTerminal())
 	assert.False(t, models.StatusReady.IsTerminal())
-	assert.False(t, models.StatusInProgress.IsTerminal())
+	assert.False(t, models.StatusWorking.IsTerminal())
 }

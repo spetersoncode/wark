@@ -231,7 +231,7 @@ var claimExpireCmd = &cobra.Command{
 When a claim expires:
   - The ticket is released back to ready status
   - The retry count is incremented
-  - If max_retries is reached, the ticket is escalated to needs_human
+  - If max_retries is reached, the ticket is escalated to human
 
 Examples:
   wark claim expire --all                  # Expire all expired claims
@@ -314,7 +314,7 @@ func outputSingleExpiration(result *tasks.ExpirationResult, dryRun bool) error {
 	OutputLine("New status: %s", result.NewStatus)
 	OutputLine("Retry count: %d/%d", result.RetryCount, result.MaxRetries)
 	if result.Escalated {
-		OutputLine("ESCALATED: Ticket moved to needs_human (max retries reached)")
+		OutputLine("ESCALATED: Ticket moved to human (max retries reached)")
 	}
 
 	return nil
@@ -339,7 +339,7 @@ func outputExpireResult(result *tasks.ExpireClaimsResult) error {
 
 	OutputLine("%sProcessed %d expired claim(s):", prefix, result.Processed)
 	OutputLine("  Expired:   %d", result.Expired)
-	OutputLine("  Escalated: %d (moved to needs_human)", result.Escalated)
+	OutputLine("  Escalated: %d (moved to human)", result.Escalated)
 	if result.Errors > 0 {
 		OutputLine("  Errors:    %d", result.Errors)
 	}
@@ -351,7 +351,7 @@ func outputExpireResult(result *tasks.ExpireClaimsResult) error {
 			if r.ErrorMessage != "" {
 				OutputLine("  %s: ERROR - %s", r.TicketKey, r.ErrorMessage)
 			} else if r.Escalated {
-				OutputLine("  %s: expired -> needs_human (retry %d/%d)", r.TicketKey, r.RetryCount, r.MaxRetries)
+				OutputLine("  %s: expired -> human (retry %d/%d)", r.TicketKey, r.RetryCount, r.MaxRetries)
 			} else {
 				OutputLine("  %s: expired -> ready (retry %d/%d)", r.TicketKey, r.RetryCount, r.MaxRetries)
 			}

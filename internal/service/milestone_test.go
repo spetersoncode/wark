@@ -526,7 +526,7 @@ func TestMilestoneStatusValidation(t *testing.T) {
 		{"", false},
 		{"closed", false},
 		{"OPEN", false},
-		{"in_progress", false},
+		{"working", false},
 	}
 
 	for _, tt := range tests {

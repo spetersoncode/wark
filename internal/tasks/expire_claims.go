@@ -116,7 +116,7 @@ func (e *ClaimExpirer) processExpiredClaim(claim *models.Claim, dryRun bool) *Ex
 	}
 
 	// Only process if ticket is still in progress
-	if ticket.Status != models.StatusInProgress {
+	if ticket.Status != models.StatusWorking {
 		result.ErrorMessage = fmt.Sprintf("ticket not in progress (status: %s)", ticket.Status)
 		return result
 	}

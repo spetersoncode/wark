@@ -23,7 +23,7 @@
      │               │                                 │                  │
      │               ▼               ▼                 ▼                  │
      │          ┌─────────────────────────────────────────────────────────┤
-     │          │                  needs_human                            │
+     │          │                  human                            │
      │          │        (can be entered from ANY state)                  │
      │          │  After human responds → returns to previous state       │
      │          └─────────────────────────────────────────────────────────┤
@@ -34,7 +34,7 @@
                 └─────────────────────────────────────────┘    (reopen)
 ```
 
-**Note:** The `needs_human` state is special—it can be entered from ANY other non-terminal state when an agent or human flags the ticket for human input. When the human responds, the ticket returns to its previous state (or to `ready` if appropriate).
+**Note:** The `human` state is special—it can be entered from ANY other non-terminal state when an agent or human flags the ticket for human input. When the human responds, the ticket returns to its previous state (or to `ready` if appropriate).
 
 ## 2. State Definitions
 
@@ -63,7 +63,7 @@
 
 **Entry conditions:**
 - Explicitly transitioned from `created` (vetted)
-- Released from `in_progress` (claim expired/released)
+- Released from `working` (claim expired/released)
 - Unblocked from `blocked` (dependencies resolved)
 
 **Characteristics:**
@@ -72,7 +72,7 @@
 - May still have unresolved dependencies (see `blocked`)
 
 **Available actions:**
-- Claim for work → `in_progress`
+- Claim for work → `working`
 - Block on dependencies → `blocked` (automatic if dependencies unresolved)
 - Cancel → `cancelled`
 
@@ -95,7 +95,7 @@
 
 ---
 
-### 2.4 `in_progress`
+### 2.4 `working`
 **Description:** Ticket is actively claimed by a worker.
 
 **Entry conditions:**
@@ -109,21 +109,21 @@
 
 **Available actions:**
 - Complete work → `review`
-- Flag for human input → `needs_human`
+- Flag for human input → `human`
 - Reclaim claim → `ready` (with retry increment)
 - Claim expires → `ready` (with retry increment)
 - Decompose → creates child tickets, parent goes to `blocked`
 
 **Automatic transitions:**
-- On claim expiration: → `ready` (if retries remain) or → `needs_human` (if max retries)
+- On claim expiration: → `ready` (if retries remain) or → `human` (if max retries)
 
 ---
 
-### 2.5 `needs_human`
+### 2.5 `human`
 **Description:** Ticket requires human input to proceed.
 
 **Entry conditions:**
-- **Agent flags from ANY active state** (created, ready, in_progress, review)
+- **Agent flags from ANY active state** (created, ready, working, review)
 - Max retries exceeded (automatic escalation)
 - Irreconcilable problems discovered during work
 - Clarification needed on requirements
@@ -142,7 +142,7 @@
 
 **Critical design point:** An agent can flag for human input at ANY point during work. This is not limited to specific state transitions. The flag operation:
 1. Creates an inbox message with the reason
-2. Transitions ticket to `needs_human`
+2. Transitions ticket to `human`
 3. Releases any active claim
 4. Records the action in the activity log
 
@@ -162,7 +162,7 @@
 **Available actions:**
 - Accept → `done`
 - Reject → `ready` (more work needed)
-- Request changes via inbox → `needs_human`
+- Request changes via inbox → `human`
 
 ---
 
@@ -202,13 +202,13 @@
 
 ## 3. Transition Matrix
 
-| From \ To | created | ready | blocked | in_progress | needs_human | review | done | cancelled |
+| From \ To | created | ready | blocked | working | human | review | done | cancelled |
 |-----------|---------|-------|---------|-------------|---------------|--------|------|-----------|
 | **created** | - | ✓ vet | - | - | ✓ flag | - | - | ✓ cancel |
 | **ready** | - | - | ✓ auto | ✓ claim | ✓ flag | - | - | ✓ cancel |
 | **blocked** | - | ✓ auto | - | - | ✓ flag | - | - | ✓ cancel |
-| **in_progress** | - | ✓ reclaim/expire | ✓ decompose | - | ✓ flag | ✓ complete | - | - |
-| **needs_human** | - | ✓ respond | - | ✓ respond | - | - | ✓ resolve | ✓ cancel |
+| **working** | - | ✓ reclaim/expire | ✓ decompose | - | ✓ flag | ✓ complete | - | - |
+| **human** | - | ✓ respond | - | ✓ respond | - | - | ✓ resolve | ✓ cancel |
 | **review** | - | ✓ reject | - | - | ✓ flag | - | ✓ accept | ✓ cancel |
 | **done** | - | ✓ reopen* | - | - | - | - | - | - |
 | **cancelled** | ✓ reopen* | - | - | - | - | - | - | - |
@@ -263,7 +263,7 @@ wark ticket vet PROJ-42
 
 ---
 
-### 4.4 `ready` → `in_progress` (Claim)
+### 4.4 `ready` → `working` (Claim)
 
 **Trigger:** `wark ticket claim <id>` or `wark ticket next`
 
@@ -286,11 +286,11 @@ wark ticket next --project PROJ  # Claims highest priority ready ticket
 
 ---
 
-### 4.5 Any Active State → `needs_human` (Flag for Human)
+### 4.5 Any Active State → `human` (Flag for Human)
 
 **Trigger:** Agent flags ticket for human input at any point
 
-**Valid source states:** `created`, `ready`, `blocked`, `in_progress`, `review`
+**Valid source states:** `created`, `ready`, `blocked`, `working`, `review`
 
 **Preconditions:**
 - Ticket is in an active (non-terminal) state
@@ -321,7 +321,7 @@ wark ticket flag PROJ-42 --reason irreconcilable_conflict \
 
 ---
 
-### 4.6 `in_progress` → `ready` (Reclaim/Expire)
+### 4.6 `working` → `ready` (Reclaim/Expire)
 
 **Trigger:** Manual reclaim, or automatic on claim expiration
 
@@ -331,7 +331,7 @@ wark ticket flag PROJ-42 --reason irreconcilable_conflict \
 **Side effects:**
 - Marks claim as `released` or `expired`
 - Increments `retry_count`
-- If `retry_count >= max_retries`, transitions to `needs_human` instead
+- If `retry_count >= max_retries`, transitions to `human` instead
 - Records transition in history
 
 **CLI:**
@@ -341,7 +341,7 @@ wark ticket reclaim PROJ-42 --reason "Need more context"
 
 ---
 
-### 4.6 `in_progress` → `needs_human` (Request Human Input)
+### 4.6 `working` → `human` (Request Human Input)
 
 **Trigger:** Agent requests help
 
@@ -360,7 +360,7 @@ wark inbox send PROJ-42 --type question "Should I use REST or GraphQL for this A
 
 ---
 
-### 4.7 `in_progress` → `review` (Complete)
+### 4.7 `working` → `review` (Complete)
 
 **Trigger:** Agent marks work as done
 
@@ -380,7 +380,7 @@ wark ticket complete PROJ-42 --summary "Implemented user authentication with JWT
 
 ---
 
-### 4.8 `in_progress` → `blocked` (Decompose)
+### 4.8 `working` → `blocked` (Decompose)
 
 **Trigger:** Agent creates sub-tickets
 
@@ -404,7 +404,7 @@ wark ticket decompose PROJ-42 \
 
 ---
 
-### 4.9 `needs_human` → `ready` / `in_progress` (Human Responds)
+### 4.9 `human` → `ready` / `working` (Human Responds)
 
 **Trigger:** Human responds to inbox message
 
@@ -414,7 +414,7 @@ wark ticket decompose PROJ-42 \
 **Side effects:**
 - Records response in inbox message
 - Resets `retry_count` to 0
-- Transitions to `ready` (or `in_progress` if immediately re-claimd)
+- Transitions to `ready` (or `working` if immediately re-claimd)
 - Records transition in history
 
 **CLI:**
@@ -477,7 +477,7 @@ Every 1 minute:
     Mark claim as 'expired'
     Increment ticket retry_count
     IF retry_count >= max_retries:
-      Transition ticket to 'needs_human'
+      Transition ticket to 'human'
       Create escalation inbox message
     ELSE:
       Transition ticket to 'ready'
@@ -518,7 +518,7 @@ ORDER BY priority, created_at;
 
 ```sql
 -- Tickets waiting on humans
-SELECT * FROM tickets WHERE status = 'needs_human';
+SELECT * FROM tickets WHERE status = 'human';
 
 -- Tickets waiting on dependencies
 SELECT t.*, GROUP_CONCAT(p.key || '-' || dep.number) AS blocking_tickets
@@ -546,7 +546,7 @@ WHERE minutes_remaining < 15;
 All invalid transitions should return a clear error:
 
 ```
-Error: Cannot transition PROJ-42 from 'done' to 'in_progress'
+Error: Cannot transition PROJ-42 from 'done' to 'working'
 Valid transitions from 'done': ready (admin reopen)
 ```
 
@@ -563,7 +563,7 @@ Use optimistic locking via `updated_at`:
 
 ```sql
 UPDATE tickets 
-SET status = 'in_progress', updated_at = NOW()
+SET status = 'working', updated_at = NOW()
 WHERE id = ? AND status = 'ready' AND updated_at = ?;
 -- Check rows affected; if 0, someone else modified it
 ```

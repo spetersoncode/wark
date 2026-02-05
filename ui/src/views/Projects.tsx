@@ -88,7 +88,7 @@ function ProjectCard({ project }: { project: ProjectWithStats }) {
 	const totalOpen =
 		project.stats.blocked_count +
 		project.stats.ready_count +
-		project.stats.in_progress_count +
+		project.stats.working_count +
 		project.stats.human_count +
 		project.stats.review_count;
 
@@ -125,7 +125,7 @@ function ProjectCard({ project }: { project: ProjectWithStats }) {
 				</div>
 				<div className="flex items-center gap-1.5">
 					<span className="text-blue-600 dark:text-blue-400">Active:</span>
-					<span className="font-medium">{project.stats.in_progress_count}</span>
+					<span className="font-medium">{project.stats.working_count}</span>
 				</div>
 			</div>
 		</Link>

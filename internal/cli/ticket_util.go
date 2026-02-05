@@ -178,7 +178,7 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Update ticket status
-	nextTicket.Status = models.StatusInProgress
+	nextTicket.Status = models.StatusWorking
 	if err := ticketRepo.Update(nextTicket); err != nil {
 		// Rollback claim
 		claimRepo.Release(claim.ID, models.ClaimStatusReleased)

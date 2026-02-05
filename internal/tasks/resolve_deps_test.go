@@ -26,7 +26,7 @@ func TestDependencyResolver_OnTicketCompleted_UnblocksDependents(t *testing.T) {
 	ticket1 := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Dependency",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket1))
 
@@ -79,7 +79,7 @@ func TestDependencyResolver_OnTicketCompleted_MultipleDependencies(t *testing.T)
 	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Dep 1", Status: models.StatusClosed, Resolution: &completedRes}
 	require.NoError(t, ticketRepo.Create(ticket1))
 
-	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Dep 2", Status: models.StatusInProgress}
+	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Dep 2", Status: models.StatusWorking}
 	require.NoError(t, ticketRepo.Create(ticket2))
 
 	// Create ticket3 that depends on both
@@ -120,7 +120,7 @@ func TestDependencyResolver_OnTicketCompleted_DoesNotUnblockWithRemainingDeps(t 
 	depRepo := db.NewDependencyRepo(database.DB)
 
 	// Create ticket1 (done) and ticket2 (not done)
-	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Dep 1", Status: models.StatusInProgress}
+	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Dep 1", Status: models.StatusWorking}
 	require.NoError(t, ticketRepo.Create(ticket1))
 
 	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Dep 2", Status: models.StatusReady}
@@ -167,7 +167,7 @@ func TestDependencyResolver_OnTicketCompleted_UpdatesParent(t *testing.T) {
 	parent := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Parent",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(parent))
 
@@ -185,7 +185,7 @@ func TestDependencyResolver_OnTicketCompleted_UpdatesParent(t *testing.T) {
 	child2 := &models.Ticket{
 		ProjectID:      project.ID,
 		Title:          "Child 2",
-		Status:         models.StatusInProgress,
+		Status:         models.StatusWorking,
 		ParentTicketID: &parent.ID,
 	}
 	require.NoError(t, ticketRepo.Create(child2))
@@ -226,7 +226,7 @@ func TestDependencyResolver_OnTicketCompleted_ParentAutoAccept(t *testing.T) {
 	parent := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Parent",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(parent))
 
@@ -234,7 +234,7 @@ func TestDependencyResolver_OnTicketCompleted_ParentAutoAccept(t *testing.T) {
 	child := &models.Ticket{
 		ProjectID:      project.ID,
 		Title:          "Child",
-		Status:         models.StatusInProgress,
+		Status:         models.StatusWorking,
 		ParentTicketID: &parent.ID,
 	}
 	require.NoError(t, ticketRepo.Create(child))
@@ -275,7 +275,7 @@ func TestDependencyResolver_OnTicketCompleted_ParentNotUpdatedWithIncompleteChil
 	parent := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Parent",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(parent))
 
@@ -283,7 +283,7 @@ func TestDependencyResolver_OnTicketCompleted_ParentNotUpdatedWithIncompleteChil
 	child1 := &models.Ticket{
 		ProjectID:      project.ID,
 		Title:          "Child 1",
-		Status:         models.StatusInProgress,
+		Status:         models.StatusWorking,
 		ParentTicketID: &parent.ID,
 	}
 	require.NoError(t, ticketRepo.Create(child1))
@@ -312,7 +312,7 @@ func TestDependencyResolver_OnTicketCompleted_ParentNotUpdatedWithIncompleteChil
 	// Verify parent is still in progress
 	updated, err := ticketRepo.GetByID(parent.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusInProgress, updated.Status)
+	assert.Equal(t, models.StatusWorking, updated.Status)
 }
 
 func TestDependencyResolver_ResolveAll(t *testing.T) {
@@ -403,7 +403,7 @@ func TestDependencyResolver_NoParentUpdate(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Standalone",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -438,7 +438,7 @@ func TestDependencyResolver_NonCompletedResolution_FlagsForHumanReview(t *testin
 	ticket1 := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Feature that won't be done",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket1))
 

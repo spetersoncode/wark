@@ -67,8 +67,8 @@ func TestFullWorkflowInitToAccept(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, models.ClaimStatusActive, claim.Status)
 
-	// Update ticket status to in_progress
-	ticket.Status = models.StatusInProgress
+	// Update ticket status to working
+	ticket.Status = models.StatusWorking
 	err = ticketRepo.Update(ticket)
 	require.NoError(t, err)
 
@@ -145,7 +145,7 @@ func TestWorkflowWithRejection(t *testing.T) {
 	err = claimRepo.Create(claim)
 	require.NoError(t, err)
 
-	ticket.Status = models.StatusInProgress
+	ticket.Status = models.StatusWorking
 	err = ticketRepo.Update(ticket)
 	require.NoError(t, err)
 
@@ -366,10 +366,10 @@ func TestStateTransitionErrors(t *testing.T) {
 		toStatus    models.Status
 		shouldError bool
 	}{
-		{"blocked to in_progress", models.StatusBlocked, models.StatusInProgress, true},  // Must be ready first
-		{"closed to in_progress", models.StatusClosed, models.StatusInProgress, true},    // Terminal state
-		{"ready to in_progress", models.StatusReady, models.StatusInProgress, false},     // Valid
-		{"in_progress to review", models.StatusInProgress, models.StatusReview, false},   // Valid
+		{"blocked to working", models.StatusBlocked, models.StatusWorking, true},  // Must be ready first
+		{"closed to working", models.StatusClosed, models.StatusWorking, true},    // Terminal state
+		{"ready to working", models.StatusReady, models.StatusWorking, false},     // Valid
+		{"working to review", models.StatusWorking, models.StatusReview, false},   // Valid
 		{"review to closed", models.StatusReview, models.StatusClosed, false},            // Valid (accept)
 	}
 
@@ -450,7 +450,7 @@ func TestClaimExpiredCanReClaim(t *testing.T) {
 	require.NoError(t, err)
 
 	ticketRepo := db.NewTicketRepo(database.DB)
-	ticket := &models.Ticket{ProjectID: project.ID, Title: "Test", Status: models.StatusInProgress}
+	ticket := &models.Ticket{ProjectID: project.ID, Title: "Test", Status: models.StatusWorking}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
 
@@ -656,7 +656,7 @@ func TestInboxMessageJSONOutput(t *testing.T) {
 func TestStatusResultJSONOutput(t *testing.T) {
 	result := StatusResult{
 		Workable:     5,
-		InProgress:   2,
+		Working:   2,
 		BlockedDeps:  3,
 		BlockedHuman: 1,
 		PendingInbox: 4,
@@ -679,7 +679,7 @@ func TestStatusResultJSONOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, float64(5), parsed["workable"])
-	assert.Equal(t, float64(2), parsed["in_progress"])
+	assert.Equal(t, float64(2), parsed["working"])
 	assert.Equal(t, float64(3), parsed["blocked_deps"])
 	assert.Equal(t, float64(1), parsed["blocked_human"])
 	assert.Equal(t, float64(4), parsed["pending_inbox"])
@@ -955,7 +955,7 @@ func TestInboxBlocksTicket(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
@@ -1169,7 +1169,7 @@ func TestWorkableOnlyReady(t *testing.T) {
 	statuses := []models.Status{
 		models.StatusBlocked,
 		models.StatusReady,
-		models.StatusInProgress,
+		models.StatusWorking,
 		models.StatusHuman,
 		models.StatusReview,
 		models.StatusClosed,
@@ -1215,7 +1215,7 @@ func TestClaimExpirationEscalation(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID:  project.ID,
 		Title:      "Test",
-		Status:     models.StatusInProgress,
+		Status:     models.StatusWorking,
 		RetryCount: 2, // One more retry will hit max (3)
 		MaxRetries: 3,
 	}
@@ -1341,7 +1341,7 @@ func TestTicketFilterByStatus(t *testing.T) {
 	statuses := []models.Status{
 		models.StatusReady,
 		models.StatusReady,
-		models.StatusInProgress,
+		models.StatusWorking,
 		models.StatusClosed,
 		models.StatusClosed,
 		models.StatusClosed,

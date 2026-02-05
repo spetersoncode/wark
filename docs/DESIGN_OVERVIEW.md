@@ -121,7 +121,7 @@ This provides full auditability and context for handoffs between agents.
 At any point, an agent (or human) can flag a ticket as needing human input:
 
 - Adds a reason explaining what's needed
-- Ticket transitions to `needs_human` status
+- Ticket transitions to `human` status
 - Appears in human inbox for response
 - Work can resume after human responds
 

@@ -238,7 +238,7 @@ func (l *Logic) GetNextStatus(ticket *models.Ticket, event Event) (models.Status
 		}
 
 	case EventClaimExpired:
-		if ticket.Status == models.StatusInProgress {
+		if ticket.Status == models.StatusWorking {
 			if l.ShouldEscalateToHuman(ticket) {
 				return models.StatusHuman, nil, true
 			}
@@ -246,7 +246,7 @@ func (l *Logic) GetNextStatus(ticket *models.Ticket, event Event) (models.Status
 		}
 
 	case EventWorkCompleted:
-		if ticket.Status == models.StatusInProgress {
+		if ticket.Status == models.StatusWorking {
 			return models.StatusReview, nil, true
 		}
 
@@ -263,8 +263,8 @@ func (l *Logic) GetNextStatus(ticket *models.Ticket, event Event) (models.Status
 
 	case EventHumanResponded:
 		if ticket.Status == models.StatusHuman {
-			// Default to in_progress (resuming work)
-			return models.StatusInProgress, nil, true
+			// Default to working (resuming work)
+			return models.StatusWorking, nil, true
 		}
 	}
 
@@ -331,8 +331,8 @@ func (l *Logic) CanComplete(ticket *models.Ticket) (bool, string) {
 	}
 
 	// Must be in progress
-	if ticket.Status != models.StatusInProgress {
-		return false, "ticket must be in_progress to be completed"
+	if ticket.Status != models.StatusWorking {
+		return false, "ticket must be working to be completed"
 	}
 
 	return true, ""

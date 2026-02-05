@@ -148,9 +148,9 @@ wark status --json
 ```json
 {
   "workable_count": 5,
-  "in_progress_count": 2,
+  "working_count": 2,
   "blocked_count": 3,
-  "needs_human_count": 2,
+  "human_count": 2,
   "pending_inbox": 2,
   "expiring_claims": [
     {"ticket": "WEBAPP-42", "minutes_remaining": 15}
@@ -388,7 +388,7 @@ wark ticket flag INFRA-10 --reason access_required \
 
 #### Behavior
 When a ticket is flagged:
-1. Ticket transitions to `needs_human`
+1. Ticket transitions to `human`
 2. Current claim is released (if any)
 3. Inbox message is created with full context
 4. Activity log records the flag with all details
@@ -542,7 +542,7 @@ For multi-agent scenarios, an orchestrator agent can:
 while true; do
   STATUS=$(wark status --json)
   
-  BLOCKED_HUMAN=$(echo $STATUS | jq '.needs_human_count')
+  BLOCKED_HUMAN=$(echo $STATUS | jq '.human_count')
   EXPIRING=$(echo $STATUS | jq '.expiring_claims | length')
   
   if [ "$BLOCKED_HUMAN" -gt 5 ]; then

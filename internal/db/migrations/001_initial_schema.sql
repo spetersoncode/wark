@@ -51,7 +51,7 @@ CREATE TABLE milestones (
 -- State machine:
 --   blocked     → Waiting on dependencies or external factors
 --   ready       → Available for an agent to claim
---   in_progress → Currently being worked on
+--   working → Currently being worked on
 --   human       → Needs human input/decision
 --   review      → Work complete, awaiting human review
 --   closed      → Terminal state (with resolution)
@@ -75,7 +75,7 @@ CREATE TABLE tickets (
                         CHECK (status IN (
                             'blocked',
                             'ready',
-                            'in_progress',
+                            'working',
                             'human',
                             'review',
                             'closed'

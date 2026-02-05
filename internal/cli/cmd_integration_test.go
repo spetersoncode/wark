@@ -496,14 +496,14 @@ func TestCmdTicketListReviewable(t *testing.T) {
 	// Create a ready ticket (not in review)
 	_, _ = runCmd(t, dbPath, "ticket", "create", "REV", "--title", "Ready Ticket")
 
-	// Create an in_progress ticket directly
+	// Create an working ticket directly
 	projectRepo := db.NewProjectRepo(database.DB)
 	project, _ := projectRepo.GetByKey("REV")
 	ticketRepo := db.NewTicketRepo(database.DB)
 	inProgressTicket := &models.Ticket{
 		ProjectID: project.ID,
-		Title:     "In Progress Ticket",
-		Status:    models.StatusInProgress,
+		Title:     "Working Ticket",
+		Status:    models.StatusWorking,
 	}
 	ticketRepo.Create(inProgressTicket)
 
@@ -512,7 +512,7 @@ func TestCmdTicketListReviewable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output, "Review Ticket")
 	assert.NotContains(t, output, "Ready Ticket")
-	assert.NotContains(t, output, "In Progress Ticket")
+	assert.NotContains(t, output, "Working Ticket")
 }
 
 func TestCmdTicketListEmpty(t *testing.T) {
@@ -657,7 +657,7 @@ func TestCmdTicketClaimAlreadyClaimed(t *testing.T) {
 	_, err := runCmd(t, dbPath, "ticket", "claim", "DUP-1", "--worker-id", "first-agent")
 	require.NoError(t, err)
 
-	// Second claim should fail - ticket is already in_progress
+	// Second claim should fail - ticket is already working
 	_, err = runCmd(t, dbPath, "ticket", "claim", "DUP-1", "--worker-id", "second-agent")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot claim ticket")
@@ -719,7 +719,7 @@ func TestCmdTicketReleaseJSON(t *testing.T) {
 	assert.Equal(t, "RELJSON-1", result["ticket"])
 	assert.Equal(t, true, result["released"])
 	assert.Equal(t, "ready", result["status"])
-	assert.Equal(t, "in_progress", result["previous_status"])
+	assert.Equal(t, "working", result["previous_status"])
 	assert.Equal(t, true, result["status_changed"])
 	assert.Equal(t, float64(1), result["retry_count"])
 }
@@ -732,11 +732,11 @@ func TestCmdTicketReleaseStatusTransition(t *testing.T) {
 	_, _ = runCmd(t, dbPath, "ticket", "create", "RELST", "--title", "Status Transition Test")
 	_, _ = runCmd(t, dbPath, "ticket", "claim", "RELST-1", "--worker-id", "agent")
 
-	// Verify ticket is in_progress after claim
+	// Verify ticket is working after claim
 	var ticketBefore map[string]interface{}
 	err := runCmdJSON(t, dbPath, &ticketBefore, "ticket", "show", "RELST-1")
 	require.NoError(t, err)
-	assert.Equal(t, "in_progress", ticketBefore["status"])
+	assert.Equal(t, "working", ticketBefore["status"])
 
 	// Release the ticket
 	_, err = runCmd(t, dbPath, "ticket", "release", "RELST-1")
@@ -1564,11 +1564,11 @@ func TestCmdHumanInTheLoopEscalationFlow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output, "Claimed: HITL-1")
 
-	// Verify ticket is now in_progress
+	// Verify ticket is now working
 	var claimedResult ticketShowResult
 	err = runCmdJSON(t, dbPath, &claimedResult, "ticket", "show", "HITL-1")
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusInProgress, claimedResult.Status)
+	assert.Equal(t, models.StatusWorking, claimedResult.Status)
 
 	// Step 3: Agent sends an inbox message (escalates with a question)
 	output, err = runCmd(t, dbPath, "inbox", "send", "HITL-1", "--type", "question", "Need clarification on the authentication flow")
@@ -1657,7 +1657,7 @@ func TestCmdInboxSendInfoTypeNoStatusChange(t *testing.T) {
 
 	var beforeResult ticketShowResult
 	_ = runCmdJSON(t, dbPath, &beforeResult, "ticket", "show", "INFO-1")
-	assert.Equal(t, models.StatusInProgress, beforeResult.Status)
+	assert.Equal(t, models.StatusWorking, beforeResult.Status)
 
 	// Send info message (should NOT change status)
 	_, err := runCmd(t, dbPath, "inbox", "send", "INFO-1", "--type", "info", "FYI: Started working on the feature")
@@ -1666,7 +1666,7 @@ func TestCmdInboxSendInfoTypeNoStatusChange(t *testing.T) {
 	var afterResult ticketShowResult
 	err = runCmdJSON(t, dbPath, &afterResult, "ticket", "show", "INFO-1")
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusInProgress, afterResult.Status, "info type should NOT change status")
+	assert.Equal(t, models.StatusWorking, afterResult.Status, "info type should NOT change status")
 }
 
 func TestCmdInboxRespondResetsRetryCount(t *testing.T) {

@@ -21,7 +21,7 @@ type ProjectStats struct {
 	TotalTickets         int `json:"total_tickets"`
 	BlockedCount         int `json:"blocked_count"`
 	ReadyCount           int `json:"ready_count"`
-	InProgressCount      int `json:"in_progress_count"`
+	WorkingCount      int `json:"working_count"`
 	HumanCount           int `json:"human_count"`
 	ReviewCount          int `json:"review_count"`
 	ClosedCompletedCount int `json:"closed_completed_count"`

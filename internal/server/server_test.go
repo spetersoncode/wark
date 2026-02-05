@@ -430,7 +430,7 @@ func TestClaimEndpoints(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test Ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
@@ -510,7 +510,7 @@ func TestStatusEndpoint(t *testing.T) {
 	tickets := []*models.Ticket{
 		{ProjectID: project.ID, Title: "Ready 1", Status: models.StatusReady},
 		{ProjectID: project.ID, Title: "Ready 2", Status: models.StatusReady},
-		{ProjectID: project.ID, Title: "In Progress", Status: models.StatusInProgress},
+		{ProjectID: project.ID, Title: "Working", Status: models.StatusWorking},
 		{ProjectID: project.ID, Title: "Blocked", Status: models.StatusBlocked},
 		{ProjectID: project.ID, Title: "Needs Human", Status: models.StatusHuman},
 	}
@@ -532,7 +532,7 @@ func TestStatusEndpoint(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, 2, status.Workable)
-		assert.Equal(t, 1, status.InProgress)
+		assert.Equal(t, 1, status.Working)
 		assert.Equal(t, 1, status.BlockedDeps)
 		assert.Equal(t, 1, status.BlockedHuman)
 	})

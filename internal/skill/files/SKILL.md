@@ -59,18 +59,18 @@ Wark is a command-line task management system designed for coordinating AI codin
 ## Ticket Lifecycle
 
 ```
-created → ready → in_progress → review → done → closed
+created → ready → working → review → done → closed
             ↓         ↓                     ↓
-         blocked   needs_human          cancelled
+         blocked   human          cancelled
 ```
 
 | State | Description |
 |-------|-------------|
 | `created` | Just created, not yet validated |
 | `ready` | Available for work (dependencies resolved) |
-| `in_progress` | Currently being worked on (has active claim) |
+| `working` | Currently being worked on (has active claim) |
 | `blocked` | Waiting for dependencies to complete |
-| `needs_human` | Waiting for human input |
+| `human` | Waiting for human input |
 | `review` | Work complete, awaiting review |
 | `done` | Accepted and finished |
 | `closed` | Archived after completion |

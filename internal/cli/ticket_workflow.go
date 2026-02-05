@@ -183,7 +183,7 @@ func runTicketRelease(cmd *cobra.Command, args []string) error {
 			"ticket":          updatedTicket.TicketKey,
 			"released":        true,
 			"status":          updatedTicket.Status,
-			"previous_status": models.StatusInProgress,
+			"previous_status": models.StatusWorking,
 			"status_changed":  true,
 			"retry_count":     updatedTicket.RetryCount,
 		}, "", "  ")
@@ -266,7 +266,7 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 var ticketFlagCmd = &cobra.Command{
 	Use:   "flag <TICKET> <MESSAGE>",
 	Short: "Flag a ticket for human input",
-	Long: `Flag a ticket for human attention. The ticket will move to needs_human status.
+	Long: `Flag a ticket for human attention. The ticket will move to human status.
 
 Reason codes:
   irreconcilable_conflict - Technical conflict that cannot be resolved

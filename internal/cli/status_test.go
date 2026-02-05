@@ -31,7 +31,7 @@ func TestStatusOverview(t *testing.T) {
 	}{
 		{"Ready 1", models.StatusReady},
 		{"Ready 2", models.StatusReady},
-		{"In Progress", models.StatusInProgress},
+		{"Working", models.StatusWorking},
 		{"Blocked", models.StatusBlocked},
 		{"Human 1", models.StatusHuman},
 		{"Human 2", models.StatusHuman},
@@ -53,7 +53,7 @@ func TestStatusOverview(t *testing.T) {
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
 
-		if td.status == models.StatusInProgress {
+		if td.status == models.StatusWorking {
 			inProgressTicket = ticket
 		}
 	}
@@ -81,7 +81,7 @@ func TestStatusOverview(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(workable))
 
-	inProgressStatus := models.StatusInProgress
+	inProgressStatus := models.StatusWorking
 	inProgress, err := ticketRepo.List(db.TicketFilter{Status: &inProgressStatus})
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(inProgress))
@@ -161,7 +161,7 @@ func TestStatusByProject(t *testing.T) {
 func TestStatusResultStruct(t *testing.T) {
 	result := StatusResult{
 		Workable:     5,
-		InProgress:   2,
+		Working:   2,
 		Review:       1,
 		BlockedDeps:  3,
 		BlockedHuman: 1,
@@ -176,7 +176,7 @@ func TestStatusResultStruct(t *testing.T) {
 	}
 
 	assert.Equal(t, 5, result.Workable)
-	assert.Equal(t, 2, result.InProgress)
+	assert.Equal(t, 2, result.Working)
 	assert.Equal(t, 1, result.Review)
 	assert.Equal(t, 3, result.BlockedDeps)
 	assert.Equal(t, 1, result.BlockedHuman)
@@ -200,7 +200,7 @@ func TestExpiringSoonDetection(t *testing.T) {
 	claimRepo := db.NewClaimRepo(database.DB)
 
 	// Create ticket and claim expiring in 20 minutes (within 30 minute threshold)
-	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 1", Status: models.StatusInProgress}
+	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 1", Status: models.StatusWorking}
 	err = ticketRepo.Create(ticket1)
 	require.NoError(t, err)
 
@@ -215,7 +215,7 @@ func TestExpiringSoonDetection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create ticket and claim expiring in 60 minutes (not within threshold)
-	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 2", Status: models.StatusInProgress}
+	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 2", Status: models.StatusWorking}
 	err = ticketRepo.Create(ticket2)
 	require.NoError(t, err)
 

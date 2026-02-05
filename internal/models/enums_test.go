@@ -17,13 +17,12 @@ func TestParseStatus(t *testing.T) {
 		// Valid cases
 		{"blocked lowercase", "blocked", StatusBlocked, false},
 		{"ready lowercase", "ready", StatusReady, false},
-		{"in_progress underscore", "in_progress", StatusInProgress, false},
-		{"in-progress hyphen", "in-progress", StatusInProgress, false},
+		{"working lowercase", "working", StatusWorking, false},
 		{"human lowercase", "human", StatusHuman, false},
 		{"review lowercase", "review", StatusReview, false},
 		{"closed lowercase", "closed", StatusClosed, false},
 		{"uppercase", "BLOCKED", StatusBlocked, false},
-		{"mixed case", "In_Progress", StatusInProgress, false},
+		{"mixed case", "Working", StatusWorking, false},
 		{"with whitespace", "  ready  ", StatusReady, false},
 		// Invalid cases
 		{"invalid status", "invalid_status", "", true},

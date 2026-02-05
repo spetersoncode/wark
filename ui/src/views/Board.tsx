@@ -33,7 +33,7 @@ const COLUMNS: {
 		borderColor: "border-l-[var(--status-ready)]",
 	},
 	{
-		key: "in_progress",
+		key: "working",
 		label: "Active",
 		icon: <CircleDot className="size-4" />,
 		borderColor: "border-l-[var(--status-in-progress)]",

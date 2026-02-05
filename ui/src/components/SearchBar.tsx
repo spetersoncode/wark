@@ -8,7 +8,7 @@ import { cn } from "../lib/utils";
 const STATUS_COLORS: Record<string, string> = {
 	blocked: "bg-red-500/20 text-red-400",
 	ready: "bg-green-500/20 text-green-400",
-	in_progress: "bg-blue-500/20 text-blue-400",
+	working: "bg-blue-500/20 text-blue-400",
 	human: "bg-yellow-500/20 text-yellow-400",
 	review: "bg-purple-500/20 text-purple-400",
 	closed: "bg-gray-500/20 text-gray-400",

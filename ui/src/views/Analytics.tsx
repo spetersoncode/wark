@@ -391,7 +391,7 @@ function formatStatus(status: string): string {
 
 function getStatusColor(status: string): string {
 	switch (status) {
-		case "in_progress":
+		case "working":
 			return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
 		case "ready":
 			return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";

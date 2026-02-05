@@ -10,39 +10,36 @@ import (
 // State machine (WARK-12):
 // - blocked: has open dependencies, cannot be worked
 // - ready: no blockers, available for work
-// - in_progress: actively being worked
+// - working: actively being worked
 // - human: needs human decision/input (escalation)
 // - review: work complete, awaiting approval
 // - closed: terminal state (with resolution)
 type Status string
 
 const (
-	StatusBlocked    Status = "blocked"
-	StatusReady      Status = "ready"
-	StatusInProgress Status = "in_progress"
-	StatusHuman      Status = "human"
-	StatusReview     Status = "review"
-	StatusClosed     Status = "closed"
+	StatusBlocked Status = "blocked"
+	StatusReady   Status = "ready"
+	StatusWorking Status = "working"
+	StatusHuman   Status = "human"
+	StatusReview  Status = "review"
+	StatusClosed  Status = "closed"
 )
 
 // IsValid returns true if the status is a valid ticket status.
 func (s Status) IsValid() bool {
 	switch s {
-	case StatusBlocked, StatusReady, StatusInProgress, StatusHuman, StatusReview, StatusClosed:
+	case StatusBlocked, StatusReady, StatusWorking, StatusHuman, StatusReview, StatusClosed:
 		return true
 	}
 	return false
 }
 
 // ParseStatus parses a string into a Status, normalizing input.
-// Accepts both hyphenated (in-progress) and underscored (in_progress) forms.
 func ParseStatus(s string) (Status, error) {
-	// Normalize: lowercase, trim whitespace, convert hyphens to underscores
 	normalized := strings.ToLower(strings.TrimSpace(s))
-	normalized = strings.ReplaceAll(normalized, "-", "_")
 	status := Status(normalized)
 	if !status.IsValid() {
-		return "", fmt.Errorf("invalid status %q (valid: blocked, ready, in_progress, human, review, closed)", s)
+		return "", fmt.Errorf("invalid status %q (valid: blocked, ready, working, human, review, closed)", s)
 	}
 	return status, nil
 }

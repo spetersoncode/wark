@@ -27,12 +27,12 @@ func TestAutoReleaseExpiredClaims_ReleasesExpiredClaim(t *testing.T) {
 
 	projectID := createTestProject(t, db)
 
-	// Create a ticket in in_progress status
+	// Create a ticket in working status
 	ticketRepo := NewTicketRepo(db)
 	ticket := &models.Ticket{
 		ProjectID:  projectID,
 		Title:      "Test ticket with expired claim",
-		Status:     models.StatusInProgress,
+		Status:     models.StatusWorking,
 		MaxRetries: 3,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
@@ -77,7 +77,7 @@ func TestAutoReleaseExpiredClaims_EscalatesToHumanOnMaxRetries(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID:  projectID,
 		Title:      "Test ticket at max retries",
-		Status:     models.StatusInProgress,
+		Status:     models.StatusWorking,
 		RetryCount: 2, // At 2, max is 3, so next failure escalates
 		MaxRetries: 3,
 	}
@@ -113,12 +113,12 @@ func TestAutoReleaseExpiredClaims_IgnoresActiveClaims(t *testing.T) {
 
 	projectID := createTestProject(t, db)
 
-	// Create a ticket in in_progress status
+	// Create a ticket in working status
 	ticketRepo := NewTicketRepo(db)
 	ticket := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Test ticket with active claim",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -141,7 +141,7 @@ func TestAutoReleaseExpiredClaims_IgnoresActiveClaims(t *testing.T) {
 	// Verify ticket is still in progress
 	updated, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusInProgress, updated.Status)
+	assert.Equal(t, models.StatusWorking, updated.Status)
 }
 
 func TestAutoReleaseExpiredClaims_IgnoresAlreadyExpiredClaims(t *testing.T) {
@@ -187,7 +187,7 @@ func TestAutoReleaseExpiredClaims_MultipleExpiredClaims(t *testing.T) {
 		ticket := &models.Ticket{
 			ProjectID:  projectID,
 			Title:      "Test ticket",
-			Status:     models.StatusInProgress,
+			Status:     models.StatusWorking,
 			MaxRetries: 3,
 		}
 		require.NoError(t, ticketRepo.Create(ticket))
@@ -222,12 +222,12 @@ func TestList_AutoReleasesExpiredClaims(t *testing.T) {
 
 	projectID := createTestProject(t, db)
 
-	// Create a ticket in in_progress status with expired claim
+	// Create a ticket in working status with expired claim
 	ticketRepo := NewTicketRepo(db)
 	ticket := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Test ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -256,12 +256,12 @@ func TestListWorkable_AutoReleasesAndIncludesTicket(t *testing.T) {
 
 	projectID := createTestProject(t, db)
 
-	// Create a ticket in in_progress status with expired claim
+	// Create a ticket in working status with expired claim
 	ticketRepo := NewTicketRepo(db)
 	ticket := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Test ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -301,7 +301,7 @@ func TestListWorkable_DoesNotIncludeActiveClaimedTickets(t *testing.T) {
 	ticket1 := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Ticket with active claim",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket1))
 
@@ -318,7 +318,7 @@ func TestListWorkable_DoesNotIncludeActiveClaimedTickets(t *testing.T) {
 	ticket2 := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Ticket with expired claim",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket2))
 
@@ -349,7 +349,7 @@ func TestAutoReleaseExpiredClaims_LogsActivity(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Test ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 

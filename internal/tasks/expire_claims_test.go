@@ -63,7 +63,7 @@ func TestClaimExpirer_ExpireAll_WithExpired(t *testing.T) {
 		ticket := &models.Ticket{
 			ProjectID:  project.ID,
 			Title:      "Test Ticket",
-			Status:     models.StatusInProgress,
+			Status:     models.StatusWorking,
 			MaxRetries: 3,
 		}
 		require.NoError(t, ticketRepo.Create(ticket))
@@ -113,7 +113,7 @@ func TestClaimExpirer_ExpireAll_MaxRetriesEscalation(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID:  project.ID,
 		Title:      "Test Ticket",
-		Status:     models.StatusInProgress,
+		Status:     models.StatusWorking,
 		RetryCount: 2, // Already at 2, max is 3
 		MaxRetries: 3,
 	}
@@ -159,7 +159,7 @@ func TestClaimExpirer_ExpireAll_DryRun(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test Ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -183,7 +183,7 @@ func TestClaimExpirer_ExpireAll_DryRun(t *testing.T) {
 	// Verify nothing was actually changed
 	updated, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.StatusInProgress, updated.Status)
+	assert.Equal(t, models.StatusWorking, updated.Status)
 	assert.Equal(t, 0, updated.RetryCount)
 
 	updatedClaim, err := claimRepo.GetByID(claim.ID)
@@ -206,7 +206,7 @@ func TestClaimExpirer_ExpireTicket(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test Ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -252,7 +252,7 @@ func TestClaimExpirer_ExpireTicket_NoClaim(t *testing.T) {
 	assert.Contains(t, err.Error(), "no active claim")
 }
 
-func TestClaimExpirer_SkipsNonInProgressTickets(t *testing.T) {
+func TestClaimExpirer_SkipsNonWorkingTickets(t *testing.T) {
 	database, cleanup := testDB(t)
 	defer cleanup()
 
@@ -269,7 +269,7 @@ func TestClaimExpirer_SkipsNonInProgressTickets(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID:  project.ID,
 		Title:      "Test Ticket",
-		Status:     models.StatusClosed, // Not in_progress
+		Status:     models.StatusClosed, // Not working
 		Resolution: &completedRes,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
@@ -289,7 +289,7 @@ func TestClaimExpirer_SkipsNonInProgressTickets(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, result.Processed)
-	assert.Equal(t, 0, result.Expired) // Not expired because ticket isn't in_progress
+	assert.Equal(t, 0, result.Expired) // Not expired because ticket isn't working
 	assert.Equal(t, 1, result.Errors)  // Should count as error
 }
 
@@ -343,7 +343,7 @@ func TestClaimExpirer_ActivityLogging(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID:  project.ID,
 		Title:      "Test Expiration Logging",
-		Status:     models.StatusInProgress,
+		Status:     models.StatusWorking,
 		MaxRetries: 3,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
@@ -396,7 +396,7 @@ func TestClaimExpirer_ActivityLogging_Escalation(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID:  project.ID,
 		Title:      "Test Escalation Logging",
-		Status:     models.StatusInProgress,
+		Status:     models.StatusWorking,
 		RetryCount: 2, // At 2, max is 3, so next expiration escalates
 		MaxRetries: 3,
 	}

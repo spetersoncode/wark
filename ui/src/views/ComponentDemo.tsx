@@ -3,7 +3,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { type Priority, PriorityIndicator } from "@/components/PriorityIndicator";
 import { type Status, StatusBadge } from "@/components/StatusBadge";
 
-const statuses: Status[] = ["ready", "in_progress", "human", "review", "blocked", "closed"];
+const statuses: Status[] = ["ready", "working", "human", "review", "blocked", "closed"];
 const priorities: Priority[] = ["highest", "high", "medium", "low", "lowest"];
 
 export function ComponentDemo() {
@@ -77,7 +77,7 @@ export function ComponentDemo() {
 						<span className="font-medium">WARK-123: Fix authentication bug</span>
 						<div className="flex items-center gap-3">
 							<PriorityIndicator priority="high" variant="dot" />
-							<StatusBadge status="in_progress" />
+							<StatusBadge status="working" />
 						</div>
 					</div>
 					<div className="flex items-center justify-between">

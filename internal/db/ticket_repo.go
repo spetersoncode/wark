@@ -39,7 +39,7 @@ type TicketFilter struct {
 func (r *TicketRepo) AutoReleaseExpiredClaims() (int64, error) {
 	now := NowRFC3339()
 
-	// Find tickets that are in_progress with expired active claims
+	// Find tickets that are working with expired active claims
 	// We need to:
 	// 1. Update the claim status to 'expired'
 	// 2. Update the ticket status to 'ready' (or 'human' if max retries exceeded)
@@ -50,7 +50,7 @@ func (r *TicketRepo) AutoReleaseExpiredClaims() (int64, error) {
 		SELECT t.id, t.retry_count, t.max_retries, c.id AS claim_id
 		FROM tickets t
 		JOIN claims c ON c.ticket_id = t.id
-		WHERE t.status = 'in_progress'
+		WHERE t.status = 'working'
 		AND c.status = 'active'
 		AND c.expires_at <= ?
 	`

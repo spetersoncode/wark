@@ -191,7 +191,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 		fmt.Println(strings.Repeat("-", 70))
 		for _, item := range items {
 			open := item.Stats.BlockedCount + item.Stats.ReadyCount +
-				item.Stats.InProgressCount + item.Stats.HumanCount +
+				item.Stats.WorkingCount + item.Stats.HumanCount +
 				item.Stats.ReviewCount
 			fmt.Printf("%-10s %-20s %7d %6d %s\n",
 				item.Key,
@@ -274,7 +274,7 @@ func runProjectShow(cmd *cobra.Command, args []string) error {
 	fmt.Println("Ticket Summary:")
 	fmt.Printf("  Blocked:        %d\n", stats.BlockedCount)
 	fmt.Printf("  Ready:          %d\n", stats.ReadyCount)
-	fmt.Printf("  In Progress:    %d\n", stats.InProgressCount)
+	fmt.Printf("  Working:        %d\n", stats.WorkingCount)
 	fmt.Printf("  Human:          %d\n", stats.HumanCount)
 	fmt.Printf("  Review:         %d\n", stats.ReviewCount)
 	fmt.Printf("  Closed (done):  %d\n", stats.ClosedCompletedCount)

@@ -47,7 +47,7 @@ type ActivityItem struct {
 // StatusSummary contains aggregated status counts and lists.
 type StatusSummary struct {
 	Workable       int                `json:"workable"`
-	InProgress     int                `json:"in_progress"`
+	Working     int                `json:"working"`
 	Review         int                `json:"review"`
 	BlockedDeps    int                `json:"blocked_deps"`
 	BlockedHuman   int                `json:"blocked_human"`
@@ -76,18 +76,18 @@ func (s *StatusService) GetSummary(projectKey string) (*StatusSummary, error) {
 	}
 
 	// Count tickets by status
-	statusInProgress := models.StatusInProgress
+	statusWorking := models.StatusWorking
 	statusReview := models.StatusReview
 	statusBlocked := models.StatusBlocked
 	statusHuman := models.StatusHuman
 
-	inProgressFilter := db.TicketFilter{
+	workingFilter := db.TicketFilter{
 		ProjectKey: summary.ProjectKey,
-		Status:     &statusInProgress,
+		Status:     &statusWorking,
 		Limit:      1000,
 	}
-	if inProgress, err := s.ticketRepo.List(inProgressFilter); err == nil {
-		summary.InProgress = len(inProgress)
+	if working, err := s.ticketRepo.List(workingFilter); err == nil {
+		summary.Working = len(working)
 	}
 
 	reviewFilter := db.TicketFilter{

@@ -53,7 +53,7 @@ export interface ProjectStats {
 	total_tickets: number;
 	blocked_count: number;
 	ready_count: number;
-	in_progress_count: number;
+	working_count: number;
 	human_count: number;
 	review_count: number;
 	closed_completed_count: number;
@@ -64,7 +64,7 @@ export interface ProjectWithStats extends Project {
 	stats: ProjectStats;
 }
 
-export type TicketStatus = "blocked" | "ready" | "in_progress" | "human" | "review" | "closed";
+export type TicketStatus = "blocked" | "ready" | "working" | "human" | "review" | "closed";
 
 export type TicketPriority = "highest" | "high" | "medium" | "low" | "lowest";
 
@@ -133,7 +133,7 @@ export interface ActivityLog {
 
 export interface StatusResult {
 	workable: number;
-	in_progress: number;
+	working: number;
 	blocked_deps: number;
 	blocked_human: number;
 	pending_inbox: number;

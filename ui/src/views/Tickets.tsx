@@ -46,7 +46,7 @@ type SortField =
 type SortDirection = "asc" | "desc";
 
 const STATUS_ORDER: Record<TicketStatus, number> = {
-	in_progress: 0,
+	working: 0,
 	review: 1,
 	human: 2,
 	ready: 3,
@@ -73,7 +73,7 @@ const COMPLEXITY_ORDER: Record<TicketComplexity, number> = {
 const STATUSES: { value: TicketStatus; label: string }[] = [
 	{ value: "blocked", label: "Blocked" },
 	{ value: "ready", label: "Ready" },
-	{ value: "in_progress", label: "In Progress" },
+	{ value: "working", label: "In Progress" },
 	{ value: "human", label: "Human" },
 	{ value: "review", label: "Review" },
 	{ value: "closed", label: "Closed" },

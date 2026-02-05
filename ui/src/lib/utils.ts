@@ -43,7 +43,7 @@ export function getStatusColor(status: string): string {
 	switch (status) {
 		case "ready":
 			return "text-green-600 dark:text-green-400";
-		case "in_progress":
+		case "working":
 			return "text-blue-600 dark:text-blue-400";
 		case "blocked":
 			return "text-orange-600 dark:text-orange-400";

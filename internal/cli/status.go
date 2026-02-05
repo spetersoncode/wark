@@ -28,7 +28,7 @@ var statusCmd = &cobra.Command{
 
 Shows:
   - Workable tickets count
-  - In progress count
+  - Working count
   - Review count
   - Blocked (deps) count
   - Blocked (human) count
@@ -46,7 +46,7 @@ Examples:
 // StatusResult represents the status overview data (CLI-specific response format).
 type StatusResult struct {
 	Workable       int                        `json:"workable"`
-	InProgress     int                        `json:"in_progress"`
+	Working     int                        `json:"working"`
 	Review         int                        `json:"review"`
 	BlockedDeps    int                        `json:"blocked_deps"`
 	BlockedHuman   int                        `json:"blocked_human"`
@@ -92,7 +92,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Convert service types to CLI response types
 	result := StatusResult{
 		Workable:     summary.Workable,
-		InProgress:   summary.InProgress,
+		Working:   summary.Working,
 		Review:       summary.Review,
 		BlockedDeps:  summary.BlockedDeps,
 		BlockedHuman: summary.BlockedHuman,
@@ -134,7 +134,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Ticket counts
 	fmt.Printf("Workable tickets:     %d\n", result.Workable)
-	fmt.Printf("In progress:          %d\n", result.InProgress)
+	fmt.Printf("Working:              %d\n", result.Working)
 	fmt.Printf("Review:               %d\n", result.Review)
 	fmt.Printf("Blocked on deps:      %d\n", result.BlockedDeps)
 	fmt.Printf("Blocked on human:     %d\n", result.BlockedHuman)

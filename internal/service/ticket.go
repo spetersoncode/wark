@@ -112,7 +112,7 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 	isReviewClaim := ticket.Status == models.StatusReview
 	if !isReviewClaim {
 		// For ready tickets, validate the state transition
-		if err := s.stateMachine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
+		if err := s.stateMachine.CanTransition(ticket, models.StatusWorking, state.TransitionTypeManual, "", nil); err != nil {
 			return nil, newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot claim ticket: %v", err), 
 				map[string]interface{}{"current_status": ticket.Status})
 		}
@@ -160,7 +160,7 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 
 	// Update ticket status (only for ready tickets, review stays at review)
 	if !isReviewClaim {
-		ticket.Status = models.StatusInProgress
+		ticket.Status = models.StatusWorking
 		if err := s.ticketRepo.Update(ticket); err != nil {
 			// Rollback claim
 			s.claimRepo.Release(claim.ID, models.ClaimStatusReleased)
@@ -171,7 +171,7 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 	// Log activity with state transition details
 	claimType := "Claimed"
 	fromStatus := string(models.StatusReady)
-	toStatus := string(models.StatusInProgress)
+	toStatus := string(models.StatusWorking)
 	if isReviewClaim {
 		claimType = "Claimed for review"
 		fromStatus = string(models.StatusReview)
@@ -216,7 +216,7 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 }
 
 // Release releases a claimed ticket back to the ready queue.
-// The ticket must be in in_progress status with an active claim.
+// The ticket must be in working status with an active claim.
 // If retry count reaches max retries, the ticket is escalated to human status.
 func (s *TicketService) Release(ticketID int64, reason string) error {
 	ticket, err := s.ticketRepo.GetByID(ticketID)
@@ -228,7 +228,7 @@ func (s *TicketService) Release(ticketID int64, reason string) error {
 	}
 
 	// Check if ticket is in progress
-	if ticket.Status != models.StatusInProgress {
+	if ticket.Status != models.StatusWorking {
 		return newTicketError(ErrCodeInvalidState,
 			fmt.Sprintf("ticket is not in progress (current status: %s)", ticket.Status),
 			map[string]interface{}{"current_status": ticket.Status})
@@ -281,7 +281,7 @@ func (s *TicketService) Release(ticketID int64, reason string) error {
 			"retry_count":       ticket.RetryCount,
 			"max_retries":       ticket.MaxRetries,
 			"escalated":         escalateToHuman,
-			"from_status":       string(models.StatusInProgress),
+			"from_status":       string(models.StatusWorking),
 			"to_status":         string(ticket.Status),
 		})
 
@@ -311,7 +311,7 @@ func (s *TicketService) Complete(ticketID int64, summary string, autoAccept bool
 	}
 
 	// Check if ticket is in progress
-	if ticket.Status != models.StatusInProgress {
+	if ticket.Status != models.StatusWorking {
 		return nil, newTicketError(ErrCodeInvalidState,
 			fmt.Sprintf("ticket is not in progress (current status: %s)", ticket.Status),
 			map[string]interface{}{"current_status": ticket.Status})
@@ -393,7 +393,7 @@ func (s *TicketService) Complete(ticketID int64, summary string, autoAccept bool
 			"summary":     summary,
 			"auto_accept": autoAccept,
 			"tasks_total": taskCounts.Total,
-			"from_status": string(models.StatusInProgress),
+			"from_status": string(models.StatusWorking),
 			"to_status":   string(finalStatus),
 		})
 
@@ -566,7 +566,7 @@ func (s *TicketService) Reject(ticketID int64, reason string) error {
 }
 
 // Flag flags a ticket for human attention and moves it to human status.
-// The ticket must be in ready or in_progress status.
+// The ticket must be in ready or working status.
 func (s *TicketService) Flag(ticketID int64, reason models.FlagReason, message string, workerID string) error {
 	if message == "" {
 		return newTicketError(ErrCodeInvalidReason, "message is required", nil)
@@ -759,7 +759,7 @@ type ResumeResult struct {
 
 // Resume resumes work on a ticket that is in human status.
 // This is used when an agent wants to continue work after human input.
-// It creates a new claim and transitions the ticket to in_progress.
+// It creates a new claim and transitions the ticket to working.
 func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Duration) (*ResumeResult, error) {
 	if workerID == "" {
 		return nil, newTicketError(ErrCodeInvalidReason, "worker ID is required", nil)
@@ -781,7 +781,7 @@ func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Du
 	}
 
 	// Validate state machine transition
-	if err := s.stateMachine.CanTransition(ticket, models.StatusInProgress, state.TransitionTypeManual, "", nil); err != nil {
+	if err := s.stateMachine.CanTransition(ticket, models.StatusWorking, state.TransitionTypeManual, "", nil); err != nil {
 		return nil, newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot resume ticket: %v", err), nil)
 	}
 
@@ -804,7 +804,7 @@ func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Du
 
 	// Update ticket status
 	previousReason := ticket.HumanFlagReason
-	ticket.Status = models.StatusInProgress
+	ticket.Status = models.StatusWorking
 	ticket.RetryCount = 0           // Reset retry count on resume
 	ticket.HumanFlagReason = ""     // Clear the flag reason
 	if err := s.ticketRepo.Update(ticket); err != nil {
@@ -823,7 +823,7 @@ func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Du
 			"expires_at":           claim.ExpiresAt.Format(time.RFC3339),
 			"previous_flag_reason": previousReason,
 			"from_status":          string(models.StatusHuman),
-			"to_status":            string(models.StatusInProgress),
+			"to_status":            string(models.StatusWorking),
 		})
 
 	// Generate branch name if needed

@@ -321,11 +321,11 @@ func (r *AnalyticsRepo) GetWIPByStatus(filter AnalyticsFilter) ([]WIPByStatus, e
 		SELECT t.status, COUNT(*) as count
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
-		WHERE t.status IN ('ready', 'in_progress', 'blocked', 'human', 'review') %s
+		WHERE t.status IN ('ready', 'working', 'blocked', 'human', 'review') %s
 		GROUP BY t.status
 		ORDER BY 
 			CASE t.status
-				WHEN 'in_progress' THEN 1
+				WHEN 'working' THEN 1
 				WHEN 'ready' THEN 2
 				WHEN 'review' THEN 3
 				WHEN 'blocked' THEN 4

@@ -57,14 +57,14 @@ func TestTicketService_Claim(t *testing.T) {
 		result, err := svc.Claim(ticket.ID, "worker-123", 60*time.Minute)
 		require.NoError(t, err)
 
-		assert.Equal(t, models.StatusInProgress, result.Ticket.Status)
+		assert.Equal(t, models.StatusWorking, result.Ticket.Status)
 		assert.NotNil(t, result.Claim)
 		assert.Equal(t, "worker-123", result.Claim.WorkerID)
 		assert.NotEmpty(t, result.Branch)
 	})
 
 	t.Run("claim in-progress ticket fails", func(t *testing.T) {
-		// After first claim, ticket is in_progress, so state check fails first
+		// After first claim, ticket is working, so state check fails first
 		_, err := svc.Claim(ticket.ID, "worker-456", 60*time.Minute)
 		require.Error(t, err)
 

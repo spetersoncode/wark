@@ -30,7 +30,7 @@ The wark TUI provides a rich, interactive interface for managing tickets, viewin
 | Header Bar | App name, version, current project, status summary |
 | Main Content | Active view content |
 | Tab Bar | View navigation, keyboard shortcuts |
-| Status Summary | W=Workable, P=In Progress, B=Blocked, H=Human |
+| Status Summary | W=Workable, P=Working, B=Blocked, H=Human |
 
 ## 3. Views
 
@@ -43,7 +43,7 @@ Default view showing tickets in a kanban-style board.
 │  wark v0.1.0                                    WEBAPP │ 5W 2P 2B 2H       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  Ready (5)          In Progress (2)    Blocked (4)       Review (1)        │
+│  Ready (5)          Working (2)    Blocked (4)       Review (1)        │
 │  ─────────────────  ─────────────────  ─────────────────  ────────────────  │
 │ ┌─────────────────┐┌─────────────────┐┌─────────────────┐┌────────────────┐│
 │ │▶WEBAPP-42       ││ WEBAPP-40       ││ WEBAPP-38       ││ WEBAPP-35      ││
@@ -98,15 +98,15 @@ Traditional list view with sorting and filtering.
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  wark v0.1.0                                    WEBAPP │ 5W 2P 2B 2H       │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  Filter: status:ready,in_progress  Sort: priority ↓                        │
+│  Filter: status:ready,working  Sort: priority ↓                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ID          STATUS        PRI      COMP     TITLE                         │
 │  ──────────────────────────────────────────────────────────────────────────│
 │▶ WEBAPP-42   ready         high     medium   Add user login page           │
-│  WEBAPP-40   in_progress   medium   small    Create user model        ⏱45m│
+│  WEBAPP-40   working   medium   small    Create user model        ⏱45m│
 │  WEBAPP-45   ready         medium   small    Password reset flow           │
-│  INFRA-10    in_progress   high     trivial  Deploy script            ⏱15m│
+│  INFRA-10    working   high     trivial  Deploy script            ⏱15m│
 │  WEBAPP-46   ready         low      medium   Email verification            │
 │                                                                             │
 │                                                                             │
@@ -366,7 +366,7 @@ Detailed view of a single ticket (overlay on any view).
 | Success/Done | Green | `#00ff88` |
 | Warning | Yellow | `#ffcc00` |
 | Error/Blocked | Red | `#ff4757` |
-| In Progress | Blue | `#3742fa` |
+| Working | Blue | `#3742fa` |
 | Muted | Gray | `#666666` |
 
 **Priority colors:**

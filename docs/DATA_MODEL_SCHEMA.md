@@ -91,15 +91,15 @@ CREATE TABLE tickets (
                         CHECK (status IN (
                             'created',              -- Initial state
                             'ready',                -- Vetted and ready for work
-                            'in_progress',          -- Claimed by a worker
+                            'working',          -- Claimed by a worker
                             'blocked',              -- Waiting on dependencies
-                            'needs_human',          -- Flagged for human input (from any state)
+                            'human',          -- Flagged for human input (from any state)
                             'review',               -- Work done, needs evaluation
                             'done',                 -- Completed successfully
                             'cancelled'             -- Abandoned
                         )),
     
-    -- Human input flag (reason when needs_human)
+    -- Human input flag (reason when human)
     human_flag_reason   TEXT,                       -- Why human input is needed
     
     -- Classification
@@ -353,9 +353,9 @@ WHERE action = 'field_changed';
 |--------|-------------|
 | `created` | Initial state, ticket just created |
 | `ready` | Vetted, dependencies resolved, ready for work |
-| `in_progress` | Currently claimed by a worker |
+| `working` | Currently claimed by a worker |
 | `blocked` | Waiting on unresolved dependencies |
-| `needs_human` | Flagged for human input (can be entered from any state) |
+| `human` | Flagged for human input (can be entered from any state) |
 | `review` | Work complete, pending evaluation |
 | `done` | Successfully completed |
 | `cancelled` | Abandoned, will not be worked |

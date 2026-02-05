@@ -435,7 +435,7 @@ func TestMilestoneRepo_GetLinkedTickets(t *testing.T) {
 	`, projectID, m.ID)
 	db.Exec(`
 		INSERT INTO tickets (project_id, number, title, status, priority, complexity, milestone_id, created_at, updated_at)
-		VALUES (?, 301, 'Ticket B', 'in_progress', 'medium', 'medium', ?, datetime('now'), datetime('now'))
+		VALUES (?, 301, 'Ticket B', 'working', 'medium', 'medium', ?, datetime('now'), datetime('now'))
 	`, projectID, m.ID)
 	db.Exec(`
 		INSERT INTO tickets (project_id, number, title, status, resolution, priority, complexity, milestone_id, created_at, updated_at)

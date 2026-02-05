@@ -91,7 +91,7 @@ type ActivityResponse struct {
 // StatusResponse represents the status overview.
 type StatusResponse struct {
 	Workable       int                  `json:"workable"`
-	InProgress     int                  `json:"in_progress"`
+	Working     int                  `json:"working"`
 	Review         int                  `json:"review"`
 	BlockedDeps    int                  `json:"blocked_deps"`
 	BlockedHuman   int                  `json:"blocked_human"`
@@ -582,7 +582,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	// Convert service types to API response types
 	result := StatusResponse{
 		Workable:       summary.Workable,
-		InProgress:     summary.InProgress,
+		Working:     summary.Working,
 		Review:         summary.Review,
 		BlockedDeps:    summary.BlockedDeps,
 		BlockedHuman:   summary.BlockedHuman,

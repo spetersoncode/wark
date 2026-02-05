@@ -356,7 +356,7 @@ var ticketListCmd = &cobra.Command{
 
 Examples:
   wark ticket list --project WEBAPP
-  wark ticket list --status ready,in_progress
+  wark ticket list --status ready,working
   wark ticket list --workable
   wark ticket list --reviewable
   wark ticket list --priority high,highest

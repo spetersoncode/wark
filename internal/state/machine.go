@@ -5,7 +5,7 @@
 // States:
 //   - blocked: has open dependencies, cannot be worked
 //   - ready: no blockers, available for work
-//   - in_progress: actively being worked
+//   - working: actively being worked
 //   - human: needs human decision/input (escalation)
 //   - review: work complete, awaiting approval
 //   - closed: terminal state (with resolution enum)
@@ -17,12 +17,12 @@
 //   - ON dep removed: if blocked and all deps done → ready
 //
 // Manual transitions:
-//   - ready → in_progress (claim)
+//   - ready → working (claim)
 //   - ready → human (escalate before starting)
-//   - in_progress → ready (release)
-//   - in_progress → human (escalate)
-//   - in_progress → review (complete)
-//   - human → in_progress (resume after human input)
+//   - working → ready (release)
+//   - working → human (escalate)
+//   - working → review (complete)
+//   - human → working (resume after human input)
 //   - human → closed (human resolves)
 //   - review → ready (reject)
 //   - review → closed (accept)
@@ -114,10 +114,10 @@ var validTransitions = []TransitionRule{
 	},
 
 	// Manual transitions
-	// ready → in_progress (claim)
+	// ready → working (claim)
 	{
 		From:         models.StatusReady,
-		To:           models.StatusInProgress,
+		To:           models.StatusWorking,
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Ticket claimed by worker",
 	},
@@ -129,32 +129,32 @@ var validTransitions = []TransitionRule{
 		RequireReason: true,
 		Description:   "Escalated for human decision",
 	},
-	// in_progress → ready (release)
+	// working → ready (release)
 	{
-		From:         models.StatusInProgress,
+		From:         models.StatusWorking,
 		To:           models.StatusReady,
 		AllowedTypes: []TransitionType{TransitionTypeManual, TransitionTypeExpire},
 		Description:  "Ticket released or claim expired",
 	},
-	// in_progress → human (escalate)
+	// working → human (escalate)
 	{
-		From:          models.StatusInProgress,
+		From:          models.StatusWorking,
 		To:            models.StatusHuman,
 		AllowedTypes:  []TransitionType{TransitionTypeManual, TransitionTypeAuto},
 		RequireReason: true,
 		Description:   "Escalated for human decision",
 	},
-	// in_progress → review (complete)
+	// working → review (complete)
 	{
-		From:         models.StatusInProgress,
+		From:         models.StatusWorking,
 		To:           models.StatusReview,
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Work completed, pending review",
 	},
-	// human → in_progress (resume after human input)
+	// human → working (resume after human input)
 	{
 		From:         models.StatusHuman,
-		To:           models.StatusInProgress,
+		To:           models.StatusWorking,
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Human responded, resuming work",
 	},
@@ -203,7 +203,7 @@ var validTransitions = []TransitionRule{
 		Description:  "Ticket closed",
 	},
 	{
-		From:         models.StatusInProgress,
+		From:         models.StatusWorking,
 		To:           models.StatusClosed,
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Ticket closed",
@@ -350,7 +350,7 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 		switch from {
 		case models.StatusBlocked:
 			return models.ActionUnblocked
-		case models.StatusInProgress:
+		case models.StatusWorking:
 			if transType == TransitionTypeExpire {
 				return models.ActionExpired
 			}
@@ -365,7 +365,7 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 			return models.ActionReopened
 		}
 		return models.ActionBlocked
-	case models.StatusInProgress:
+	case models.StatusWorking:
 		if from == models.StatusHuman {
 			return models.ActionHumanResponded
 		}
@@ -393,7 +393,7 @@ func IsActiveState(status models.Status) bool {
 // CanBeEscalated returns true if tickets in this status can be escalated to human.
 func CanBeEscalated(status models.Status) bool {
 	switch status {
-	case models.StatusReady, models.StatusInProgress:
+	case models.StatusReady, models.StatusWorking:
 		return true
 	}
 	return false
@@ -402,7 +402,7 @@ func CanBeEscalated(status models.Status) bool {
 // CanBeClosed returns true if tickets in this status can be closed.
 func CanBeClosed(status models.Status) bool {
 	switch status {
-	case models.StatusBlocked, models.StatusReady, models.StatusInProgress,
+	case models.StatusBlocked, models.StatusReady, models.StatusWorking,
 		models.StatusHuman, models.StatusReview:
 		return true
 	}

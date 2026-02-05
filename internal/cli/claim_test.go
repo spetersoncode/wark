@@ -28,7 +28,7 @@ func TestClaimListActive(t *testing.T) {
 		ticket := &models.Ticket{
 			ProjectID: project.ID,
 			Title:     "Test Ticket",
-			Status:    models.StatusInProgress,
+			Status:    models.StatusWorking,
 		}
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestClaimExpired(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test Ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestClaimExpireAll(t *testing.T) {
 		ticket := &models.Ticket{
 			ProjectID: project.ID,
 			Title:     "Test Ticket",
-			Status:    models.StatusInProgress,
+			Status:    models.StatusWorking,
 		}
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestClaimRelease(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test Ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)

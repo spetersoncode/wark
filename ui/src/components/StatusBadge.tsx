@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type Status = "ready" | "in_progress" | "human" | "review" | "blocked" | "closed";
+export type Status = "ready" | "working" | "human" | "review" | "blocked" | "closed";
 
 const statusConfig: Record<
 	Status,
@@ -22,7 +22,7 @@ const statusConfig: Record<
 		bgClass: "bg-status-ready/10",
 		borderClass: "border-status-ready",
 	},
-	in_progress: {
+	working: {
 		icon: CircleDot,
 		label: "In Progress",
 		textClass: "text-status-in-progress",

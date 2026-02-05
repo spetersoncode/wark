@@ -23,7 +23,7 @@ func TestInboxCreate(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Test Ticket",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)

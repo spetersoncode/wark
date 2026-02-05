@@ -155,7 +155,7 @@ Created: 2024-01-15 10:30:00
 Ticket Summary:
   Created:        3
   Ready:          5
-  In Progress:    2
+  Working:        2
   Blocked:        2
   Blocked Human:  1
   Review:         1
@@ -265,7 +265,7 @@ wark ticket list [options]
 **Examples:**
 ```bash
 # All open tickets in WEBAPP
-wark ticket list --project WEBAPP --status ready,in_progress,blocked
+wark ticket list --project WEBAPP --status ready,working,blocked
 
 # Workable tickets (ready, no blockers)
 wark ticket list --workable
@@ -281,7 +281,7 @@ wark ticket list --parent WEBAPP-15
 ```
 ID         STATUS       PRI     COMP    TITLE
 WEBAPP-42  ready        high    medium  Add user login page
-WEBAPP-40  in_progress  medium  small   Create user model
+WEBAPP-40  working      medium  small   Create user model
 WEBAPP-38  blocked      medium  medium  Add session management
            └─ blocked by: WEBAPP-40
 ```
@@ -560,7 +560,7 @@ wark ticket flag INFRA-10 --reason access_required \
 ```
 
 **Behavior:**
-- Transitions ticket to `needs_human`
+- Transitions ticket to `human`
 - Creates inbox message with reason and details
 - Reclaims current claim (if any)
 - Records `flagged_human` in activity log
@@ -570,7 +570,7 @@ wark ticket flag INFRA-10 --reason access_required \
 ```
 Flagged: WEBAPP-42
 Reason: irreconcilable_conflict
-Status: needs_human
+Status: human
 Inbox message #23 created
 
 Waiting for human response...
@@ -639,7 +639,7 @@ Showing 6 of 6 entries
       "reason": "irreconcilable_conflict",
       "message": "React 18 requires node-sass 7+...",
       "inbox_message_id": 23,
-      "previous_status": "in_progress"
+      "previous_status": "working"
     },
     "summary": "Flagged: irreconcilable_conflict",
     "created_at": "2024-02-01T15:30:00Z"
@@ -1017,7 +1017,7 @@ wark inbox respond 12 "Use REST for simplicity. We're planning to migrate everyt
 
 **Behavior:**
 - Records response and timestamp
-- Transitions ticket from `needs_human` to `ready`
+- Transitions ticket from `human` to `ready`
 - Resets retry count to 0
 
 ---
@@ -1101,7 +1101,7 @@ Wark Status
 ═══════════════════════════════════════════════════════════════
 
 Workable tickets:     5
-In progress:          2
+Working:              2
 Blocked on deps:      3
 Blocked on human:     2
 

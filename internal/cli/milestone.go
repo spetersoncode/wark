@@ -282,7 +282,7 @@ type ticketSummary struct {
 type statusBreakdown struct {
 	Blocked    int `json:"blocked"`
 	Ready      int `json:"ready"`
-	InProgress int `json:"in_progress"`
+	Working int `json:"working"`
 	Human      int `json:"human"`
 	Review     int `json:"review"`
 	Closed     int `json:"closed"`
@@ -384,8 +384,8 @@ func runMilestoneShow(cmd *cobra.Command, args []string) error {
 			statusCounts.Blocked++
 		case models.StatusReady:
 			statusCounts.Ready++
-		case models.StatusInProgress:
-			statusCounts.InProgress++
+		case models.StatusWorking:
+			statusCounts.Working++
 		case models.StatusHuman:
 			statusCounts.Human++
 		case models.StatusReview:
@@ -507,8 +507,8 @@ func runMilestoneShow(cmd *cobra.Command, args []string) error {
 		if statusCounts.Ready > 0 {
 			fmt.Printf("  ready:       %d\n", statusCounts.Ready)
 		}
-		if statusCounts.InProgress > 0 {
-			fmt.Printf("  in_progress: %d\n", statusCounts.InProgress)
+		if statusCounts.Working > 0 {
+			fmt.Printf("  working: %d\n", statusCounts.Working)
 		}
 		if statusCounts.Human > 0 {
 			fmt.Printf("  human:       %d\n", statusCounts.Human)

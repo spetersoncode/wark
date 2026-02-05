@@ -263,8 +263,8 @@ func printAnalytics(result AnalyticsResult) {
 
 func formatStatus(status string) string {
 	switch status {
-	case "in_progress":
-		return "In Progress"
+	case "working":
+		return "Working"
 	case "ready":
 		return "Ready"
 	case "blocked":

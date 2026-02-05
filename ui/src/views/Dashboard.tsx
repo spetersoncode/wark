@@ -126,10 +126,10 @@ export default function Dashboard() {
 				/>
 				<CompactStatCard
 					title="Active"
-					value={status.in_progress}
+					value={status.working}
 					icon={<Clock className="size-4" />}
 					colorClass="text-status-in-progress"
-					href="/board?status=in_progress"
+					href="/board?status=working"
 				/>
 				<CompactStatCard
 					title="Blocked"

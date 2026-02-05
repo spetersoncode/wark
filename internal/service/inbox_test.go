@@ -167,11 +167,11 @@ func TestInboxService_Send(t *testing.T) {
 	service := NewInboxService(inboxRepo, ticketRepo, claimRepo, activityRepo)
 
 	t.Run("successful send transitions ticket to human status", func(t *testing.T) {
-		// Create ticket in in_progress status
+		// Create ticket in working status
 		ticket := &models.Ticket{
 			ProjectID: project.ID,
 			Title:     "Ticket for Send Test",
-			Status:    models.StatusInProgress,
+			Status:    models.StatusWorking,
 		}
 		err = ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -184,7 +184,7 @@ func TestInboxService_Send(t *testing.T) {
 		assert.Equal(t, ticket.ID, result.Message.TicketID)
 		assert.Equal(t, models.MessageTypeQuestion, result.Message.MessageType)
 		assert.True(t, result.StatusChanged)
-		assert.Equal(t, models.StatusInProgress, result.PreviousStatus)
+		assert.Equal(t, models.StatusWorking, result.PreviousStatus)
 		assert.Equal(t, models.StatusHuman, result.NewStatus)
 
 		// Verify ticket was updated
@@ -220,11 +220,11 @@ func TestInboxService_Send(t *testing.T) {
 	})
 
 	t.Run("info type does not change status", func(t *testing.T) {
-		// Create ticket in in_progress status
+		// Create ticket in working status
 		ticket := &models.Ticket{
 			ProjectID: project.ID,
 			Title:     "Ticket for Info Test",
-			Status:    models.StatusInProgress,
+			Status:    models.StatusWorking,
 		}
 		err = ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -234,21 +234,21 @@ func TestInboxService_Send(t *testing.T) {
 
 		assert.NotNil(t, result)
 		assert.False(t, result.StatusChanged, "info type should NOT change status")
-		assert.Equal(t, models.StatusInProgress, result.PreviousStatus)
-		assert.Equal(t, models.StatusInProgress, result.NewStatus)
+		assert.Equal(t, models.StatusWorking, result.PreviousStatus)
+		assert.Equal(t, models.StatusWorking, result.NewStatus)
 
 		// Verify ticket status unchanged
 		updatedTicket, err := ticketRepo.GetByID(ticket.ID)
 		require.NoError(t, err)
-		assert.Equal(t, models.StatusInProgress, updatedTicket.Status)
+		assert.Equal(t, models.StatusWorking, updatedTicket.Status)
 	})
 
 	t.Run("review type does not change status", func(t *testing.T) {
-		// Create ticket in in_progress status
+		// Create ticket in working status
 		ticket := &models.Ticket{
 			ProjectID: project.ID,
 			Title:     "Ticket for Review Test",
-			Status:    models.StatusInProgress,
+			Status:    models.StatusWorking,
 		}
 		err = ticketRepo.Create(ticket)
 		require.NoError(t, err)
@@ -258,8 +258,8 @@ func TestInboxService_Send(t *testing.T) {
 
 		assert.NotNil(t, result)
 		assert.False(t, result.StatusChanged, "review type should NOT change status")
-		assert.Equal(t, models.StatusInProgress, result.PreviousStatus)
-		assert.Equal(t, models.StatusInProgress, result.NewStatus)
+		assert.Equal(t, models.StatusWorking, result.PreviousStatus)
+		assert.Equal(t, models.StatusWorking, result.NewStatus)
 	})
 
 	t.Run("send to closed ticket does not change status", func(t *testing.T) {
@@ -342,11 +342,11 @@ func TestInboxService_Send_ReleasesActiveClaim(t *testing.T) {
 	err := projectRepo.Create(project)
 	require.NoError(t, err)
 
-	// Create ticket in in_progress status
+	// Create ticket in working status
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Ticket with Claim",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)
@@ -401,7 +401,7 @@ func TestInboxService_Send_UsesClaimWorkerID(t *testing.T) {
 	ticket := &models.Ticket{
 		ProjectID: project.ID,
 		Title:     "Ticket with Claim",
-		Status:    models.StatusInProgress,
+		Status:    models.StatusWorking,
 	}
 	err = ticketRepo.Create(ticket)
 	require.NoError(t, err)

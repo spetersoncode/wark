@@ -150,7 +150,7 @@ export default function TicketDetail() {
 					<div className="flex items-start gap-3 p-3 bg-status-human/10 border border-status-human/30 rounded-md">
 						<AlertTriangle className="w-5 h-5 text-status-human flex-shrink-0 mt-0.5" />
 						<div>
-							<p className="text-sm font-medium text-status-human">Needs Human Attention</p>
+							<p className="text-sm font-medium text-status-human">Human Attention Required</p>
 							<p className="text-sm text-[var(--foreground-muted)] mt-0.5">
 								{ticket.human_flag_reason}
 							</p>

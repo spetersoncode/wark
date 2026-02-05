@@ -113,9 +113,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
     result.Workable = len(workable)
 
     // Count tickets by status
-    inProgressFilter := db.TicketFilter{Status: &statusInProgress, ...}
+    inProgressFilter := db.TicketFilter{Status: &statusWorking, ...}
     inProgress, err := ticketRepo.List(inProgressFilter)
-    result.InProgress = len(inProgress)
+    result.Working = len(inProgress)
     ...
 }
 ```
@@ -148,7 +148,7 @@ type StatusService struct {
 
 type StatusSummary struct {
     Workable     int
-    InProgress   int
+    Working   int
     BlockedDeps  int
     BlockedHuman int
     PendingInbox int
@@ -233,7 +233,7 @@ Both implement:
 2. Existing claim check
 3. Dependency check (for ready tickets)
 4. Claim creation
-5. Status transition to in_progress
+5. Status transition to working
 6. Activity logging
 
 **API has no claim endpoint yet**, but when added, would need same logic.
@@ -266,7 +266,7 @@ func (s *TicketService) Reject(ticketID int64, reason string) error
 **CLI:** `internal/cli/ticket_workflow.go:190-280` (runTicketComplete)
 ```go
 func runTicketComplete(...) {
-    // 1. Validate status (must be in_progress)
+    // 1. Validate status (must be working)
     // 2. Check for incomplete tasks
     // 3. Release claim
     // 4. Update ticket status

@@ -128,7 +128,7 @@ func TestAnalyticsWIPByStatus(t *testing.T) {
 		count  int
 	}{
 		{models.StatusReady, 5},
-		{models.StatusInProgress, 3},
+		{models.StatusWorking, 3},
 		{models.StatusBlocked, 2},
 		{models.StatusHuman, 1},
 		{models.StatusReview, 4},
@@ -237,7 +237,7 @@ func TestAnalyticsResultStruct(t *testing.T) {
 		},
 		WIP: []db.WIPByStatus{
 			{Status: "ready", Count: 10},
-			{Status: "in_progress", Count: 5},
+			{Status: "working", Count: 5},
 		},
 		CycleTime: []db.CycleTimeByComplexity{
 			{Complexity: "small", TicketCount: 20, AvgCycleHours: 2.5},
@@ -261,7 +261,7 @@ func TestFormatStatus(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"in_progress", "In Progress"},
+		{"working", "Working"},
 		{"ready", "Ready"},
 		{"blocked", "Blocked (deps)"},
 		{"human", "Blocked (human)"},

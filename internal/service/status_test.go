@@ -58,7 +58,7 @@ func TestStatusService_GetSummary(t *testing.T) {
 	}{
 		{"Ready 1", models.StatusReady},
 		{"Ready 2", models.StatusReady},
-		{"In Progress", models.StatusInProgress},
+		{"Working", models.StatusWorking},
 		{"Review 1", models.StatusReview},
 		{"Blocked", models.StatusBlocked},
 		{"Human 1", models.StatusHuman},
@@ -79,7 +79,7 @@ func TestStatusService_GetSummary(t *testing.T) {
 		err := ticketRepo.Create(ticket)
 		require.NoError(t, err)
 
-		if td.status == models.StatusInProgress {
+		if td.status == models.StatusWorking {
 			inProgressTicket = ticket
 		}
 	}
@@ -112,7 +112,7 @@ func TestStatusService_GetSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, summary.Workable)
-	assert.Equal(t, 1, summary.InProgress)
+	assert.Equal(t, 1, summary.Working)
 	assert.Equal(t, 1, summary.Review)
 	assert.Equal(t, 1, summary.BlockedDeps)
 	assert.Equal(t, 2, summary.BlockedHuman)
@@ -204,7 +204,7 @@ func TestStatusService_ExpiringSoon(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create ticket and claim expiring in 20 minutes (within 30 minute threshold)
-	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 1", Status: models.StatusInProgress}
+	ticket1 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 1", Status: models.StatusWorking}
 	err = ticketRepo.Create(ticket1)
 	require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func TestStatusService_ExpiringSoon(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create ticket and claim expiring in 60 minutes (not within threshold)
-	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 2", Status: models.StatusInProgress}
+	ticket2 := &models.Ticket{ProjectID: project.ID, Title: "Ticket 2", Status: models.StatusWorking}
 	err = ticketRepo.Create(ticket2)
 	require.NoError(t, err)
 
@@ -276,7 +276,7 @@ func TestStatusService_EmptyDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, summary.Workable)
-	assert.Equal(t, 0, summary.InProgress)
+	assert.Equal(t, 0, summary.Working)
 	assert.Equal(t, 0, summary.Review)
 	assert.Equal(t, 0, summary.BlockedDeps)
 	assert.Equal(t, 0, summary.BlockedHuman)

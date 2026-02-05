@@ -286,7 +286,7 @@ var ticketResumeCmd = &cobra.Command{
 
 This command is used when an agent wants to continue work on a ticket
 after a human has provided input via the inbox. It creates a new claim
-and transitions the ticket from human to in_progress status.
+and transitions the ticket from human to working status.
 
 Example:
   wark ticket resume WEBAPP-42 --worker-id session-abc123

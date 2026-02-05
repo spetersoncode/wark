@@ -51,9 +51,13 @@ type initResult struct {
 
 func runInit(cmd *cobra.Command, args []string) error {
 	dbPath := GetDBPath()
+	dbExists := db.Exists(dbPath)
 
-	// Check if database already exists
-	if db.Exists(dbPath) && !initForce {
+	// Check if skills need to be installed
+	skillsNeeded := checkSkillsNeeded()
+
+	// If database already exists and no skills needed, exit early (unless force)
+	if dbExists && !skillsNeeded && !initForce {
 		if IsJSON() {
 			result := initResult{
 				Database: dbPath,
@@ -70,7 +74,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		if displayPath == "" {
 			displayPath = db.DefaultDBPath
 		}
-		return fmt.Errorf("database already exists at %s (use --force to overwrite)", displayPath)
+		return fmt.Errorf("database already exists at %s and skills already installed (use --force to overwrite)", displayPath)
+	}
+
+	// If database exists but skills are needed (and no force), install only skills
+	if dbExists && skillsNeeded && !initForce {
+		return runSkillOnlyInit(dbPath)
 	}
 
 	// Delete existing database if force is set
@@ -236,4 +245,82 @@ func getDBStats(dbPath string) (*dbStats, error) {
 
 	stats.hasData = stats.projects > 0 || stats.tickets > 0 || stats.inboxMessages > 0
 	return stats, nil
+}
+
+// checkSkillsNeeded returns true if there are AI agent directories that need skill installation.
+func checkSkillsNeeded() bool {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+
+	targets := detectSkillTargets(homeDir)
+	if len(targets) == 0 {
+		return false // No targets found, nothing to install
+	}
+
+	// Check if any target is missing skill files
+	for _, targetDir := range targets {
+		existingFiles, err := listExistingFiles(targetDir)
+		if err != nil || len(existingFiles) == 0 {
+			return true // This target needs installation
+		}
+	}
+
+	return false // All targets have skills installed
+}
+
+// runSkillOnlyInit installs skills when the database already exists.
+func runSkillOnlyInit(dbPath string) error {
+	displayPath := dbPath
+	if displayPath == "" {
+		displayPath = db.DefaultDBPath
+	}
+
+	VerboseOutput("Database already exists at %s, installing skills only...\n", displayPath)
+
+	// Get schema version from existing database
+	database, err := db.Open(dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open existing database: %w", err)
+	}
+	version, err := database.MigrationStatus()
+	database.Close()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status: %w", err)
+	}
+
+	// Install skills
+	var skillResults []skillInstallResult
+	VerboseOutput("Checking for AI agent directories...\n")
+	skillInstallMulti, err := InstallSkill(false)
+	if err != nil {
+		return fmt.Errorf("failed to install skill: %w", err)
+	}
+	if skillInstallMulti != nil {
+		skillResults = skillInstallMulti.Targets
+		for _, r := range skillResults {
+			VerboseOutput("Installed skill to %s\n", r.Path)
+		}
+	}
+
+	if IsJSON() {
+		result := initResult{
+			Database: displayPath,
+			Created:  false,
+			Schema:   version,
+			Skills:   skillResults,
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Database already exists at %s", displayPath)
+	OutputLine("Schema version: %d", version)
+	for _, r := range skillResults {
+		OutputLine("Installed skill to %s", r.Path)
+	}
+
+	return nil
 }

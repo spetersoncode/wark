@@ -325,10 +325,6 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Log activity
-	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogAction(ticket.ID, models.ActionCreated, models.ActorTypeHuman, "", "Ticket created")
-
 	// Auto-transition: check if ticket should be blocked based on dependencies
 	// State machine rule: ON create: if has_open_deps → blocked, else → ready
 	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
@@ -339,6 +335,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		if err := ticketRepo.Update(ticket); err != nil {
 			VerboseOutput("Warning: failed to update status to blocked: %v\n", err)
 		} else {
+			activityRepo := db.NewActivityRepo(database.DB)
 			activityRepo.LogAction(ticket.ID, models.ActionBlocked, models.ActorTypeSystem, "",
 				"Blocked by unresolved dependencies")
 		}

@@ -134,7 +134,8 @@ JSON is the default output format. Use `--text` for human-readable output.
   "status": "ready",
   "priority": "high",
   "complexity": "medium",
-  "branch_name": "wark/PROJ-42-add-user-login",
+  "type": "task",
+  "worktree": "wark/PROJ-42-add-user-login",
   "retry_count": 0,
   "max_retries": 3,
   "dependencies": [

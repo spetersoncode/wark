@@ -72,6 +72,8 @@ export type TicketComplexity = "trivial" | "small" | "medium" | "large" | "xlarg
 
 export type Resolution = "completed" | "wont_do" | "duplicate" | "invalid" | "obsolete";
 
+export type TicketType = "task" | "epic";
+
 export interface Ticket {
 	id: number;
 	project_id: number;
@@ -80,11 +82,12 @@ export interface Ticket {
 	number: number;
 	title: string;
 	description?: string;
+	type: TicketType;
 	status: TicketStatus;
 	priority: TicketPriority;
 	complexity: TicketComplexity;
 	resolution?: Resolution;
-	branch_name?: string;
+	worktree?: string;
 	human_flag_reason?: string;
 	retry_count: number;
 	max_retries: number;

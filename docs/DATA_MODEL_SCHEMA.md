@@ -16,7 +16,8 @@
 │ updated_at      │   │   │ status                              │
 └─────────────────┘   │   │ priority                            │
                       │   │ complexity                          │
-                      │   │ branch_name                         │
+                      │   │ ticket_type (task/epic)             │
+                      │   │ worktree                            │
                       │   │ retry_count                         │
                       │   │ parent_ticket_id (FK, self-ref) ────┼──┐
                       │   │ created_at                          │  │
@@ -112,8 +113,12 @@ CREATE TABLE tickets (
                             'trivial', 'small', 'medium', 'large', 'xlarge'
                         )),
     
+    -- Ticket type (task or epic)
+    ticket_type         TEXT NOT NULL DEFAULT 'task'
+                        CHECK (ticket_type IN ('task', 'epic')),
+
     -- Git integration
-    branch_name         TEXT,                       -- e.g., 'wark/WEBAPP-42-add-auth'
+    worktree            TEXT,                       -- e.g., 'wark/WEBAPP-42-add-auth'
     
     -- Retry tracking
     retry_count         INTEGER NOT NULL DEFAULT 0,

@@ -28,7 +28,7 @@ var (
 type claimResult struct {
 	Ticket        *models.Ticket     `json:"ticket"`
 	Claim         *models.Claim      `json:"claim"`
-	Branch        string             `json:"branch"`
+	Worktree      string             `json:"worktree"`
 	GitCmd        string             `json:"git_command"`
 	NextTask      *models.TicketTask `json:"next_task,omitempty"`
 	TasksComplete int                `json:"tasks_complete,omitempty"`
@@ -110,7 +110,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 		cliResult := claimResult{
 			Ticket:        result.Ticket,
 			Claim:         result.Claim,
-			Branch:        result.Branch,
+			Worktree:      result.Branch,
 			GitCmd:        fmt.Sprintf("git checkout -b %s", result.Branch),
 			NextTask:      result.NextTask,
 			TasksComplete: 0,
@@ -124,7 +124,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	OutputLine("Claimed: %s", result.Ticket.TicketKey)
 	OutputLine("Worker: %s", workerID)
 	OutputLine("Expires: %s (%d minutes)", result.Claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), claimDuration)
-	OutputLine("Branch: %s", result.Branch)
+	OutputLine("Worktree: %s", result.Branch)
 
 	// Show task progress if ticket has tasks
 	if result.TasksTotal > 0 {

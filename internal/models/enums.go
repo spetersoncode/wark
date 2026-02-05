@@ -310,6 +310,33 @@ func (a Action) IsValid() bool {
 	return false
 }
 
+// TicketType represents the type of a ticket (task or epic).
+type TicketType string
+
+const (
+	TicketTypeTask TicketType = "task"
+	TicketTypeEpic TicketType = "epic"
+)
+
+// IsValid returns true if the ticket type is valid.
+func (tt TicketType) IsValid() bool {
+	switch tt {
+	case TicketTypeTask, TicketTypeEpic:
+		return true
+	}
+	return false
+}
+
+// ParseTicketType parses a string into a TicketType, normalizing input.
+func ParseTicketType(s string) (TicketType, error) {
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	ticketType := TicketType(normalized)
+	if !ticketType.IsValid() {
+		return "", fmt.Errorf("invalid ticket type %q (valid: task, epic)", s)
+	}
+	return ticketType, nil
+}
+
 // FlagReason represents the reason for flagging a ticket for human attention.
 type FlagReason string
 

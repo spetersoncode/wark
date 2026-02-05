@@ -47,7 +47,7 @@ export default function TicketDetail() {
 	const [history, setHistory] = useState<ActivityLog[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [copiedBranch, setCopiedBranch] = useState(false);
+	const [copiedWorktree, setCopiedWorktree] = useState(false);
 
 	const fetchTicket = useCallback(async () => {
 		if (!key) return;
@@ -74,12 +74,12 @@ export default function TicketDetail() {
 	// Auto-refresh every 10 seconds when tab is visible
 	useAutoRefresh(fetchTicket, [fetchTicket]);
 
-	const copyBranchName = async () => {
-		if (!ticket?.branch_name) return;
+	const copyWorktree = async () => {
+		if (!ticket?.worktree) return;
 		try {
-			await navigator.clipboard.writeText(ticket.branch_name);
-			setCopiedBranch(true);
-			setTimeout(() => setCopiedBranch(false), 2000);
+			await navigator.clipboard.writeText(ticket.worktree);
+			setCopiedWorktree(true);
+			setTimeout(() => setCopiedWorktree(false), 2000);
 		} catch {
 			// Ignore clipboard errors
 		}
@@ -279,27 +279,27 @@ export default function TicketDetail() {
 							)}
 						</dl>
 
-						{/* Branch name with copy button */}
-						{ticket.branch_name && (
+						{/* Worktree name with copy button */}
+						{ticket.worktree && (
 							<div className="mt-3 pt-3 border-t border-[var(--border)]">
 								<div className="flex items-center gap-2 text-[var(--foreground-muted)] mb-1.5">
 									<GitBranch className="w-3.5 h-3.5" />
-									<span className="text-xs">Branch</span>
+									<span className="text-xs">Worktree</span>
 								</div>
 								<div className="flex items-center gap-2">
 									<code className="font-mono text-xs text-[var(--foreground)] truncate flex-1">
-										{ticket.branch_name}
+										{ticket.worktree}
 									</code>
 									<button
 										type="button"
-										onClick={copyBranchName}
+										onClick={copyWorktree}
 										className="p-1 rounded hover:bg-[var(--accent)] transition-colors flex-shrink-0"
-										title={copiedBranch ? "Copied!" : "Copy branch name"}
+										title={copiedWorktree ? "Copied!" : "Copy worktree name"}
 									>
 										<Copy
 											className={cn(
 												"w-3.5 h-3.5",
-												copiedBranch ? "text-status-ready" : "text-[var(--foreground-muted)]",
+												copiedWorktree ? "text-status-ready" : "text-[var(--foreground-muted)]",
 											)}
 										/>
 									</button>

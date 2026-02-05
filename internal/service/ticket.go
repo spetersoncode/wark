@@ -98,7 +98,8 @@ func newTicketError(code, message string, details map[string]interface{}) *Ticke
 
 // Claim acquires a time-limited claim on a ticket for the specified worker.
 // The ticket must be in ready or review status. Review claims don't change ticket status.
-// Returns ClaimResult with ticket, claim, branch name, and task info.
+// Epics cannot be claimed directly - work through child tasks instead.
+// Returns ClaimResult with ticket, claim, worktree name, and task info.
 func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Duration) (*ClaimResult, error) {
 	ticket, err := s.ticketRepo.GetByID(ticketID)
 	if err != nil {
@@ -108,17 +109,24 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 		return nil, newTicketError(ErrCodeNotFound, "ticket not found", nil)
 	}
 
+	// Epics cannot be claimed directly - work through child tasks
+	if ticket.IsEpic() {
+		return nil, newTicketError(ErrCodeInvalidState,
+			"epics cannot be claimed directly; work through child tasks",
+			map[string]interface{}{"ticket_type": ticket.Type})
+	}
+
 	// Check if ticket can be claimed (ready or review status)
 	isReviewClaim := ticket.Status == models.StatusReview
 	if !isReviewClaim {
 		// For ready tickets, validate the state transition
 		if err := s.stateMachine.CanTransition(ticket, models.StatusWorking, state.TransitionTypeManual, "", nil); err != nil {
-			return nil, newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot claim ticket: %v", err), 
+			return nil, newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot claim ticket: %v", err),
 				map[string]interface{}{"current_status": ticket.Status})
 		}
 	} else if ticket.Status != models.StatusReview {
 		// Not ready and not review - can't claim
-		return nil, newTicketError(ErrCodeInvalidState, 
+		return nil, newTicketError(ErrCodeInvalidState,
 			fmt.Sprintf("cannot claim ticket: must be in ready or review status (current: %s)", ticket.Status),
 			map[string]interface{}{"current_status": ticket.Status})
 	}
@@ -189,16 +197,23 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 			"to_status":     toStatus,
 		})
 
-	// Generate branch name if needed
-	branchName := ticket.BranchName
-	if branchName == "" {
-		branchName = GenerateBranchName(ticket.ProjectKey, ticket.Number, ticket.Title)
+	// Generate worktree name if needed
+	// For tasks with epic parent, inherit worktree from epic
+	worktree := ticket.Worktree
+	if worktree == "" && ticket.ParentTicketID != nil {
+		parent, _ := s.ticketRepo.GetByID(*ticket.ParentTicketID)
+		if parent != nil && parent.IsEpic() && parent.Worktree != "" {
+			worktree = parent.Worktree
+		}
+	}
+	if worktree == "" {
+		worktree = GenerateWorktreeName(ticket.ProjectKey, ticket.Number, ticket.Title)
 	}
 
 	result := &ClaimResult{
 		Ticket: ticket,
 		Claim:  claim,
-		Branch: branchName,
+		Branch: worktree,
 	}
 
 	// Get task info if ticket has tasks
@@ -826,22 +841,29 @@ func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Du
 			"to_status":            string(models.StatusWorking),
 		})
 
-	// Generate branch name if needed
-	branchName := ticket.BranchName
-	if branchName == "" {
-		branchName = GenerateBranchName(ticket.ProjectKey, ticket.Number, ticket.Title)
+	// Generate worktree name if needed
+	// For tasks with epic parent, inherit worktree from epic
+	worktree := ticket.Worktree
+	if worktree == "" && ticket.ParentTicketID != nil {
+		parent, _ := s.ticketRepo.GetByID(*ticket.ParentTicketID)
+		if parent != nil && parent.IsEpic() && parent.Worktree != "" {
+			worktree = parent.Worktree
+		}
+	}
+	if worktree == "" {
+		worktree = GenerateWorktreeName(ticket.ProjectKey, ticket.Number, ticket.Title)
 	}
 
 	return &ResumeResult{
 		Ticket: ticket,
 		Claim:  claim,
-		Branch: branchName,
+		Branch: worktree,
 	}, nil
 }
 
-// GenerateBranchName generates a git branch name for a ticket.
-// This is exported for use by CLI when displaying branch info.
-func GenerateBranchName(projectKey string, number int, title string) string {
+// GenerateWorktreeName generates a git worktree name for a ticket.
+// This is exported for use by CLI when displaying worktree info.
+func GenerateWorktreeName(projectKey string, number int, title string) string {
 	// Convert title to slug
 	slug := strings.ToLower(title)
 	slug = strings.Map(func(r rune) rune {

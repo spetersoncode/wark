@@ -458,7 +458,7 @@ func TestTicketService_ClaimReviewTicket(t *testing.T) {
 
 // NOTE: TestTicketService_PromoteWithDependencies skipped until draft status is added to database schema (WARK-21)
 
-func TestGenerateBranchName(t *testing.T) {
+func TestGenerateWorktreeName(t *testing.T) {
 	tests := []struct {
 		name       string
 		projectKey string
@@ -467,7 +467,7 @@ func TestGenerateBranchName(t *testing.T) {
 		expected   string
 	}{
 		{
-			name:       "basic branch name",
+			name:       "basic worktree name",
 			projectKey: "WEBAPP",
 			number:     42,
 			title:      "Add login page",
@@ -505,7 +505,7 @@ func TestGenerateBranchName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GenerateBranchName(tt.projectKey, tt.number, tt.title)
+			result := GenerateWorktreeName(tt.projectKey, tt.number, tt.title)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

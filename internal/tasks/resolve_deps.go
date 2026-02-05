@@ -202,6 +202,8 @@ func (r *DependencyResolver) flagForHumanReview(dependent *models.Ticket, closed
 }
 
 // checkParentCompletion checks if all children of a parent are done and updates the parent.
+// For epics: when all child tasks complete successfully, the epic moves to review.
+// For regular parents: same behavior, but typically used for decomposed tasks.
 func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bool) *ParentUpdateResult {
 	result := &ParentUpdateResult{
 		TicketID: parentID,
@@ -223,6 +225,11 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 
 	// Only process parents that are not already done/cancelled
 	if parent.Status.IsTerminal() {
+		return result
+	}
+
+	// For epics, also skip if already in review (epic review is done manually)
+	if parent.IsEpic() && parent.Status == models.StatusReview {
 		return result
 	}
 
@@ -254,8 +261,10 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 	}
 
 	// All children are done - update parent status
+	// For epics: always go to review (epics need manual acceptance)
+	// For regular parents: follow autoAccept flag
 	newStatus := models.StatusReview
-	if autoAccept {
+	if autoAccept && !parent.IsEpic() {
 		newStatus = models.StatusClosed
 		res := models.ResolutionCompleted
 		parent.Resolution = &res
@@ -278,7 +287,10 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 	// Log activity
 	action := models.ActionCompleted
 	summary := "All child tickets completed - moved to review"
-	if autoAccept {
+	if parent.IsEpic() {
+		summary = "All child tasks completed - epic moved to review"
+	}
+	if result.AutoAccepted {
 		summary = "All child tickets completed - auto-accepted"
 	}
 
@@ -287,7 +299,8 @@ func (r *DependencyResolver) checkParentCompletion(parentID int64, autoAccept bo
 		map[string]interface{}{
 			"children_done":  doneCount,
 			"children_total": len(children),
-			"auto_accepted":  autoAccept,
+			"auto_accepted":  result.AutoAccepted,
+			"is_epic":        parent.IsEpic(),
 		})
 
 	return result

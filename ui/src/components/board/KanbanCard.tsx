@@ -19,7 +19,7 @@ interface KanbanCardProps {
  */
 export function KanbanCard({ ticket, showBlockedBadge = false }: KanbanCardProps) {
 	const hasHumanFlag = !!ticket.human_flag_reason;
-	const hasBranch = !!ticket.branch_name;
+	const hasWorktree = !!ticket.worktree;
 	const hasMilestone = !!ticket.milestone_key;
 
 	return (
@@ -71,17 +71,17 @@ export function KanbanCard({ ticket, showBlockedBadge = false }: KanbanCardProps
 				</div>
 			)}
 
-			{/* Branch name - shown on hover */}
-			{hasBranch && (
+			{/* Worktree name - shown on hover */}
+			{hasWorktree && (
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<div className="flex items-center gap-1 mt-2 text-xs text-[var(--foreground-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
 							<GitBranch className="size-3" />
-							<span className="truncate font-mono">{ticket.branch_name}</span>
+							<span className="truncate font-mono">{ticket.worktree}</span>
 						</div>
 					</TooltipTrigger>
 					<TooltipContent side="bottom" className="font-mono text-xs">
-						{ticket.branch_name}
+						{ticket.worktree}
 					</TooltipContent>
 				</Tooltip>
 			)}

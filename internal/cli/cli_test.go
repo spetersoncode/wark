@@ -99,7 +99,7 @@ func TestParseTicketKey(t *testing.T) {
 	}
 }
 
-func TestGenerateBranchName(t *testing.T) {
+func TestGenerateWorktreeName(t *testing.T) {
 	tests := []struct {
 		projectKey string
 		number     int
@@ -114,7 +114,7 @@ func TestGenerateBranchName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			got := generateBranchName(tt.projectKey, tt.number, tt.title)
+			got := generateWorktreeName(tt.projectKey, tt.number, tt.title)
 			assert.Equal(t, tt.want, got)
 		})
 	}

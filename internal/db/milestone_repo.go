@@ -214,7 +214,7 @@ func (r *MilestoneRepo) Delete(id int64) error {
 func (r *MilestoneRepo) GetLinkedTickets(milestoneID int64) ([]models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status, t.resolution,
-		       t.human_flag_reason, t.priority, t.complexity, t.branch_name, t.retry_count,
+		       t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.retry_count,
 		       t.max_retries, t.parent_ticket_id, t.created_at, t.updated_at, t.completed_at,
 		       p.key AS project_key
 		FROM tickets t
@@ -232,14 +232,14 @@ func (r *MilestoneRepo) GetLinkedTickets(milestoneID int64) ([]models.Ticket, er
 	var tickets []models.Ticket
 	for rows.Next() {
 		var t models.Ticket
-		var desc, humanFlag, branchName sql.NullString
+		var desc, humanFlag, ticketType, worktree sql.NullString
 		var resolution sql.NullString
 		var parentID sql.NullInt64
 		var completedAt sql.NullTime
 
 		err := rows.Scan(
 			&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status, &resolution,
-			&humanFlag, &t.Priority, &t.Complexity, &branchName, &t.RetryCount,
+			&humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree, &t.RetryCount,
 			&t.MaxRetries, &parentID, &t.CreatedAt, &t.UpdatedAt, &completedAt,
 			&t.ProjectKey,
 		)
@@ -249,7 +249,11 @@ func (r *MilestoneRepo) GetLinkedTickets(milestoneID int64) ([]models.Ticket, er
 
 		t.Description = desc.String
 		t.HumanFlagReason = humanFlag.String
-		t.BranchName = branchName.String
+		t.Type = models.TicketType(ticketType.String)
+		if t.Type == "" {
+			t.Type = models.TicketTypeTask
+		}
+		t.Worktree = worktree.String
 		if resolution.Valid {
 			res := models.Resolution(resolution.String)
 			t.Resolution = &res

@@ -355,7 +355,7 @@ func TestCmdTicketCreate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output, "Created: TICK-1")
 	assert.Contains(t, output, "My First Ticket")
-	assert.Contains(t, output, "Branch: TICK-1")
+	assert.Contains(t, output, "Worktree: TICK-1")
 }
 
 func TestCmdTicketCreateWithOptions(t *testing.T) {
@@ -385,7 +385,7 @@ func TestCmdTicketCreateJSON(t *testing.T) {
 	assert.Equal(t, "JSON-1", result.TicketKey)
 	assert.Equal(t, "JSON Ticket", result.Title)
 	assert.Equal(t, models.StatusReady, result.Status)
-	assert.Contains(t, result.Branch, "JSON-1")
+	assert.Contains(t, result.Worktree, "JSON-1")
 }
 
 func TestCmdTicketCreateNoProject(t *testing.T) {
@@ -628,7 +628,7 @@ func TestCmdTicketClaim(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output, "Claimed: CLM-1")
 	assert.Contains(t, output, "Worker: test-agent")
-	assert.Contains(t, output, "Branch:")
+	assert.Contains(t, output, "Worktree:")
 }
 
 func TestCmdTicketClaimJSON(t *testing.T) {
@@ -1371,7 +1371,7 @@ func TestCmdTicketBranch(t *testing.T) {
 	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
-	_, _ = runCmd(t, dbPath, "project", "create", "BRN", "--name", "Branch")
+	_, _ = runCmd(t, dbPath, "project", "create", "BRN", "--name", "Worktree")
 	_, _ = runCmd(t, dbPath, "ticket", "create", "BRN", "--title", "Add Login Page")
 
 	output, err := runCmd(t, dbPath, "ticket", "branch", "BRN-1")
@@ -1383,12 +1383,12 @@ func TestCmdTicketBranchSet(t *testing.T) {
 	_, dbPath, cleanup := testDBWithPath(t)
 	defer cleanup()
 
-	_, _ = runCmd(t, dbPath, "project", "create", "BSET", "--name", "Branch Set")
-	_, _ = runCmd(t, dbPath, "ticket", "create", "BSET", "--title", "Custom Branch")
+	_, _ = runCmd(t, dbPath, "project", "create", "BSET", "--name", "Worktree Set")
+	_, _ = runCmd(t, dbPath, "ticket", "create", "BSET", "--title", "Custom Worktree")
 
 	output, err := runCmd(t, dbPath, "ticket", "branch", "BSET-1", "--set", "feature/custom-branch")
 	require.NoError(t, err)
-	assert.Contains(t, output, "Branch name set: feature/custom-branch")
+	assert.Contains(t, output, "Worktree name set: feature/custom-branch")
 
 	// Verify it persisted
 	verifyOutput, _ := runCmd(t, dbPath, "ticket", "branch", "BSET-1")

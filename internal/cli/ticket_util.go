@@ -195,18 +195,18 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 			"expires_at":    claim.ExpiresAt.Format(time.RFC3339),
 		})
 
-	// Generate branch name
-	branchName := nextTicket.BranchName
-	if branchName == "" {
-		branchName = generateBranchName(nextTicket.ProjectKey, nextTicket.Number, nextTicket.Title)
+	// Generate worktree name
+	worktreeName := nextTicket.Worktree
+	if worktreeName == "" {
+		worktreeName = generateWorktreeName(nextTicket.ProjectKey, nextTicket.Number, nextTicket.Title)
 	}
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
 			"ticket":      nextTicket,
 			"claim":       claim,
-			"branch":      branchName,
-			"git_command": fmt.Sprintf("git checkout -b %s", branchName),
+			"worktree":    worktreeName,
+			"git_command": fmt.Sprintf("git checkout -b %s", worktreeName),
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
@@ -216,20 +216,21 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 	OutputLine("Title: %s", nextTicket.Title)
 	OutputLine("Worker: %s", workerID)
 	OutputLine("Expires: %s (%d minutes)", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), durationMins)
-	OutputLine("Branch: %s", branchName)
+	OutputLine("Worktree: %s", worktreeName)
 	OutputLine("")
-	OutputLine("Run: git checkout -b %s", branchName)
+	OutputLine("Run: git checkout -b %s", worktreeName)
 
 	return nil
 }
 
-// ticket branch
+// ticket worktree (alias: ticket branch for backwards compatibility)
 var ticketBranchCmd = &cobra.Command{
-	Use:   "branch <TICKET>",
-	Short: "Get or set the branch name for a ticket",
-	Long: `Get or set the git branch name for a ticket.
+	Use:     "branch <TICKET>",
+	Aliases: []string{"worktree-name"},
+	Short:   "Get or set the worktree name for a ticket",
+	Long: `Get or set the git worktree name for a ticket.
 
-Auto-generation format: wark/<PROJECT>-<NUMBER>-<slug>
+Auto-generation format: <PROJECT>-<NUMBER>-<slug>
 
 Examples:
   wark ticket branch WEBAPP-42
@@ -250,44 +251,44 @@ func runTicketBranch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// If --set flag is used, update the branch name
+	// If --set flag is used, update the worktree name
 	if branchSet != "" {
 		ticketRepo := db.NewTicketRepo(database.DB)
-		ticket.BranchName = branchSet
+		ticket.Worktree = branchSet
 		if err := ticketRepo.Update(ticket); err != nil {
-			return fmt.Errorf("failed to update branch name: %w", err)
+			return fmt.Errorf("failed to update worktree name: %w", err)
 		}
 
 		if IsJSON() {
 			data, _ := json.MarshalIndent(map[string]interface{}{
-				"ticket": ticket.TicketKey,
-				"branch": branchSet,
-				"set":    true,
+				"ticket":   ticket.TicketKey,
+				"worktree": branchSet,
+				"set":      true,
 			}, "", "  ")
 			fmt.Println(string(data))
 			return nil
 		}
 
-		OutputLine("Branch name set: %s", branchSet)
+		OutputLine("Worktree name set: %s", branchSet)
 		return nil
 	}
 
-	// Get or generate branch name
-	branchName := ticket.BranchName
-	if branchName == "" {
-		branchName = generateBranchName(ticket.ProjectKey, ticket.Number, ticket.Title)
+	// Get or generate worktree name
+	worktreeName := ticket.Worktree
+	if worktreeName == "" {
+		worktreeName = generateWorktreeName(ticket.ProjectKey, ticket.Number, ticket.Title)
 	}
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket": ticket.TicketKey,
-			"branch": branchName,
+			"ticket":   ticket.TicketKey,
+			"worktree": worktreeName,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	fmt.Println(branchName)
+	fmt.Println(worktreeName)
 	return nil
 }
 

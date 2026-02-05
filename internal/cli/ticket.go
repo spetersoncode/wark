@@ -20,6 +20,7 @@ var (
 	ticketDescription    string
 	ticketPriority       string
 	ticketComplexity     string
+	ticketType           string
 	ticketDependsOn      []string
 	ticketParent         string
 	ticketMilestone      string
@@ -39,6 +40,7 @@ func init() {
 	ticketCreateCmd.Flags().StringVarP(&ticketDescription, "description", "d", "", "Detailed description")
 	ticketCreateCmd.Flags().StringVarP(&ticketPriority, "priority", "p", "medium", "Priority level (highest, high, medium, low, lowest)")
 	ticketCreateCmd.Flags().StringVarP(&ticketComplexity, "complexity", "c", "medium", "Complexity estimate (trivial, small, medium, large, xlarge)")
+	ticketCreateCmd.Flags().StringVar(&ticketType, "type", "task", "Ticket type (task, epic)")
 	ticketCreateCmd.Flags().StringSliceVar(&ticketDependsOn, "depends-on", nil, "Ticket IDs this depends on (comma-separated)")
 	ticketCreateCmd.Flags().StringVar(&ticketParent, "parent", "", "Parent ticket ID")
 	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
@@ -150,8 +152,8 @@ func resolveMilestone(database *db.DB, key string, defaultProject string) (*mode
 	return milestone, nil
 }
 
-// generateBranchName generates a git branch name for a ticket
-func generateBranchName(projectKey string, number int, title string) string {
+// generateWorktreeName generates a git worktree name for a ticket
+func generateWorktreeName(projectKey string, number int, title string) string {
 	// Convert title to slug
 	slug := strings.ToLower(title)
 	slug = strings.Map(func(r rune) rune {
@@ -199,7 +201,7 @@ Examples:
 
 type ticketCreateResult struct {
 	*models.Ticket
-	Branch string `json:"branch"`
+	Worktree string `json:"worktree"`
 }
 
 func runTicketCreate(cmd *cobra.Command, args []string) error {
@@ -241,6 +243,16 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		return ErrInvalidArgs("%s", err)
 	}
 
+	// Parse ticket type
+	var tType models.TicketType
+	if ticketType == "" {
+		ticketType = "task"
+	}
+	tType, err = models.ParseTicketType(ticketType)
+	if err != nil {
+		return ErrInvalidArgs("%s", err)
+	}
+
 	// Initial status is ready (may change to blocked if deps added later)
 	ticket := &models.Ticket{
 		ProjectID:   project.ID,
@@ -248,6 +260,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Description: ticketDescription,
 		Priority:    priority,
 		Complexity:  complexity,
+		Type:        tType,
 		Status:      models.StatusReady, // May change to blocked if deps added
 	}
 
@@ -282,15 +295,20 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		return ErrDatabase(err, "failed to create ticket")
 	}
 
-	// Generate branch name
-	branchName := generateBranchName(projectKey, ticket.Number, ticket.Title)
-	ticket.BranchName = branchName
+	// Generate worktree name (auto-generate for epics, or on-demand for tasks)
+	worktreeName := generateWorktreeName(projectKey, ticket.Number, ticket.Title)
+	if ticket.IsEpic() {
+		// Epics always get a worktree name stored
+		ticket.Worktree = worktreeName
+	}
 	ticket.ProjectKey = projectKey
 	ticket.TicketKey = fmt.Sprintf("%s-%d", projectKey, ticket.Number)
 
-	// Update with branch name
-	if err := ticketRepo.Update(ticket); err != nil {
-		VerboseOutput("Warning: failed to save branch name: %v\n", err)
+	// Update with worktree name (for epics)
+	if ticket.IsEpic() {
+		if err := ticketRepo.Update(ticket); err != nil {
+			VerboseOutput("Warning: failed to save worktree name: %v\n", err)
+		}
 	}
 
 	// Add dependencies
@@ -327,8 +345,8 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	result := ticketCreateResult{
-		Ticket: ticket,
-		Branch: branchName,
+		Ticket:   ticket,
+		Worktree: worktreeName,
 	}
 
 	if IsJSON() {
@@ -339,8 +357,9 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 
 	OutputLine("Created: %s", ticket.TicketKey)
 	OutputLine("Title: %s", ticket.Title)
+	OutputLine("Type: %s", ticket.Type)
 	OutputLine("Status: %s", ticket.Status)
-	OutputLine("Branch: %s", branchName)
+	OutputLine("Worktree: %s", worktreeName)
 	if ticket.MilestoneKey != "" {
 		OutputLine("Milestone: %s/%s", ticket.ProjectKey, ticket.MilestoneKey)
 	}
@@ -629,6 +648,7 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s: %s\n", ticket.TicketKey, ticket.Title)
 	fmt.Println(strings.Repeat("=", 65))
 	fmt.Println()
+	fmt.Printf("Type:        %s\n", ticket.Type)
 	if ticket.Status == models.StatusBlocked && len(blockingDeps) > 0 {
 		fmt.Printf("Status:      %s ⛔ (blocked by %d ticket(s))\n", ticket.Status, len(blockingDeps))
 	} else {
@@ -636,8 +656,8 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Priority:    %s\n", ticket.Priority)
 	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
-	if ticket.BranchName != "" {
-		fmt.Printf("Branch:      %s\n", ticket.BranchName)
+	if ticket.Worktree != "" {
+		fmt.Printf("Worktree:    %s\n", ticket.Worktree)
 	}
 	if ticket.MilestoneKey != "" {
 		fmt.Printf("Milestone:   %s/%s\n", ticket.ProjectKey, ticket.MilestoneKey)

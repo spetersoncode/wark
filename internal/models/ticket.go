@@ -25,9 +25,10 @@ type Ticket struct {
 	// Classification
 	Priority   Priority   `json:"priority"`
 	Complexity Complexity `json:"complexity"`
+	Type       TicketType `json:"type"`
 
 	// Git integration
-	BranchName string `json:"branch_name,omitempty"`
+	Worktree string `json:"worktree,omitempty"`
 
 	// Retry tracking
 	RetryCount int `json:"retry_count"`
@@ -78,6 +79,9 @@ func (t *Ticket) Validate() error {
 	if !t.Complexity.IsValid() {
 		return fmt.Errorf("invalid complexity: %s", t.Complexity)
 	}
+	if t.Type != "" && !t.Type.IsValid() {
+		return fmt.Errorf("invalid ticket type: %s", t.Type)
+	}
 	if t.MaxRetries < 0 {
 		return fmt.Errorf("max_retries cannot be negative")
 	}
@@ -126,6 +130,16 @@ func (t *Ticket) HasExceededRetries() bool {
 // CanModifyDependencies returns true if dependencies can be modified for this ticket.
 func (t *Ticket) CanModifyDependencies() bool {
 	return t.Status.CanModifyDependencies()
+}
+
+// IsEpic returns true if the ticket is an epic.
+func (t *Ticket) IsEpic() bool {
+	return t.Type == TicketTypeEpic
+}
+
+// IsTask returns true if the ticket is a task (or has no type set, defaulting to task).
+func (t *Ticket) IsTask() bool {
+	return t.Type == TicketTypeTask || t.Type == ""
 }
 
 // TicketDependency represents a dependency between two tickets.

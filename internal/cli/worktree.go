@@ -138,8 +138,8 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if ticket.BranchName == "" {
-		return ErrGeneral("ticket %s has no branch name", ticketID)
+	if ticket.Worktree == "" {
+		return ErrGeneral("ticket %s has no worktree name", ticketID)
 	}
 
 	// Get git repo root
@@ -148,7 +148,7 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 		return ErrGeneralWithCause(err, "failed to detect git repository")
 	}
 
-	worktreePath := getWorktreePath(repoRoot, ticket.BranchName)
+	worktreePath := getWorktreePath(repoRoot, ticket.Worktree)
 	worktreesDir := getWorktreesDir(repoRoot)
 
 	// Check if worktree already exists
@@ -156,7 +156,7 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 		result := worktreeResult{
 			TicketID: ticketID,
 			Path:     worktreePath,
-			Branch:   ticket.BranchName,
+			Branch:   ticket.Worktree,
 			Created:  false,
 		}
 		if IsJSON() {
@@ -174,13 +174,13 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create the worktree with a new branch
-	gitCmd := exec.Command("git", "worktree", "add", worktreePath, "-b", ticket.BranchName)
+	gitCmd := exec.Command("git", "worktree", "add", worktreePath, "-b", ticket.Worktree)
 	gitCmd.Dir = repoRoot
 	if output, err := gitCmd.CombinedOutput(); err != nil {
 		// Check if branch already exists
 		if strings.Contains(string(output), "already exists") {
 			// Try without -b flag (use existing branch)
-			gitCmd = exec.Command("git", "worktree", "add", worktreePath, ticket.BranchName)
+			gitCmd = exec.Command("git", "worktree", "add", worktreePath, ticket.Worktree)
 			gitCmd.Dir = repoRoot
 			if output, err := gitCmd.CombinedOutput(); err != nil {
 				return ErrGeneralWithCause(fmt.Errorf("%s", output), "failed to create worktree")
@@ -193,7 +193,7 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 	result := worktreeResult{
 		TicketID: ticketID,
 		Path:     worktreePath,
-		Branch:   ticket.BranchName,
+		Branch:   ticket.Worktree,
 		Created:  true,
 	}
 
@@ -204,7 +204,7 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	OutputLine("Created worktree at %s", worktreePath)
-	OutputLine("Branch: %s", ticket.BranchName)
+	OutputLine("Branch: %s", ticket.Worktree)
 	OutputLine("")
 	OutputLine("To enter the worktree:")
 	OutputLine("  cd %s", worktreePath)
@@ -228,8 +228,8 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if ticket.BranchName == "" {
-		return ErrGeneral("ticket %s has no branch name", ticketID)
+	if ticket.Worktree == "" {
+		return ErrGeneral("ticket %s has no worktree name", ticketID)
 	}
 
 	// Get git repo root
@@ -238,7 +238,7 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 		return ErrGeneralWithCause(err, "failed to detect git repository")
 	}
 
-	worktreePath := getWorktreePath(repoRoot, ticket.BranchName)
+	worktreePath := getWorktreePath(repoRoot, ticket.Worktree)
 
 	// Check if worktree exists
 	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {
@@ -246,7 +246,7 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 			result := worktreeResult{
 				TicketID: ticketID,
 				Path:     worktreePath,
-				Branch:   ticket.BranchName,
+				Branch:   ticket.Worktree,
 				Removed:  false,
 			}
 			data, _ := json.MarshalIndent(result, "", "  ")
@@ -269,11 +269,11 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Delete the branch
-	gitCmd = exec.Command("git", "branch", "-d", ticket.BranchName)
+	gitCmd = exec.Command("git", "branch", "-d", ticket.Worktree)
 	gitCmd.Dir = repoRoot
 	if _, err := gitCmd.CombinedOutput(); err != nil {
 		// Try force delete if not fully merged
-		gitCmd = exec.Command("git", "branch", "-D", ticket.BranchName)
+		gitCmd = exec.Command("git", "branch", "-D", ticket.Worktree)
 		gitCmd.Dir = repoRoot
 		if output, err := gitCmd.CombinedOutput(); err != nil {
 			VerboseOutput("Warning: failed to delete branch: %s", output)
@@ -288,7 +288,7 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 	result := worktreeResult{
 		TicketID: ticketID,
 		Path:     worktreePath,
-		Branch:   ticket.BranchName,
+		Branch:   ticket.Worktree,
 		Removed:  true,
 	}
 
@@ -299,7 +299,7 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	OutputLine("Removed worktree at %s", worktreePath)
-	OutputLine("Deleted branch: %s", ticket.BranchName)
+	OutputLine("Deleted branch: %s", ticket.Worktree)
 
 	return nil
 }
@@ -320,8 +320,8 @@ func runWorktreePath(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if ticket.BranchName == "" {
-		return ErrGeneral("ticket %s has no branch name", ticketID)
+	if ticket.Worktree == "" {
+		return ErrGeneral("ticket %s has no worktree name", ticketID)
 	}
 
 	// Get git repo root
@@ -330,13 +330,13 @@ func runWorktreePath(cmd *cobra.Command, args []string) error {
 		return ErrGeneralWithCause(err, "failed to detect git repository")
 	}
 
-	worktreePath := getWorktreePath(repoRoot, ticket.BranchName)
+	worktreePath := getWorktreePath(repoRoot, ticket.Worktree)
 
 	if IsJSON() {
 		result := worktreeResult{
 			TicketID: ticketID,
 			Path:     worktreePath,
-			Branch:   ticket.BranchName,
+			Branch:   ticket.Worktree,
 		}
 		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))

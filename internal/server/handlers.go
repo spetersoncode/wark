@@ -28,24 +28,25 @@ type ProjectResponse struct {
 
 // TicketResponse represents a ticket in API responses.
 type TicketResponse struct {
-	ID              int64    `json:"id"`
-	Key             string   `json:"ticket_key"`
-	ProjectKey      string   `json:"project_key"`
-	Number          int      `json:"number"`
-	Title           string   `json:"title"`
-	Description     string   `json:"description,omitempty"`
-	Status          string   `json:"status"`
-	HumanFlagReason string   `json:"human_flag_reason,omitempty"`
-	Priority        string   `json:"priority"`
-	Complexity      string   `json:"complexity"`
-	BranchName      string   `json:"branch_name,omitempty"`
-	RetryCount      int      `json:"retry_count"`
-	MaxRetries      int      `json:"max_retries"`
-	ParentTicketID  *int64   `json:"parent_ticket_id,omitempty"`
-	MilestoneKey    string   `json:"milestone_key,omitempty"`
-	CreatedAt       string   `json:"created_at"`
-	UpdatedAt       string   `json:"updated_at"`
-	CompletedAt     string   `json:"completed_at,omitempty"`
+	ID              int64  `json:"id"`
+	Key             string `json:"ticket_key"`
+	ProjectKey      string `json:"project_key"`
+	Number          int    `json:"number"`
+	Title           string `json:"title"`
+	Description     string `json:"description,omitempty"`
+	Status          string `json:"status"`
+	HumanFlagReason string `json:"human_flag_reason,omitempty"`
+	Priority        string `json:"priority"`
+	Complexity      string `json:"complexity"`
+	Type            string `json:"type"`
+	Worktree        string `json:"worktree,omitempty"`
+	RetryCount      int    `json:"retry_count"`
+	MaxRetries      int    `json:"max_retries"`
+	ParentTicketID  *int64 `json:"parent_ticket_id,omitempty"`
+	MilestoneKey    string `json:"milestone_key,omitempty"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
+	CompletedAt     string `json:"completed_at,omitempty"`
 }
 
 // InboxResponse represents an inbox message in API responses.
@@ -637,7 +638,8 @@ func ticketToResponse(t *models.Ticket) TicketResponse {
 		HumanFlagReason: t.HumanFlagReason,
 		Priority:        string(t.Priority),
 		Complexity:      string(t.Complexity),
-		BranchName:      t.BranchName,
+		Type:            string(t.Type),
+		Worktree:        t.Worktree,
 		RetryCount:      t.RetryCount,
 		MaxRetries:      t.MaxRetries,
 		ParentTicketID:  t.ParentTicketID,

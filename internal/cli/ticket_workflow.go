@@ -46,15 +46,15 @@ func init() {
 	ticketCompleteCmd.Flags().StringVar(&completeSummary, "summary", "", "Summary of work done")
 	ticketCompleteCmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Skip review, go directly to done")
 
-	// ticket flag
-	ticketFlagCmd.Flags().StringVar(&flagReason, "reason", "", "Reason code for flagging (required)")
-	ticketFlagCmd.MarkFlagRequired("reason")
+	// ticket human (escalate)
+	ticketHumanCmd.Flags().StringVar(&flagReason, "reason", "", "Reason code for escalation (required)")
+	ticketHumanCmd.MarkFlagRequired("reason")
 
 	// Add subcommands
 	ticketCmd.AddCommand(ticketClaimCmd)
 	ticketCmd.AddCommand(ticketReleaseCmd)
 	ticketCmd.AddCommand(ticketCompleteCmd)
-	ticketCmd.AddCommand(ticketFlagCmd)
+	ticketCmd.AddCommand(ticketHumanCmd)
 }
 
 // ticket claim
@@ -251,11 +251,12 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// ticket flag
-var ticketFlagCmd = &cobra.Command{
-	Use:   "flag <TICKET> <MESSAGE>",
-	Short: "Flag a ticket for human input",
-	Long: `Flag a ticket for human attention. The ticket will move to human status.
+// ticket human (formerly flag)
+var ticketHumanCmd = &cobra.Command{
+	Use:     "human <TICKET> <MESSAGE>",
+	Aliases: []string{"flag"},
+	Short:   "Escalate ticket to human status",
+	Long: `Escalate a ticket for human attention. The ticket will move to human status.
 
 Reason codes:
   irreconcilable_conflict - Technical conflict that cannot be resolved
@@ -268,13 +269,14 @@ Reason codes:
   other                   - Other reason (specify in message)
 
 Examples:
-  wark ticket flag WEBAPP-42 --reason unclear_requirements "Need list of OAuth providers"
-  wark ticket flag WEBAPP-42 --reason irreconcilable_conflict "React 18 conflicts with node-sass 6.x"`,
+  wark ticket human WEBAPP-42 --reason unclear_requirements "Need list of OAuth providers"
+  wark ticket human WEBAPP-42 --reason irreconcilable_conflict "React 18 conflicts with node-sass 6.x"
+  wark ticket flag WEBAPP-42 --reason decision_needed "REST or GraphQL?"`,
 	Args: cobra.MinimumNArgs(1),
-	RunE: runTicketFlag,
+	RunE: runTicketHuman,
 }
 
-func runTicketFlag(cmd *cobra.Command, args []string) error {
+func runTicketHuman(cmd *cobra.Command, args []string) error {
 	database, err := db.Open(GetDBPath())
 	if err != nil {
 		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")

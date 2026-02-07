@@ -23,6 +23,7 @@ var (
 	ticketType           string
 	ticketDependsOn      []string
 	ticketParent         string
+	ticketEpic           string
 	ticketMilestone      string
 	ticketProject        string
 	ticketStatus         []string
@@ -43,6 +44,7 @@ func init() {
 	ticketCreateCmd.Flags().StringVar(&ticketType, "type", "task", "Ticket type (task, epic)")
 	ticketCreateCmd.Flags().StringSliceVar(&ticketDependsOn, "depends-on", nil, "Ticket IDs this depends on (comma-separated)")
 	ticketCreateCmd.Flags().StringVar(&ticketParent, "parent", "", "Parent ticket ID")
+	ticketCreateCmd.Flags().StringVar(&ticketEpic, "epic", "", "Epic ticket ID (alternative to --parent for clearer semantics)")
 	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
 	ticketCreateCmd.MarkFlagRequired("title")
 
@@ -194,6 +196,7 @@ Examples:
   wark ticket create WEBAPP --title "Add user login page"
   wark ticket create WEBAPP -t "Implement OAuth2" -d "Support Google/GitHub OAuth" -p high -c large
   wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15
+  wark ticket create WEBAPP -t "Add login form" --epic WEBAPP-15
   wark ticket create WEBAPP -t "Add login" --milestone MVP`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketCreate,
@@ -264,9 +267,18 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Status:      models.StatusReady, // May change to blocked if deps added
 	}
 
-	// Handle parent ticket
-	if ticketParent != "" {
-		parentTicket, err := resolveTicket(database, ticketParent, projectKey)
+	// Handle parent ticket (--parent or --epic)
+	if ticketParent != "" && ticketEpic != "" {
+		return ErrInvalidArgs("cannot use both --parent and --epic flags (they serve the same purpose)")
+	}
+	
+	parentKey := ticketParent
+	if ticketEpic != "" {
+		parentKey = ticketEpic
+	}
+	
+	if parentKey != "" {
+		parentTicket, err := resolveTicket(database, parentKey, projectKey)
 		if err != nil {
 			return fmt.Errorf("failed to resolve parent ticket: %w", err)
 		}

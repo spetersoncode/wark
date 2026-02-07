@@ -105,13 +105,6 @@ type TransitionRule struct {
 // validTransitions defines all valid state transitions.
 var validTransitions = []TransitionRule{
 	// Auto-transitions (dependency-triggered)
-	// backlog → blocked (dependency added)
-	{
-		From:         models.StatusBacklog,
-		To:           models.StatusBlocked,
-		AllowedTypes: []TransitionType{TransitionTypeAuto},
-		Description:  "Blocked by unresolved dependency",
-	},
 	// blocked → ready (all dependencies resolved)
 	{
 		From:         models.StatusBlocked,

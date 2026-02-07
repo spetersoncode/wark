@@ -1037,8 +1037,9 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 
 	// Auto-transition status based on dependency changes
 	// State machine rules:
-	// - ON dep added: if dep not closed(completed) → blocked
+	// - ON dep added to non-backlog ticket: if dep not closed(completed) → blocked
 	// - ON dep removed from blocked ticket: if all deps done → ready
+	// Note: backlog tickets stay in backlog even with deps (it's the icebox)
 	if len(ticketAddDep) > 0 || len(ticketRemoveDep) > 0 {
 		ticketRepo := db.NewTicketRepo(database.DB)
 		// Refresh ticket to get current state
@@ -1046,8 +1047,9 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 
 		hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
 		if err == nil {
-			if hasUnresolved && ticket.Status != models.StatusBlocked && ticket.Status != models.StatusClosed {
-				// Block ticket (any non-blocked, non-closed status goes to blocked)
+			if hasUnresolved && ticket.Status != models.StatusBlocked && ticket.Status != models.StatusClosed && ticket.Status != models.StatusBacklog {
+				// Block ticket (ready/working/human/review/reviewing → blocked)
+				// Backlog tickets stay in backlog - they're not actively being worked
 				oldStatus := ticket.Status
 				ticket.Status = models.StatusBlocked
 				if err := ticketRepo.Update(ticket); err == nil {

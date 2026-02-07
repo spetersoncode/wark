@@ -251,11 +251,10 @@ func runTicketComplete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// ticket human (formerly flag)
+// ticket human
 var ticketHumanCmd = &cobra.Command{
-	Use:     "human <TICKET> <MESSAGE>",
-	Aliases: []string{"flag"},
-	Short:   "Escalate ticket to human status",
+	Use:   "human <TICKET> <MESSAGE>",
+	Short: "Escalate ticket to human status",
 	Long: `Escalate a ticket for human attention. The ticket will move to human status.
 
 Reason codes:
@@ -271,7 +270,7 @@ Reason codes:
 Examples:
   wark ticket human WEBAPP-42 --reason unclear_requirements "Need list of OAuth providers"
   wark ticket human WEBAPP-42 --reason irreconcilable_conflict "React 18 conflicts with node-sass 6.x"
-  wark ticket flag WEBAPP-42 --reason decision_needed "REST or GraphQL?"`,
+  wark ticket human WEBAPP-42 --reason decision_needed "REST or GraphQL?"`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runTicketHuman,
 }

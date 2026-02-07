@@ -877,9 +877,9 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Comments (%d):\n", len(comments))
 		fmt.Println(strings.Repeat("-", 65))
 		for _, c := range comments {
-			actor := string(c.ActorType)
-			if c.ActorID != "" {
-				actor = fmt.Sprintf("%s:%s", c.ActorType, c.ActorID)
+			actor := c.ActorID
+			if actor == "" {
+				actor = string(c.ActorType)
 			}
 			fmt.Printf("[%s] %s\n", c.CreatedAt.Local().Format("2006-01-02 15:04"), actor)
 			// Print summary (full comment text) with word wrapping at 60 chars

@@ -10,7 +10,7 @@ import (
 // DefaultRoles defines the built-in roles that ship with Wark.
 var DefaultRoles = []models.Role{
 	{
-		Name:        "engineer",
+		Name:        "software-engineer",
 		Description: "Software engineer for implementation, debugging, and production-quality code",
 		Instructions: `You are a software engineer. You write clean, maintainable, production-ready code. You follow best practices, add proper error handling, write tests, and consider edge cases. You prioritize readability and maintainability over cleverness.
 
@@ -45,7 +45,7 @@ You review your own work critically before submitting. You verify edge cases are
 **Your workflow:**
 1. Check for available work: wark inbox list, wark ticket list --workable
 2. Understand the work context (ticket dependencies, epic structure, project goals)
-3. Choose the right role for each ticket (engineer for implementation/debugging, code-reviewer for reviews, architect for design, worker for non-code tasks)
+3. Choose the right role for each ticket (software-engineer for implementation/debugging, code-reviewer for reviews, architect for design, worker for non-code tasks)
 4. Spawn sub-agents with appropriate context and role instructions
 5. Monitor progress proactively using sessions_list and sessions_history
 6. Review completed work and accept tickets when quality standards are met

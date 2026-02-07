@@ -23,15 +23,6 @@ func TestSkillFSContainsExpectedFiles(t *testing.T) {
 	f, err = fs.Open("skill.yaml")
 	require.NoError(t, err)
 	f.Close()
-
-	// Check references directory
-	f, err = fs.Open("references/coder.md")
-	require.NoError(t, err)
-	f.Close()
-
-	f, err = fs.Open("references/reviewer.md")
-	require.NoError(t, err)
-	f.Close()
 }
 
 func TestListExistingFiles(t *testing.T) {
@@ -79,7 +70,7 @@ func TestSkillInstallResultStruct(t *testing.T) {
 	result := skillInstallResult{
 		Installed:   true,
 		Path:        "/home/user/.openclaw/skills/wark",
-		Files:       []string{"SKILL.md", "references/coder.md"},
+		Files:       []string{"SKILL.md", "skill.yaml"},
 		Overwritten: true,
 	}
 

@@ -151,6 +151,35 @@ func (r *ActivityRepo) GetLatestByTicket(ticketID int64) (*models.ActivityLog, e
 	return r.scanOne(r.db.QueryRow(query, ticketID))
 }
 
+// ListCommentsByTicket retrieves only comment entries for a ticket.
+// Comments are sorted by created_at DESC, id DESC (newest first).
+func (r *ActivityRepo) ListCommentsByTicket(ticketID int64, limit int) ([]*models.ActivityLog, error) {
+	query := `
+		SELECT a.id, a.ticket_id, a.action, a.actor_type, a.actor_id,
+			a.details, a.summary, a.created_at,
+			p.key || '-' || t.number AS ticket_key
+		FROM activity_log a
+		JOIN tickets t ON a.ticket_id = t.id
+		JOIN projects p ON t.project_id = p.id
+		WHERE a.ticket_id = ? AND a.action = ?
+		ORDER BY a.created_at DESC, a.id DESC
+	`
+	args := []interface{}{ticketID, models.ActionComment}
+
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+	}
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list comments: %w", err)
+	}
+	defer rows.Close()
+
+	return r.scanMany(rows)
+}
+
 // CountByTicket counts activity log entries for a ticket.
 func (r *ActivityRepo) CountByTicket(ticketID int64) (int, error) {
 	query := `SELECT COUNT(*) FROM activity_log WHERE ticket_id = ?`

@@ -663,6 +663,7 @@ type ticketShowResult struct {
 	Dependencies   []*models.Ticket       `json:"dependencies,omitempty"`
 	BlockingDeps   []*models.Ticket       `json:"blocking_deps,omitempty"` // Unresolved deps blocking this ticket
 	Dependents     []*models.Ticket       `json:"dependents,omitempty"`
+	Comments       []*models.ActivityLog  `json:"comments,omitempty"`
 	History        []*models.ActivityLog  `json:"history,omitempty"`
 	Tasks          []*models.TicketTask   `json:"tasks,omitempty"`
 	TasksComplete  int                    `json:"tasks_complete,omitempty"`
@@ -698,6 +699,13 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	history, err := activityRepo.ListByTicket(ticket.ID, 10)
 	if err != nil {
 		return ErrDatabase(err, "failed to get history")
+	}
+
+	// Fetch comments separately for dedicated section
+	comments, err := activityRepo.ListCommentsByTicket(ticket.ID, 50)
+	if err != nil {
+		VerboseOutput("Warning: failed to get comments: %v\n", err)
+		comments = []*models.ActivityLog{}
 	}
 
 	// Fetch tasks
@@ -737,6 +745,7 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		Dependencies: dependencies,
 		BlockingDeps: blockingDeps,
 		Dependents:   dependents,
+		Comments:     comments,
 		History:      history,
 		Claim:        claim,
 	}
@@ -862,12 +871,37 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if len(comments) > 0 {
+		fmt.Println()
+		fmt.Println(strings.Repeat("-", 65))
+		fmt.Printf("Comments (%d):\n", len(comments))
+		fmt.Println(strings.Repeat("-", 65))
+		for _, c := range comments {
+			actor := string(c.ActorType)
+			if c.ActorID != "" {
+				actor = fmt.Sprintf("%s:%s", c.ActorType, c.ActorID)
+			}
+			fmt.Printf("\n[%s] %s\n", c.CreatedAt.Local().Format("2006-01-02 15:04"), actor)
+			// Print summary (full comment text) with word wrapping at 60 chars
+			if c.Summary != "" {
+				wrapped := wrapText(c.Summary, 60)
+				for _, line := range wrapped {
+					fmt.Printf("  %s\n", line)
+				}
+			}
+		}
+	}
+
 	if len(history) > 0 {
 		fmt.Println()
 		fmt.Println(strings.Repeat("-", 65))
 		fmt.Println("Recent History:")
 		fmt.Println(strings.Repeat("-", 65))
 		for _, h := range history {
+			// Skip comments in history since they're shown in dedicated section
+			if h.Action == models.ActionComment {
+				continue
+			}
 			actor := string(h.ActorType)
 			if h.ActorID != "" {
 				actor = fmt.Sprintf("%s:%s", h.ActorType, h.ActorID)
@@ -880,7 +914,7 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 				h.CreatedAt.Local().Format("2006-01-02 15:04"),
 				h.Action,
 				actor,
-				summary,
+				truncate(summary, 40),
 			)
 		}
 	}

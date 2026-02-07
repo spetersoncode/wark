@@ -33,7 +33,7 @@ This returns the team-lead role instructions, which guide you on how to coordina
 
 Follow the instructions from the team-lead role. The team-lead role will guide you to:
 - Check for available work (inbox, workable tickets, reviews)
-- Choose the appropriate role for each ticket (engineer, code-reviewer, architect, worker)
+- Choose the appropriate role for each ticket (software-engineer, code-reviewer, architect, worker)
 - Spawn sub-agents with the right role context
 - Monitor and coordinate ongoing work
 
@@ -51,7 +51,7 @@ wark role get <role-name>
 
 **Available built-in roles:**
 - `team-lead` — Coordinates agent orchestration (your entry point)
-- `engineer` — Implementation, debugging, production-quality code
+- `software-engineer` — Implementation, debugging, production-quality code
 - `code-reviewer` — Critical code review and quality checks
 - `architect` — System design and big-picture decisions
 - `worker` — Non-coding tasks (content, research, analysis)

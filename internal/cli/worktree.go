@@ -227,14 +227,15 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 		return ErrGeneralWithCause(err, "failed to create worktrees directory")
 	}
 
-	// Create the worktree with a new branch
-	gitCmd := exec.Command("git", "worktree", "add", worktreePath, "-b", worktreeName)
+	// Create the worktree with a new branch (with wark/ prefix)
+	branchName := "wark/" + worktreeName
+	gitCmd := exec.Command("git", "worktree", "add", worktreePath, "-b", branchName)
 	gitCmd.Dir = repoRoot
 	if output, err := gitCmd.CombinedOutput(); err != nil {
 		// Check if branch already exists
 		if strings.Contains(string(output), "already exists") {
 			// Try without -b flag (use existing branch)
-			gitCmd = exec.Command("git", "worktree", "add", worktreePath, worktreeName)
+			gitCmd = exec.Command("git", "worktree", "add", worktreePath, branchName)
 			gitCmd.Dir = repoRoot
 			if output, err := gitCmd.CombinedOutput(); err != nil {
 				return ErrGeneralWithCause(fmt.Errorf("%s", output), "failed to create worktree")
@@ -339,11 +340,12 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 
 	// Delete the branch (only if not inherited - epic handles its own branch)
 	if !inherited {
-		gitCmd = exec.Command("git", "branch", "-d", worktreeName)
+		branchName := "wark/" + worktreeName
+		gitCmd = exec.Command("git", "branch", "-d", branchName)
 		gitCmd.Dir = repoRoot
 		if _, err := gitCmd.CombinedOutput(); err != nil {
 			// Try force delete if not fully merged
-			gitCmd = exec.Command("git", "branch", "-D", worktreeName)
+			gitCmd = exec.Command("git", "branch", "-D", branchName)
 			gitCmd.Dir = repoRoot
 			if output, err := gitCmd.CombinedOutput(); err != nil {
 				VerboseOutput("Warning: failed to delete branch: %s", output)

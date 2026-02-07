@@ -484,7 +484,7 @@ func TestTicketService_GetExecutionContext(t *testing.T) {
 
 		assert.Equal(t, "fast", ctx.Capability)
 		assert.NotEmpty(t, ctx.Model)
-		assert.Equal(t, "", ctx.InstructionsSource)
+		assert.Equal(t, "", ctx.Role)
 	})
 
 	t.Run("fast capability - small complexity", func(t *testing.T) {
@@ -600,7 +600,7 @@ func TestTicketService_GetExecutionContext(t *testing.T) {
 		ctx, err := svc.GetExecutionContext(ticket.ID)
 		require.NoError(t, err)
 
-		assert.Equal(t, "role:test-engineer", ctx.InstructionsSource)
+		assert.Equal(t, "test-engineer", ctx.Role)
 		assert.Equal(t, "You are a test engineer. Write comprehensive tests.", ctx.Instructions)
 		assert.Equal(t, "standard", ctx.Capability)
 	})

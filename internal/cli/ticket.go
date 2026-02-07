@@ -1244,11 +1244,11 @@ Examples:
 }
 
 type ticketExecutionContextResult struct {
-	TicketKey          string `json:"ticket_key"`
-	Instructions       string `json:"instructions"`
-	InstructionsSource string `json:"instructions_source"`
-	Model              string `json:"model"`
-	Capability         string `json:"capability"`
+	TicketKey    string `json:"ticket_key"`
+	Instructions string `json:"instructions"`
+	Role         string `json:"role,omitempty"`
+	Model        string `json:"model"`
+	Capability   string `json:"capability"`
 }
 
 func runTicketExecutionContext(cmd *cobra.Command, args []string) error {
@@ -1272,11 +1272,11 @@ func runTicketExecutionContext(cmd *cobra.Command, args []string) error {
 
 	if IsJSON() {
 		result := ticketExecutionContextResult{
-			TicketKey:          ticket.TicketKey,
-			Instructions:       ctx.Instructions,
-			InstructionsSource: ctx.InstructionsSource,
-			Model:              ctx.Model,
-			Capability:         ctx.Capability,
+			TicketKey:    ticket.TicketKey,
+			Instructions: ctx.Instructions,
+			Role:         ctx.Role,
+			Model:        ctx.Model,
+			Capability:   ctx.Capability,
 		}
 		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))
@@ -1291,7 +1291,9 @@ func runTicketExecutionContext(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Complexity:   %s\n", ticket.Complexity)
 	fmt.Printf("Capability:   %s\n", ctx.Capability)
 	fmt.Printf("Model:        %s\n", ctx.Model)
-	fmt.Printf("Source:       %s\n", ctx.InstructionsSource)
+	if ctx.Role != "" {
+		fmt.Printf("Role:         %s\n", ctx.Role)
+	}
 	fmt.Println()
 
 	if ctx.Instructions != "" {

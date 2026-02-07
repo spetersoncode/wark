@@ -936,11 +936,10 @@ func (s *TicketService) GetExecutionInstructions(ticketID int64) (instructions s
 
 // ExecutionContext contains all information needed to execute work on a ticket.
 type ExecutionContext struct {
-	Instructions       string `json:"instructions"`
-	InstructionsSource string `json:"instructions_source"`
-	Model              string `json:"model"`
-	Capability         string `json:"capability"`
-	RoleName           string `json:"role_name,omitempty"`
+	Instructions string `json:"instructions"`
+	Role         string `json:"role,omitempty"`
+	Model        string `json:"model"`
+	Capability   string `json:"capability"`
 }
 
 // GetExecutionContext returns the full execution context for a ticket.
@@ -999,8 +998,7 @@ func (s *TicketService) GetExecutionContext(ticketID int64) (*ExecutionContext, 
 		}
 		if role != nil {
 			ctx.Instructions = role.Instructions
-			ctx.InstructionsSource = "role:" + role.Name
-			ctx.RoleName = role.Name
+			ctx.Role = role.Name
 		}
 	}
 

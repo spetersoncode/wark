@@ -212,6 +212,7 @@ wark ticket create <PROJECT> --title "<title>" [options]
 | `--complexity` | `-c` | Complexity estimate | `medium` |
 | `--depends-on` | | Ticket IDs this depends on | |
 | `--parent` | | Parent ticket ID | |
+| `--brain` | | Brain/model to use for this ticket | |
 
 **Priority values:** `highest`, `high`, `medium`, `low`, `lowest`
 **Complexity values:** `trivial`, `small`, `medium`, `large`, `xlarge`
@@ -233,6 +234,16 @@ wark ticket create WEBAPP \
 wark ticket create WEBAPP \
   --title "Set up OAuth callback routes" \
   --parent WEBAPP-15
+
+# Ticket with brain setting
+wark ticket create WEBAPP \
+  --title "Implement feature" \
+  --brain sonnet
+
+# Ticket with brain command
+wark ticket create WEBAPP \
+  --title "Debug issue" \
+  --brain "claude-code --skip-perms"
 ```
 
 **Output:**

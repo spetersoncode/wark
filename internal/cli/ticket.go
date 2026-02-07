@@ -35,6 +35,7 @@ var (
 	ticketClearMilestone bool
 	ticketCommentMessage string
 	ticketCommentWorker  string
+	ticketBrain          string
 )
 
 func init() {
@@ -48,6 +49,7 @@ func init() {
 	ticketCreateCmd.Flags().StringVar(&ticketParent, "parent", "", "Parent ticket ID")
 	ticketCreateCmd.Flags().StringVar(&ticketEpic, "epic", "", "Epic ticket ID (alternative to --parent for clearer semantics)")
 	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
+	ticketCreateCmd.Flags().StringVar(&ticketBrain, "brain", "", "Brain/model to use for this ticket (e.g., 'sonnet', 'claude-code --skip-perms')")
 	ticketCreateCmd.MarkFlagRequired("title")
 
 	// ticket list
@@ -205,7 +207,9 @@ Examples:
   wark ticket create WEBAPP -t "Implement OAuth2" -d "Support Google/GitHub OAuth" -p high -c large
   wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15
   wark ticket create WEBAPP -t "Add login form" --epic WEBAPP-15
-  wark ticket create WEBAPP -t "Add login" --milestone MVP`,
+  wark ticket create WEBAPP -t "Add login" --milestone MVP
+  wark ticket create WEBAPP -t "Implement feature" --brain sonnet
+  wark ticket create WEBAPP -t "Debug issue" --brain "claude-code --skip-perms"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketCreate,
 }
@@ -273,6 +277,11 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Complexity:  complexity,
 		Type:        tType,
 		Status:      models.StatusReady, // May change to blocked if deps added
+	}
+
+	// Set brain if provided
+	if ticketBrain != "" {
+		ticket.Brain = &ticketBrain
 	}
 
 	// Handle parent ticket (--parent or --epic)

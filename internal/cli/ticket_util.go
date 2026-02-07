@@ -26,7 +26,6 @@ var (
 func init() {
 	// ticket next
 	ticketNextCmd.Flags().StringVarP(&ticketProject, "project", "p", "", "Limit to project")
-	ticketNextCmd.Flags().StringVar(&claimWorkerID, "worker-id", "", "Worker identifier")
 	ticketNextCmd.Flags().BoolVar(&nextDryRun, "dry-run", false, "Show ticket without claiming")
 	ticketNextCmd.Flags().StringVar(&nextComplexity, "complexity", "large", "Max complexity to accept")
 
@@ -160,19 +159,10 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Get worker ID (required for claiming)
-	workerID := claimWorkerID
-	if workerID == "" {
-		workerID = GetDefaultWorkerID()
-	}
-	if workerID == "" {
-		return ErrInvalidArgs("--worker-id is required to claim tickets")
-	}
-
 	// Create claim using config duration
 	durationMins := GetDefaultClaimDuration()
 	duration := time.Duration(durationMins) * time.Minute
-	claim := models.NewClaim(nextTicket.ID, workerID, duration)
+	claim := models.NewClaim(nextTicket.ID, duration)
 	if err := claimRepo.Create(claim); err != nil {
 		return fmt.Errorf("failed to create claim: %w", err)
 	}
@@ -187,10 +177,10 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 
 	// Log activity
 	activityRepo := db.NewActivityRepo(database.DB)
-	activityRepo.LogActionWithDetails(nextTicket.ID, models.ActionClaimed, models.ActorTypeAgent, workerID,
+	activityRepo.LogActionWithDetails(nextTicket.ID, models.ActionClaimed, models.ActorTypeAgent, claim.ClaimID,
 		"Claimed via 'ticket next'",
 		map[string]interface{}{
-			"worker_id":     workerID,
+			"claim_id":      claim.ClaimID,
 			"duration_mins": durationMins,
 			"expires_at":    claim.ExpiresAt.Format(time.RFC3339),
 		})
@@ -214,7 +204,7 @@ func runTicketNext(cmd *cobra.Command, args []string) error {
 
 	OutputLine("Claimed: %s", nextTicket.TicketKey)
 	OutputLine("Title: %s", nextTicket.Title)
-	OutputLine("Worker: %s", workerID)
+	OutputLine("Claim ID: %s", claim.ClaimID)
 	OutputLine("Expires: %s (%d minutes)", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), durationMins)
 	OutputLine("Worktree: %s", worktreeName)
 	OutputLine("")

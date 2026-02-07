@@ -97,11 +97,11 @@ func newTicketError(code, message string, details map[string]interface{}) *Ticke
 	return &TicketError{Code: code, Message: message, Details: details}
 }
 
-// Claim acquires a time-limited claim on a ticket for the specified worker.
+// Claim acquires a time-limited claim on a ticket.
 // The ticket must be in ready or review status. Review claims don't change ticket status.
 // Epics cannot be claimed directly - work through child tasks instead.
 // Returns ClaimResult with ticket, claim, worktree name, and task info.
-func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Duration) (*ClaimResult, error) {
+func (s *TicketService) Claim(ticketID int64, duration time.Duration) (*ClaimResult, error) {
 	ticket, err := s.ticketRepo.GetByID(ticketID)
 	if err != nil {
 		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
@@ -157,8 +157,8 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 		}
 	}
 
-	// Create claim
-	claim := models.NewClaim(ticket.ID, workerID, duration)
+	// Create claim (generates claim ID internally)
+	claim := models.NewClaim(ticket.ID, duration)
 	if err := s.claimRepo.Create(claim); err != nil {
 		// Handle race condition: another agent claimed between check and insert
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
@@ -187,10 +187,10 @@ func (s *TicketService) Claim(ticketID int64, workerID string, duration time.Dur
 		toStatus = string(models.StatusReview)
 	}
 	durationMins := int(duration.Minutes())
-	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionClaimed, models.ActorTypeAgent, workerID,
+	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionClaimed, models.ActorTypeAgent, claim.ClaimID,
 		fmt.Sprintf("%s (expires in %dm)", claimType, durationMins),
 		map[string]interface{}{
-			"worker_id":     workerID,
+			"claim_id":      claim.ClaimID,
 			"duration_mins": durationMins,
 			"expires_at":    claim.ExpiresAt.Format(time.RFC3339),
 			"review_claim":  isReviewClaim,
@@ -812,8 +812,8 @@ func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Du
 			map[string]interface{}{"worker_id": existingClaim.WorkerID})
 	}
 
-	// Create claim
-	claim := models.NewClaim(ticket.ID, workerID, duration)
+	// Create claim (generates claim ID internally)
+	claim := models.NewClaim(ticket.ID, duration)
 	if err := s.claimRepo.Create(claim); err != nil {
 		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to create claim: %v", err), nil)
 	}
@@ -831,10 +831,10 @@ func (s *TicketService) Resume(ticketID int64, workerID string, duration time.Du
 
 	// Log activity with state transition details
 	durationMins := int(duration.Minutes())
-	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionHumanResponded, models.ActorTypeAgent, workerID,
+	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionHumanResponded, models.ActorTypeAgent, claim.ClaimID,
 		fmt.Sprintf("Resumed work (expires in %dm)", durationMins),
 		map[string]interface{}{
-			"worker_id":            workerID,
+			"claim_id":             claim.ClaimID,
 			"duration_mins":        durationMins,
 			"expires_at":           claim.ExpiresAt.Format(time.RFC3339),
 			"previous_flag_reason": previousReason,

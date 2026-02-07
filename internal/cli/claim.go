@@ -111,7 +111,7 @@ func runClaimList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table format
-	fmt.Printf("%-12s %-20s %-20s %s\n", "TICKET", "WORKER", "EXPIRES", "REMAINING")
+	fmt.Printf("%-12s %-20s %-20s %s\n", "TICKET", "CLAIM ID", "EXPIRES", "REMAINING")
 	fmt.Println(strings.Repeat("-", 70))
 	for _, c := range claims {
 		remaining := formatDuration(c.MinutesRemaining)
@@ -120,7 +120,7 @@ func runClaimList(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("%-12s %-20s %-20s %s\n",
 			c.TicketKey,
-			truncate(c.WorkerID, 20),
+			truncate(c.ClaimID, 20),
 			c.ExpiresAt.Local().Format("2006-01-02 15:04:05"),
 			remaining,
 		)
@@ -190,7 +190,7 @@ func runClaimShow(cmd *cobra.Command, args []string) error {
 	fmt.Println(strings.Repeat("=", 65))
 	fmt.Println()
 	fmt.Printf("Ticket:     %s - %s\n", ticket.TicketKey, ticket.Title)
-	fmt.Printf("Worker:     %s\n", claim.WorkerID)
+	fmt.Printf("Claim ID:   %s\n", claim.ClaimID)
 	fmt.Printf("Status:     %s\n", claim.Status)
 	fmt.Printf("Claimed:    %s\n", claim.ClaimedAt.Local().Format("2006-01-02 15:04:05"))
 	fmt.Printf("Expires:    %s\n", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"))
@@ -214,7 +214,7 @@ func runClaimShow(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  %s  %-10s  %s\n",
 				c.ClaimedAt.Local().Format("2006-01-02 15:04"),
 				status,
-				c.WorkerID,
+				c.ClaimID,
 			)
 		}
 	}

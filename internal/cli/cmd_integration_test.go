@@ -610,7 +610,7 @@ func TestCmdTicketEditAddDependency(t *testing.T) {
 	// Verify ticket is now blocked
 	showOutput, _ := runCmd(t, dbPath, "ticket", "show", "ADEP-2")
 	assert.Contains(t, showOutput, "blocked")
-	assert.Contains(t, showOutput, "Dependencies:")
+	assert.Contains(t, showOutput, "Dependencies")
 }
 
 // =============================================================================

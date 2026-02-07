@@ -35,7 +35,6 @@ const NAV_ITEMS = [
 
 function App() {
 	const location = useLocation();
-	const isTicketDetail = location.pathname.startsWith("/tickets/");
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
 	// Close mobile nav on route change

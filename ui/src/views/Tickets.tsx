@@ -456,8 +456,6 @@ export default function Tickets() {
 									<SortHeader field="project" className="w-32">
 										Project
 									</SortHeader>
-										Milestone
-									</SortHeader>
 									<SortHeader field="status" className="w-32">
 										Status
 									</SortHeader>
@@ -510,9 +508,6 @@ export default function Tickets() {
 											<span className="text-sm text-muted-foreground">
 												{projectMap.get(ticket.project_key) || ticket.project_key}
 											</span>
-										</TableCell>
-										<TableCell className="py-4">
-											)}
 										</TableCell>
 										<TableCell className="py-4">
 											<StatusBadge status={ticket.status} />

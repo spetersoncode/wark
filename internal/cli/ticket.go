@@ -51,7 +51,7 @@ func init() {
 	ticketCreateCmd.Flags().StringVar(&ticketEpic, "epic", "", "Epic ticket ID (alternative to --parent for clearer semantics)")
 	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
 	ticketCreateCmd.Flags().StringVar(&ticketBrain, "brain", "", "Brain/model to use for this ticket (e.g., 'sonnet', 'claude-code --skip-perms')")
-	ticketCreateCmd.Flags().StringVar(&ticketRole, "role", "", "Role to use for this ticket (e.g., 'software-engineer', 'code-reviewer', 'architect')")
+	ticketCreateCmd.Flags().StringVar(&ticketRole, "role", "", "Role to use for this ticket (e.g., 'software-engineer', 'code-reviewer', 'worker')")
 	ticketCreateCmd.MarkFlagRequired("title")
 
 	// ticket list
@@ -212,7 +212,7 @@ Examples:
   wark ticket create WEBAPP -t "Add login" --milestone MVP
   wark ticket create WEBAPP -t "Implement feature" --role software-engineer
   wark ticket create WEBAPP -t "Debug issue" --brain "claude-code --skip-perms"
-  wark ticket create WEBAPP -t "Complex feature" --role architect --brain sonnet`,
+  wark ticket create WEBAPP -t "Complex feature" --role software-engineer --brain sonnet`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketCreate,
 }

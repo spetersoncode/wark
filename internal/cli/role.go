@@ -75,7 +75,7 @@ func runRoleCreate(cmd *cobra.Command, args []string) error {
 	// Validate role name format
 	if err := models.ValidateRoleName(roleName); err != nil {
 		return ErrInvalidArgsWithSuggestion(
-			"Role names must be 2-50 lowercase alphanumeric characters with hyphens, starting with a letter (e.g., software-engineer, code-reviewer, architect).",
+			"Role names must be 2-50 lowercase alphanumeric characters with hyphens, starting with a letter (e.g., software-engineer, code-reviewer, worker).",
 			"invalid role name: %s", err,
 		)
 	}

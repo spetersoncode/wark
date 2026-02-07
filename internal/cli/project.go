@@ -444,3 +444,29 @@ func truncate(s string, maxLen int) string {
 	}
 	return s[:maxLen-3] + "..."
 }
+
+// wrapText wraps text at the specified width, returning a slice of lines
+func wrapText(s string, width int) []string {
+	if len(s) <= width {
+		return []string{s}
+	}
+
+	var lines []string
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return []string{s}
+	}
+
+	currentLine := words[0]
+	for _, word := range words[1:] {
+		if len(currentLine)+1+len(word) <= width {
+			currentLine += " " + word
+		} else {
+			lines = append(lines, currentLine)
+			currentLine = word
+		}
+	}
+	lines = append(lines, currentLine)
+
+	return lines
+}

@@ -181,6 +181,13 @@ var validTransitions = []TransitionRule{
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Human responded, ticket ready for reevaluation",
 	},
+	// human → backlog (human says "do this later")
+	{
+		From:         models.StatusHuman,
+		To:           models.StatusBacklog,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Human deprioritized ticket to backlog",
+	},
 	// human → closed (human resolves)
 	{
 		From:         models.StatusHuman,
@@ -435,6 +442,9 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 	case models.StatusBacklog:
 		if from == models.StatusClosed {
 			return models.ActionReopened
+		}
+		if from == models.StatusHuman {
+			return models.ActionFieldChanged // Human deprioritized
 		}
 		return models.ActionFieldChanged
 	case models.StatusReady:

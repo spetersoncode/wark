@@ -820,6 +820,49 @@ func (s *TicketService) Resume(ticketID int64) error {
 	return nil
 }
 
+// Deprioritize moves a ticket from human to backlog status.
+// This is used when a human decides the ticket should be done later.
+func (s *TicketService) Deprioritize(ticketID int64) error {
+	ticket, err := s.ticketRepo.GetByID(ticketID)
+	if err != nil {
+		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
+	}
+	if ticket == nil {
+		return newTicketError(ErrCodeNotFound, "ticket not found", nil)
+	}
+
+	// Check if ticket is in human status
+	if ticket.Status != models.StatusHuman {
+		return newTicketError(ErrCodeInvalidState,
+			fmt.Sprintf("ticket must be in human status to deprioritize (current: %s)", ticket.Status),
+			map[string]interface{}{"current_status": ticket.Status})
+	}
+
+	// Validate state machine transition
+	if err := s.stateMachine.CanTransition(ticket, models.StatusBacklog, state.TransitionTypeManual, "", nil); err != nil {
+		return newTicketError(ErrCodeInvalidState, fmt.Sprintf("cannot deprioritize ticket: %v", err), nil)
+	}
+
+	// Update ticket status
+	previousReason := ticket.HumanFlagReason
+	ticket.Status = models.StatusBacklog
+	ticket.HumanFlagReason = "" // Clear the flag reason
+	if err := s.ticketRepo.Update(ticket); err != nil {
+		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket status: %v", err), nil)
+	}
+
+	// Log activity with state transition details
+	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionFieldChanged, models.ActorTypeHuman, "",
+		"Human deprioritized ticket to backlog",
+		map[string]interface{}{
+			"previous_flag_reason": previousReason,
+			"from_status":          string(models.StatusHuman),
+			"to_status":            string(models.StatusBacklog),
+		})
+
+	return nil
+}
+
 // GenerateWorktreeName generates a git worktree name for a ticket.
 // This is exported for use by CLI when displaying worktree info.
 func GenerateWorktreeName(projectKey string, number int, title string) string {

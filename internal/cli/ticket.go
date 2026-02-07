@@ -1037,7 +1037,7 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 
 	// Auto-transition status based on dependency changes
 	// State machine rules:
-	// - ON dep added to ready ticket: if dep not closed(completed) → blocked
+	// - ON dep added: if dep not closed(completed) → blocked
 	// - ON dep removed from blocked ticket: if all deps done → ready
 	if len(ticketAddDep) > 0 || len(ticketRemoveDep) > 0 {
 		ticketRepo := db.NewTicketRepo(database.DB)
@@ -1046,12 +1046,18 @@ func runTicketEdit(cmd *cobra.Command, args []string) error {
 
 		hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
 		if err == nil {
-			if hasUnresolved && ticket.Status == models.StatusReady {
-				// Block ticket
+			if hasUnresolved && ticket.Status != models.StatusBlocked && ticket.Status != models.StatusClosed {
+				// Block ticket (any non-blocked, non-closed status goes to blocked)
+				oldStatus := ticket.Status
 				ticket.Status = models.StatusBlocked
 				if err := ticketRepo.Update(ticket); err == nil {
-					activityRepo.LogAction(ticket.ID, models.ActionBlocked, models.ActorTypeSystem, "",
-						"Blocked by unresolved dependencies")
+					activityRepo.LogActionWithDetails(ticket.ID, models.ActionBlocked, models.ActorTypeSystem, "",
+						fmt.Sprintf("Blocked: %s → blocked (new dependency)", oldStatus),
+						map[string]interface{}{
+							"from_status": string(oldStatus),
+							"to_status":   "blocked",
+							"reason":      "new dependency added",
+						})
 				}
 			} else if !hasUnresolved && ticket.Status == models.StatusBlocked {
 				// Unblock ticket

@@ -36,6 +36,7 @@ func init() {
 	ticketCmd.AddCommand(ticketCloseCmd)
 	ticketCmd.AddCommand(ticketReopenCmd)
 	ticketCmd.AddCommand(ticketResumeCmd)
+	ticketCmd.AddCommand(ticketLaterCmd)
 }
 
 // ticket start (backlog -> ready)
@@ -450,6 +451,62 @@ func runTicketResume(cmd *cobra.Command, args []string) error {
 
 	OutputLine("Resumed: %s", updatedTicket.TicketKey)
 	OutputLine("Status: %s (ready for claiming)", updatedTicket.Status)
+
+	return nil
+}
+
+// ticket later (human -> backlog)
+var ticketLaterCmd = &cobra.Command{
+	Use:   "later <TICKET>",
+	Short: "Deprioritize a ticket to backlog (human -> backlog)",
+	Long: `Move a ticket from human status back to backlog.
+
+This command is used when a human has responded but the ticket should
+be deprioritized and done later rather than now.
+
+Example:
+  wark ticket later WEBAPP-42`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketLater,
+}
+
+func runTicketLater(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	// Use service layer for deprioritize operation
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Deprioritize(ticket.ID); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
+	}
+
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
+		updatedTicket.Status = models.StatusBacklog
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(map[string]interface{}{
+			"ticket":       updatedTicket.TicketKey,
+			"status":       updatedTicket.Status,
+			"deprioritized": true,
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Deprioritized: %s", updatedTicket.TicketKey)
+	OutputLine("Status: %s (do this later)", updatedTicket.Status)
 
 	return nil
 }

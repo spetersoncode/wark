@@ -144,6 +144,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
+	// Seed default built-in roles
+	VerboseOutput("Seeding default roles...\n")
+	if err := db.SeedDefaultRoles(database.DB); err != nil {
+		return fmt.Errorf("failed to seed default roles: %w", err)
+	}
+
 	// Get schema version
 	version, err := database.MigrationStatus()
 	if err != nil {

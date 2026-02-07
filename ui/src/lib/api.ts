@@ -64,7 +64,7 @@ export interface ProjectWithStats extends Project {
 	stats: ProjectStats;
 }
 
-export type TicketStatus = "blocked" | "ready" | "working" | "human" | "review" | "closed";
+export type TicketStatus = "backlog" | "blocked" | "ready" | "working" | "human" | "review" | "reviewing" | "closed";
 
 export type TicketPriority = "highest" | "high" | "medium" | "low" | "lowest";
 

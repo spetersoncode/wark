@@ -1,9 +1,9 @@
-import { CircleCheck, CircleDot, CircleMinus, CircleX, Eye, UserRound } from "lucide-react";
+import { CircleCheck, CircleDot, CircleMinus, CircleX, Eye, UserRound, ClipboardList, Search } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type Status = "ready" | "working" | "human" | "review" | "blocked" | "closed";
+export type Status = "backlog" | "ready" | "working" | "human" | "review" | "reviewing" | "blocked" | "closed";
 
 const statusConfig: Record<
 	Status,
@@ -15,6 +15,13 @@ const statusConfig: Record<
 		borderClass: string;
 	}
 > = {
+	backlog: {
+		icon: ClipboardList,
+		label: "Backlog",
+		textClass: "text-muted-foreground",
+		bgClass: "bg-muted/10",
+		borderClass: "border-muted",
+	},
 	ready: {
 		icon: CircleCheck,
 		label: "Ready",
@@ -28,6 +35,13 @@ const statusConfig: Record<
 		textClass: "text-status-in-progress",
 		bgClass: "bg-status-in-progress/10",
 		borderClass: "border-status-in-progress",
+	},
+	reviewing: {
+		icon: Search,
+		label: "Reviewing",
+		textClass: "text-status-review",
+		bgClass: "bg-status-review/10",
+		borderClass: "border-status-review",
 	},
 	human: {
 		icon: UserRound,

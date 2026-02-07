@@ -43,11 +43,13 @@ type SortDirection = "asc" | "desc";
 
 const STATUS_ORDER: Record<TicketStatus, number> = {
 	working: 0,
-	review: 1,
-	human: 2,
-	ready: 3,
-	blocked: 4,
-	closed: 5,
+	reviewing: 1,
+	review: 2,
+	human: 3,
+	ready: 4,
+	blocked: 5,
+	backlog: 6,
+	closed: 7,
 };
 
 const PRIORITY_ORDER: Record<TicketPriority, number> = {
@@ -67,11 +69,13 @@ const COMPLEXITY_ORDER: Record<TicketComplexity, number> = {
 };
 
 const STATUSES: { value: TicketStatus; label: string }[] = [
+	{ value: "backlog", label: "Backlog" },
 	{ value: "blocked", label: "Blocked" },
 	{ value: "ready", label: "Ready" },
 	{ value: "working", label: "In Progress" },
 	{ value: "human", label: "Human" },
 	{ value: "review", label: "Review" },
+	{ value: "reviewing", label: "Reviewing" },
 	{ value: "closed", label: "Closed" },
 ];
 

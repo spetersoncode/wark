@@ -67,7 +67,7 @@ func (c *Claim) TimeRemaining() time.Duration {
 func generateClaimID() string {
 	b := make([]byte, 4)
 	rand.Read(b)
-	return "claim_" + hex.EncodeToString(b)
+	return hex.EncodeToString(b)
 }
 
 // NewClaim creates a new claim for a ticket with the specified duration.

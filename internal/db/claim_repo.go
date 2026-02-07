@@ -24,10 +24,10 @@ func (r *ClaimRepo) Create(c *models.Claim) error {
 	}
 
 	query := `
-		INSERT INTO claims (ticket_id, worker_id, claimed_at, expires_at, status)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO claims (claim_id, ticket_id, worker_id, claimed_at, expires_at, status)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	result, err := r.db.Exec(query, c.TicketID, c.WorkerID, FormatTime(c.ClaimedAt), FormatTime(c.ExpiresAt), c.Status)
+	result, err := r.db.Exec(query, c.ClaimID, c.TicketID, c.WorkerID, FormatTime(c.ClaimedAt), FormatTime(c.ExpiresAt), c.Status)
 	if err != nil {
 		return fmt.Errorf("failed to create claim: %w", err)
 	}
@@ -44,7 +44,7 @@ func (r *ClaimRepo) Create(c *models.Claim) error {
 // GetByID retrieves a claim by ID.
 func (r *ClaimRepo) GetByID(id int64) (*models.Claim, error) {
 	query := `
-		SELECT c.id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
+		SELECT c.id, c.claim_id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
 			c.released_at, c.status, t.title AS ticket_title,
 			p.key || '-' || t.number AS ticket_key
 		FROM claims c
@@ -55,10 +55,24 @@ func (r *ClaimRepo) GetByID(id int64) (*models.Claim, error) {
 	return r.scanOne(r.db.QueryRow(query, id))
 }
 
+// GetByClaimID retrieves a claim by its external claim ID.
+func (r *ClaimRepo) GetByClaimID(claimID string) (*models.Claim, error) {
+	query := `
+		SELECT c.id, c.claim_id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
+			c.released_at, c.status, t.title AS ticket_title,
+			p.key || '-' || t.number AS ticket_key
+		FROM claims c
+		JOIN tickets t ON c.ticket_id = t.id
+		JOIN projects p ON t.project_id = p.id
+		WHERE c.claim_id = ?
+	`
+	return r.scanOne(r.db.QueryRow(query, claimID))
+}
+
 // GetActiveByTicketID retrieves the active claim for a ticket.
 func (r *ClaimRepo) GetActiveByTicketID(ticketID int64) (*models.Claim, error) {
 	query := `
-		SELECT c.id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
+		SELECT c.id, c.claim_id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
 			c.released_at, c.status, t.title AS ticket_title,
 			p.key || '-' || t.number AS ticket_key
 		FROM claims c
@@ -70,9 +84,10 @@ func (r *ClaimRepo) GetActiveByTicketID(ticketID int64) (*models.Claim, error) {
 }
 
 // GetActiveByWorkerID retrieves all active claims for a worker.
+// Deprecated: Use claim-based tracking instead of worker-based tracking.
 func (r *ClaimRepo) GetActiveByWorkerID(workerID string) ([]*models.Claim, error) {
 	query := `
-		SELECT c.id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
+		SELECT c.id, c.claim_id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
 			c.released_at, c.status, t.title AS ticket_title,
 			p.key || '-' || t.number AS ticket_key
 		FROM claims c
@@ -93,7 +108,7 @@ func (r *ClaimRepo) GetActiveByWorkerID(workerID string) ([]*models.Claim, error
 // ListActive retrieves all active claims.
 func (r *ClaimRepo) ListActive() ([]*models.Claim, error) {
 	query := `
-		SELECT c.id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
+		SELECT c.id, c.claim_id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
 			c.released_at, c.status, t.title AS ticket_title,
 			p.key || '-' || t.number AS ticket_key,
 			CAST((julianday(c.expires_at) - julianday('now')) * 24 * 60 AS INTEGER) AS minutes_remaining
@@ -115,7 +130,7 @@ func (r *ClaimRepo) ListActive() ([]*models.Claim, error) {
 // ListExpired retrieves all expired claims that are still marked as active.
 func (r *ClaimRepo) ListExpired() ([]*models.Claim, error) {
 	query := `
-		SELECT c.id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
+		SELECT c.id, c.claim_id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
 			c.released_at, c.status, t.title AS ticket_title,
 			p.key || '-' || t.number AS ticket_key
 		FROM claims c
@@ -136,7 +151,7 @@ func (r *ClaimRepo) ListExpired() ([]*models.Claim, error) {
 // ListByTicketID retrieves all claims for a ticket.
 func (r *ClaimRepo) ListByTicketID(ticketID int64) ([]*models.Claim, error) {
 	query := `
-		SELECT c.id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
+		SELECT c.id, c.claim_id, c.ticket_id, c.worker_id, c.claimed_at, c.expires_at,
 			c.released_at, c.status, t.title AS ticket_title,
 			p.key || '-' || t.number AS ticket_key
 		FROM claims c
@@ -205,7 +220,7 @@ func (r *ClaimRepo) scanOne(row *sql.Row) (*models.Claim, error) {
 	var ticketTitle, ticketKey sql.NullString
 
 	err := row.Scan(
-		&c.ID, &c.TicketID, &c.WorkerID, &c.ClaimedAt, &c.ExpiresAt,
+		&c.ID, &c.ClaimID, &c.TicketID, &c.WorkerID, &c.ClaimedAt, &c.ExpiresAt,
 		&releasedAt, &c.Status, &ticketTitle, &ticketKey,
 	)
 	if err == sql.ErrNoRows {
@@ -231,7 +246,7 @@ func (r *ClaimRepo) scanMany(rows *sql.Rows) ([]*models.Claim, error) {
 		var ticketTitle, ticketKey sql.NullString
 
 		err := rows.Scan(
-			&c.ID, &c.TicketID, &c.WorkerID, &c.ClaimedAt, &c.ExpiresAt,
+			&c.ID, &c.ClaimID, &c.TicketID, &c.WorkerID, &c.ClaimedAt, &c.ExpiresAt,
 			&releasedAt, &c.Status, &ticketTitle, &ticketKey,
 		)
 		if err != nil {
@@ -260,7 +275,7 @@ func (r *ClaimRepo) scanManyWithMinutes(rows *sql.Rows) ([]*models.Claim, error)
 		var minutesRemaining sql.NullInt64
 
 		err := rows.Scan(
-			&c.ID, &c.TicketID, &c.WorkerID, &c.ClaimedAt, &c.ExpiresAt,
+			&c.ID, &c.ClaimID, &c.TicketID, &c.WorkerID, &c.ClaimedAt, &c.ExpiresAt,
 			&releasedAt, &c.Status, &ticketTitle, &ticketKey, &minutesRemaining,
 		)
 		if err != nil {

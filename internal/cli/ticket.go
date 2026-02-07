@@ -767,7 +767,7 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 		fmt.Println(strings.Repeat("-", 65))
 		fmt.Println("Current Claim:")
 		fmt.Println(strings.Repeat("-", 65))
-		fmt.Printf("Worker ID:   %s\n", claim.WorkerID)
+		fmt.Printf("Claim ID:    %s\n", claim.ClaimID)
 		fmt.Printf("Claimed At:  %s\n", claim.ClaimedAt.Local().Format("2006-01-02 15:04:05"))
 		fmt.Printf("Expires At:  %s\n", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"))
 		remaining := claim.TimeRemaining()

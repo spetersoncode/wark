@@ -1,6 +1,8 @@
 package models
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -8,8 +10,9 @@ import (
 // Claim represents an agent's claim on a ticket.
 type Claim struct {
 	ID         int64       `json:"id"`
+	ClaimID    string      `json:"claim_id"`            // External identifier (e.g., "claim_abc123")
 	TicketID   int64       `json:"ticket_id"`
-	WorkerID   string      `json:"worker_id"`
+	WorkerID   string      `json:"worker_id,omitempty"` // Deprecated: kept for backward compatibility
 	ClaimedAt  time.Time   `json:"claimed_at"`
 	ExpiresAt  time.Time   `json:"expires_at"`
 	ReleasedAt *time.Time  `json:"released_at,omitempty"`
@@ -26,8 +29,8 @@ func (c *Claim) Validate() error {
 	if c.TicketID <= 0 {
 		return fmt.Errorf("ticket_id is required")
 	}
-	if c.WorkerID == "" {
-		return fmt.Errorf("worker_id cannot be empty")
+	if c.ClaimID == "" {
+		return fmt.Errorf("claim_id cannot be empty")
 	}
 	if c.ExpiresAt.IsZero() {
 		return fmt.Errorf("expires_at is required")
@@ -60,15 +63,30 @@ func (c *Claim) TimeRemaining() time.Duration {
 	return remaining
 }
 
+// generateClaimID generates a unique claim identifier.
+func generateClaimID() string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return "claim_" + hex.EncodeToString(b)
+}
+
 // NewClaim creates a new claim for a ticket with the specified duration.
-// Callers must provide a valid positive duration.
-func NewClaim(ticketID int64, workerID string, duration time.Duration) *Claim {
+// Generates a unique claim ID internally.
+func NewClaim(ticketID int64, duration time.Duration) *Claim {
 	now := time.Now()
 	return &Claim{
+		ClaimID:   generateClaimID(),
 		TicketID:  ticketID,
-		WorkerID:  workerID,
 		ClaimedAt: now,
 		ExpiresAt: now.Add(duration),
 		Status:    ClaimStatusActive,
 	}
+}
+
+// NewClaimWithWorker creates a new claim with an optional worker ID for backward compatibility.
+// Deprecated: Use NewClaim instead.
+func NewClaimWithWorker(ticketID int64, workerID string, duration time.Duration) *Claim {
+	claim := NewClaim(ticketID, duration)
+	claim.WorkerID = workerID
+	return claim
 }

@@ -37,9 +37,7 @@ type claimResult struct {
 
 func init() {
 	// ticket claim
-	ticketClaimCmd.Flags().StringVar(&claimWorkerID, "worker-id", "", "Worker identifier (required)")
 	ticketClaimCmd.Flags().IntVar(&claimDuration, "duration", 60, "Claim duration in minutes")
-	ticketClaimCmd.MarkFlagRequired("worker-id")
 
 	// ticket release
 	ticketReleaseCmd.Flags().StringVar(&releaseReason, "reason", "", "Reason for release (logged)")
@@ -84,15 +82,6 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 		return err // Already wrapped with proper error type
 	}
 
-	// Get worker ID (required flag, but check config default as fallback)
-	workerID := claimWorkerID
-	if workerID == "" {
-		workerID = GetDefaultWorkerID()
-	}
-	if workerID == "" {
-		return ErrInvalidArgs("--worker-id is required")
-	}
-
 	// Get duration - use flag if changed from default, otherwise check config
 	duration := time.Duration(claimDuration) * time.Minute
 	if !cmd.Flags().Changed("duration") {
@@ -101,7 +90,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 
 	// Use service layer for claim operation
 	ticketSvc := service.NewTicketService(database.DB)
-	result, err := ticketSvc.Claim(ticket.ID, workerID, duration)
+	result, err := ticketSvc.Claim(ticket.ID, duration)
 	if err != nil {
 		return translateServiceError(err, ticket.TicketKey)
 	}
@@ -122,7 +111,7 @@ func runTicketClaim(cmd *cobra.Command, args []string) error {
 	}
 
 	OutputLine("Claimed: %s", result.Ticket.TicketKey)
-	OutputLine("Worker: %s", workerID)
+	OutputLine("Claim ID: %s", result.Claim.ClaimID)
 	OutputLine("Expires: %s (%d minutes)", result.Claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"), claimDuration)
 	OutputLine("Worktree: %s", result.Branch)
 

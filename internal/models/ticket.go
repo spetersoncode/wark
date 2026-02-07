@@ -33,6 +33,9 @@ type Ticket struct {
 	// Brain (freeform guidance for execution harness)
 	Brain *string `json:"brain,omitempty"`
 
+	// Role (reference to a role for execution context)
+	RoleID *int64 `json:"role_id,omitempty"`
+
 	// Retry tracking
 	RetryCount int `json:"retry_count"`
 	MaxRetries int `json:"max_retries"`
@@ -52,6 +55,7 @@ type Ticket struct {
 	ProjectKey   string `json:"project_key,omitempty"`
 	TicketKey    string `json:"ticket_key,omitempty"`
 	MilestoneKey string `json:"milestone_key,omitempty"`
+	RoleName     string `json:"role_name,omitempty"`
 }
 
 // Key returns the ticket key in the format PROJECT-NUMBER.

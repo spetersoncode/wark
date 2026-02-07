@@ -902,3 +902,42 @@ func (s *TicketService) GetTicketByID(ticketID int64) (*models.Ticket, error) {
 	}
 	return ticket, nil
 }
+
+// GetExecutionInstructions returns the execution instructions for a ticket.
+// If the ticket has a role_id, returns the role's instructions.
+// Otherwise, returns the brain field value (which may be empty).
+// This is used by execution harnesses to determine what context to use when working on a ticket.
+func (s *TicketService) GetExecutionInstructions(ticketID int64) (instructions string, source string, err error) {
+	ticket, err := s.ticketRepo.GetByID(ticketID)
+	if err != nil {
+		return "", "", newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
+	}
+	if ticket == nil {
+		return "", "", newTicketError(ErrCodeNotFound, "ticket not found", nil)
+	}
+
+	// If ticket has a role, fetch and return the role's instructions
+	if ticket.RoleID != nil {
+		roleRepo := db.NewRoleRepo(s.db)
+		role, err := roleRepo.GetByID(*ticket.RoleID)
+		if err != nil {
+			return "", "", newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get role: %v", err), nil)
+		}
+		if role == nil {
+			// Role was deleted - fall back to brain field
+			if ticket.Brain != nil {
+				return *ticket.Brain, "brain", nil
+			}
+			return "", "none", nil
+		}
+		return role.Instructions, "role:" + role.Name, nil
+	}
+
+	// No role - check brain field
+	if ticket.Brain != nil {
+		return *ticket.Brain, "brain", nil
+	}
+
+	// No role and no brain
+	return "", "none", nil
+}

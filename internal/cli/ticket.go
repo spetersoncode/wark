@@ -36,6 +36,7 @@ var (
 	ticketCommentMessage string
 	ticketCommentWorker  string
 	ticketBrain          string
+	ticketRole           string
 )
 
 func init() {
@@ -50,6 +51,7 @@ func init() {
 	ticketCreateCmd.Flags().StringVar(&ticketEpic, "epic", "", "Epic ticket ID (alternative to --parent for clearer semantics)")
 	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
 	ticketCreateCmd.Flags().StringVar(&ticketBrain, "brain", "", "Brain/model to use for this ticket (e.g., 'sonnet', 'claude-code --skip-perms')")
+	ticketCreateCmd.Flags().StringVar(&ticketRole, "role", "", "Role to use for this ticket (e.g., 'senior-engineer', 'code-reviewer')")
 	ticketCreateCmd.MarkFlagRequired("title")
 
 	// ticket list
@@ -279,9 +281,30 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Status:      models.StatusReady, // May change to blocked if deps added
 	}
 
+	// Handle brain and role (mutually exclusive for clarity, though both can coexist in the model)
+	if ticketBrain != "" && ticketRole != "" {
+		return ErrInvalidArgs("cannot specify both --brain and --role (use one or the other)")
+	}
+	
 	// Set brain if provided
 	if ticketBrain != "" {
 		ticket.Brain = &ticketBrain
+	}
+
+	// Set role if provided
+	if ticketRole != "" {
+		roleRepo := db.NewRoleRepo(database.DB)
+		role, err := roleRepo.GetByName(ticketRole)
+		if err != nil {
+			return ErrDatabase(err, "failed to get role")
+		}
+		if role == nil {
+			return ErrNotFoundWithSuggestion(
+				"Run 'wark role list' to see available roles or create one with 'wark role create'.",
+				"role '%s' not found", ticketRole,
+			)
+		}
+		ticket.RoleID = &role.ID
 	}
 
 	// Handle parent ticket (--parent or --epic)
@@ -534,17 +557,17 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table format
-	// Check if any ticket has a brain set to determine if we should show the column
-	showBrain := false
+	// Check if any ticket has a role or brain set to determine if we should show the column
+	showExecution := false
 	for _, t := range tickets {
-		if t.Brain != nil {
-			showBrain = true
+		if t.RoleName != "" || t.Brain != nil {
+			showExecution = true
 			break
 		}
 	}
 
-	if showBrain {
-		fmt.Printf("%-12s %-12s %-8s %-8s %-14s %-10s %s\n", "ID", "STATUS", "PRI", "COMP", "BRAIN", "MILESTONE", "TITLE")
+	if showExecution {
+		fmt.Printf("%-12s %-12s %-8s %-8s %-14s %-10s %s\n", "ID", "STATUS", "PRI", "COMP", "EXECUTION", "MILESTONE", "TITLE")
 		fmt.Println(strings.Repeat("-", 105))
 	} else {
 		fmt.Printf("%-12s %-12s %-8s %-8s %-10s %s\n", "ID", "STATUS", "PRI", "COMP", "MILESTONE", "TITLE")
@@ -558,9 +581,12 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 			milestoneDisplay = t.MilestoneKey
 		}
 
-		brainDisplay := ""
-		if t.Brain != nil {
-			brainDisplay = *t.Brain
+		// Execution display: show role if set, otherwise show brain
+		executionDisplay := ""
+		if t.RoleName != "" {
+			executionDisplay = "@" + t.RoleName
+		} else if t.Brain != nil {
+			executionDisplay = *t.Brain
 		}
 
 		// Add task progress indicator for workable tickets
@@ -572,13 +598,13 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		if showBrain {
+		if showExecution {
 			fmt.Printf("%-12s %-12s %-8s %-8s %-14s %-10s %s\n",
 				t.TicketKey,
 				statusDisplay,
 				t.Priority,
 				t.Complexity,
-				truncate(brainDisplay, 14),
+				truncate(executionDisplay, 14),
 				truncate(milestoneDisplay, 10),
 				titleDisplay,
 			)
@@ -723,6 +749,9 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Priority:    %s\n", ticket.Priority)
 	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
+	if ticket.RoleName != "" {
+		fmt.Printf("Role:        @%s\n", ticket.RoleName)
+	}
 	if ticket.Brain != nil {
 		fmt.Printf("Brain:       %q\n", *ticket.Brain)
 	}

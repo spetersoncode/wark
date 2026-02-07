@@ -120,6 +120,18 @@ func (s *InboxService) Respond(messageID int64, response string) (*RespondResult
 		return nil, errors.WrapInternal(err, "failed to log activity")
 	}
 
+	// Step 6: Also log as a comment so human feedback appears in ticket comment history
+	commentText := fmt.Sprintf("[%s] %s", message.MessageType, response)
+	if err := s.activityRepo.LogAction(
+		message.TicketID,
+		models.ActionComment,
+		models.ActorTypeHuman,
+		"",
+		commentText,
+	); err != nil {
+		return nil, errors.WrapInternal(err, "failed to log comment")
+	}
+
 	// Reload message to get updated responded_at
 	message, _ = s.inboxRepo.GetByID(messageID)
 	result.Message = message

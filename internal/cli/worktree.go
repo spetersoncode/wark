@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -436,72 +437,107 @@ func runWorktreePath(cmd *cobra.Command, args []string) error {
 }
 
 func runWorktreeList(cmd *cobra.Command, args []string) error {
-	// Get git repo root
-	repoRoot, err := getGitRoot()
+	// Open database
+	database, err := db.Open(GetDBPath())
 	if err != nil {
-		return ErrGeneralWithCause(err, "failed to detect git repository")
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
+	}
+	defer database.Close()
+
+	// Query all tickets with worktrees, joining with parent to get epic info
+	query := `
+		SELECT 
+			t.id,
+			p.key || '-' || t.number AS ticket_key,
+			t.worktree,
+			t.ticket_type,
+			CASE 
+				WHEN t.parent_ticket_id IS NOT NULL THEN (
+					SELECT p2.key || '-' || t2.number 
+					FROM tickets t2 
+					JOIN projects p2 ON t2.project_id = p2.id 
+					WHERE t2.id = t.parent_ticket_id
+				)
+				ELSE NULL
+			END AS parent_key
+		FROM tickets t
+		JOIN projects p ON t.project_id = p.id
+		WHERE t.worktree IS NOT NULL AND t.worktree != ''
+		ORDER BY p.key, t.number
+	`
+
+	rows, err := database.DB.Query(query)
+	if err != nil {
+		return ErrDatabase(err, "failed to query worktrees")
+	}
+	defer rows.Close()
+
+	type worktreeRow struct {
+		TicketKey  string
+		Worktree   string
+		TicketType string
+		ParentKey  sql.NullString
 	}
 
-	worktreesDir := getWorktreesDir(repoRoot)
-
-	// Check if worktrees directory exists
-	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
-		result := worktreeListResult{
-			RepoRoot:     repoRoot,
-			WorktreesDir: worktreesDir,
-			Worktrees:    []worktreeResult{},
+	var worktreeRows []worktreeRow
+	for rows.Next() {
+		var row worktreeRow
+		var id int64
+		if err := rows.Scan(&id, &row.TicketKey, &row.Worktree, &row.TicketType, &row.ParentKey); err != nil {
+			return ErrDatabase(err, "failed to scan worktree row")
 		}
+		worktreeRows = append(worktreeRows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return ErrDatabase(err, "failed to iterate worktree rows")
+	}
+
+	if len(worktreeRows) == 0 {
 		if IsJSON() {
-			data, _ := json.MarshalIndent(result, "", "  ")
-			fmt.Println(string(data))
+			fmt.Println("[]")
 			return nil
 		}
-		OutputLine("No worktrees directory at %s", worktreesDir)
+		OutputLine("No worktrees found.")
 		return nil
 	}
 
-	// List directories in worktrees dir
-	entries, err := os.ReadDir(worktreesDir)
-	if err != nil {
-		return ErrGeneralWithCause(err, "failed to read worktrees directory")
-	}
-
-	var worktrees []worktreeResult
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
-		path := filepath.Join(worktreesDir, name)
-		branch := "wark/" + name // Reconstruct branch name
-
-		worktrees = append(worktrees, worktreeResult{
-			Path:   path,
-			Branch: branch,
-		})
-	}
-
-	result := worktreeListResult{
-		RepoRoot:     repoRoot,
-		WorktreesDir: worktreesDir,
-		Worktrees:    worktrees,
-	}
-
 	if IsJSON() {
-		data, _ := json.MarshalIndent(result, "", "  ")
+		// Convert to JSON-friendly format
+		type jsonResult struct {
+			TicketKey string  `json:"ticket_key"`
+			Worktree  string  `json:"worktree"`
+			Epic      *string `json:"epic,omitempty"`
+		}
+		var results []jsonResult
+		for _, row := range worktreeRows {
+			result := jsonResult{
+				TicketKey: row.TicketKey,
+				Worktree:  row.Worktree,
+			}
+			if row.ParentKey.Valid {
+				result.Epic = &row.ParentKey.String
+			} else if row.TicketType == "epic" {
+				epic := "(epic)"
+				result.Epic = &epic
+			}
+			results = append(results, result)
+		}
+		data, _ := json.MarshalIndent(results, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	if len(worktrees) == 0 {
-		OutputLine("No worktrees found in %s", worktreesDir)
-		return nil
-	}
-
-	OutputLine("Worktrees in %s:", worktreesDir)
-	for _, wt := range worktrees {
-		OutputLine("  %s", filepath.Base(wt.Path))
+	// Table format
+	fmt.Printf("%-15s %-40s %-15s\n", "TICKET", "WORKTREE", "EPIC")
+	fmt.Println(strings.Repeat("-", 72))
+	for _, row := range worktreeRows {
+		epicDisplay := ""
+		if row.ParentKey.Valid {
+			epicDisplay = row.ParentKey.String
+		} else if row.TicketType == "epic" {
+			epicDisplay = "(epic)"
+		}
+		fmt.Printf("%-15s %-40s %-15s\n", row.TicketKey, truncate(row.Worktree, 40), epicDisplay)
 	}
 
 	return nil

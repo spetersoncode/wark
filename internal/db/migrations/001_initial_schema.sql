@@ -252,7 +252,7 @@ CREATE TABLE activity_log (
 
     -- Who did it
     actor_type      TEXT NOT NULL
-                    CHECK (actor_type IN ('human', 'agent', 'system')),
+                    CHECK (actor_type IN ('human', 'agent', 'system', 'claim')),
     actor_id        TEXT,
 
     -- Details (JSON for flexibility)

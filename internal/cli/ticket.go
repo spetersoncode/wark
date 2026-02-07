@@ -881,7 +881,7 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 			if c.ActorID != "" {
 				actor = fmt.Sprintf("%s:%s", c.ActorType, c.ActorID)
 			}
-			fmt.Printf("\n[%s] %s\n", c.CreatedAt.Local().Format("2006-01-02 15:04"), actor)
+			fmt.Printf("[%s] %s\n", c.CreatedAt.Local().Format("2006-01-02 15:04"), actor)
 			// Print summary (full comment text) with word wrapping at 60 chars
 			if c.Summary != "" {
 				wrapped := wrapText(c.Summary, 60)
@@ -1263,13 +1263,23 @@ func runTicketComment(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	workerID := ticketCommentWorker
-	if workerID == "" {
-		workerID = GetDefaultWorkerID()
+	// Use claim ID if there's an active claim, otherwise fall back to worker ID
+	actorType := models.ActorTypeAgent
+	actorID := ""
+	claimRepo := db.NewClaimRepo(database.DB)
+	activeClaim, err := claimRepo.GetActiveByTicketID(ticket.ID)
+	if err == nil && activeClaim != nil {
+		actorType = models.ActorTypeClaim
+		actorID = activeClaim.ClaimID
+	} else {
+		actorID = ticketCommentWorker
+		if actorID == "" {
+			actorID = GetDefaultWorkerID()
+		}
 	}
 
 	activityRepo := db.NewActivityRepo(database.DB)
-	if err := activityRepo.LogAction(ticket.ID, models.ActionComment, models.ActorTypeAgent, workerID, ticketCommentMessage); err != nil {
+	if err := activityRepo.LogAction(ticket.ID, models.ActionComment, actorType, actorID, ticketCommentMessage); err != nil {
 		return ErrDatabase(err, "failed to create comment")
 	}
 
@@ -1277,7 +1287,7 @@ func runTicketComment(cmd *cobra.Command, args []string) error {
 		result := ticketCommentResult{
 			TicketKey: ticket.TicketKey,
 			Message:   ticketCommentMessage,
-			WorkerID:  workerID,
+			WorkerID:  actorID,
 			Timestamp: time.Now().Format(time.RFC3339),
 		}
 		data, _ := json.MarshalIndent(result, "", "  ")

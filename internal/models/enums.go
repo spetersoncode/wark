@@ -262,12 +262,13 @@ const (
 	ActorTypeHuman  ActorType = "human"
 	ActorTypeAgent  ActorType = "agent"
 	ActorTypeSystem ActorType = "system"
+	ActorTypeClaim  ActorType = "claim"
 )
 
 // IsValid returns true if the actor type is valid.
 func (at ActorType) IsValid() bool {
 	switch at {
-	case ActorTypeHuman, ActorTypeAgent, ActorTypeSystem:
+	case ActorTypeHuman, ActorTypeAgent, ActorTypeSystem, ActorTypeClaim:
 		return true
 	}
 	return false

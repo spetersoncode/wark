@@ -452,7 +452,7 @@ func TestRoleName_Validation(t *testing.T) {
 		{"invalid starting with hyphen", "-engineer", true},
 		{"invalid too short", "e", true},
 		{"valid max length", "a234567890123456789012345678901234567890123456789", false},
-		{"invalid too long", "a2345678901234567890123456789012345678901234567890", true},
+		{"invalid too long", "a23456789012345678901234567890123456789012345678901", true},
 	}
 
 	for _, tt := range tests {

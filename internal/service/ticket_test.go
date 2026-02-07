@@ -458,6 +458,163 @@ func TestTicketService_ClaimReviewTicket(t *testing.T) {
 
 // NOTE: TestTicketService_PromoteWithDependencies skipped until draft status is added to database schema (WARK-21)
 
+func TestTicketService_GetExecutionContext(t *testing.T) {
+	database, _, cleanup := testDB(t)
+	defer cleanup()
+
+	project := createTicketTestProject(t, database, "TEST")
+	svc := NewTicketService(database.DB)
+
+	t.Run("fast capability - trivial complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Number:     1,
+			Title:      "Fast Ticket",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityTrivial,
+			MaxRetries: 3,
+		}
+		ticketRepo := db.NewTicketRepo(database.DB)
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		ctx, err := svc.GetExecutionContext(ticket.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, "fast", ctx.Capability)
+		assert.NotEmpty(t, ctx.Model)
+		assert.Equal(t, "", ctx.InstructionsSource)
+	})
+
+	t.Run("fast capability - small complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Number:     2,
+			Title:      "Fast Ticket",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexitySmall,
+			MaxRetries: 3,
+		}
+		ticketRepo := db.NewTicketRepo(database.DB)
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		ctx, err := svc.GetExecutionContext(ticket.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, "fast", ctx.Capability)
+		assert.NotEmpty(t, ctx.Model)
+	})
+
+	t.Run("standard capability - medium complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Number:     3,
+			Title:      "Standard Ticket",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityMedium,
+			MaxRetries: 3,
+		}
+		ticketRepo := db.NewTicketRepo(database.DB)
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		ctx, err := svc.GetExecutionContext(ticket.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, "standard", ctx.Capability)
+		assert.NotEmpty(t, ctx.Model)
+	})
+
+	t.Run("standard capability - large complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Number:     4,
+			Title:      "Standard Ticket Large",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityLarge,
+			MaxRetries: 3,
+		}
+		ticketRepo := db.NewTicketRepo(database.DB)
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		ctx, err := svc.GetExecutionContext(ticket.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, "standard", ctx.Capability)
+		assert.NotEmpty(t, ctx.Model)
+	})
+
+	t.Run("powerful capability - xlarge complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Number:     5,
+			Title:      "Powerful Ticket",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityXLarge,
+			MaxRetries: 3,
+		}
+		ticketRepo := db.NewTicketRepo(database.DB)
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		ctx, err := svc.GetExecutionContext(ticket.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, "powerful", ctx.Capability)
+		assert.NotEmpty(t, ctx.Model)
+	})
+
+	t.Run("with role instructions", func(t *testing.T) {
+		// Create a role
+		roleRepo := db.NewRoleRepo(database.DB)
+		role := &models.Role{
+			Name:         "test-engineer",
+			Description:  "Test engineer role",
+			Instructions: "You are a test engineer. Write comprehensive tests.",
+		}
+		err := roleRepo.Create(role)
+		require.NoError(t, err)
+
+		// Create ticket with role
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Number:     6,
+			Title:      "Ticket With Role",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityMedium,
+			MaxRetries: 3,
+			RoleID:     &role.ID,
+		}
+		ticketRepo := db.NewTicketRepo(database.DB)
+		err = ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		ctx, err := svc.GetExecutionContext(ticket.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, "role:test-engineer", ctx.InstructionsSource)
+		assert.Equal(t, "You are a test engineer. Write comprehensive tests.", ctx.Instructions)
+		assert.Equal(t, "standard", ctx.Capability)
+	})
+
+	t.Run("non-existent ticket", func(t *testing.T) {
+		_, err := svc.GetExecutionContext(99999)
+		require.Error(t, err)
+
+		svcErr, ok := err.(*TicketError)
+		require.True(t, ok)
+		assert.Equal(t, ErrCodeNotFound, svcErr.Code)
+	})
+}
+
 func TestGenerateWorktreeName(t *testing.T) {
 	tests := []struct {
 		name       string

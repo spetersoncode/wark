@@ -315,6 +315,126 @@ func TestTicketEndpoints(t *testing.T) {
 	})
 }
 
+func TestTicketExecutionContextEndpoint(t *testing.T) {
+	sqlDB := testDB(t)
+	srv := setupTestServer(t, sqlDB)
+
+	// Create test project and tickets
+	projectRepo := db.NewProjectRepo(sqlDB)
+	project := &models.Project{Key: "TEST", Name: "Test Project"}
+	err := projectRepo.Create(project)
+	require.NoError(t, err)
+
+	ticketRepo := db.NewTicketRepo(sqlDB)
+
+	t.Run("get execution context for medium complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Title:      "Test Ticket Medium",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityMedium,
+		}
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest("GET", "/api/tickets/TEST-1/execution-context", nil)
+		rec := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var ctx struct {
+			Instructions       string `json:"instructions"`
+			InstructionsSource string `json:"instructions_source"`
+			Model              string `json:"model"`
+			Capability         string `json:"capability"`
+		}
+		err = json.Unmarshal(rec.Body.Bytes(), &ctx)
+		require.NoError(t, err)
+		assert.Equal(t, "standard", ctx.Capability)
+		assert.NotEmpty(t, ctx.Model)
+		assert.Equal(t, "", ctx.InstructionsSource)
+	})
+
+	t.Run("get execution context for trivial complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Title:      "Test Ticket Trivial",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityTrivial,
+		}
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest("GET", "/api/tickets/TEST-2/execution-context", nil)
+		rec := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var ctx struct {
+			Instructions       string `json:"instructions"`
+			InstructionsSource string `json:"instructions_source"`
+			Model              string `json:"model"`
+			Capability         string `json:"capability"`
+		}
+		err = json.Unmarshal(rec.Body.Bytes(), &ctx)
+		require.NoError(t, err)
+		assert.Equal(t, "fast", ctx.Capability)
+	})
+
+	t.Run("get execution context for xlarge complexity", func(t *testing.T) {
+		ticket := &models.Ticket{
+			ProjectID:  project.ID,
+			Title:      "Test Ticket XLarge",
+			Status:     models.StatusReady,
+			Priority:   models.PriorityMedium,
+			Complexity: models.ComplexityXLarge,
+		}
+		err := ticketRepo.Create(ticket)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest("GET", "/api/tickets/TEST-3/execution-context", nil)
+		rec := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var ctx struct {
+			Instructions       string `json:"instructions"`
+			InstructionsSource string `json:"instructions_source"`
+			Model              string `json:"model"`
+			Capability         string `json:"capability"`
+		}
+		err = json.Unmarshal(rec.Body.Bytes(), &ctx)
+		require.NoError(t, err)
+		assert.Equal(t, "powerful", ctx.Capability)
+	})
+
+	t.Run("get execution context for non-existent ticket", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/tickets/TEST-999/execution-context", nil)
+		rec := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("get execution context with invalid ticket key", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/tickets/INVALID/execution-context", nil)
+		rec := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+}
+
 func TestInboxEndpoints(t *testing.T) {
 	sqlDB := testDB(t)
 	srv := setupTestServer(t, sqlDB)

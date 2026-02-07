@@ -187,9 +187,9 @@ func (c Complexity) Capability() string {
 	switch c {
 	case ComplexityTrivial, ComplexitySmall:
 		return "fast"
-	case ComplexityMedium:
+	case ComplexityMedium, ComplexityLarge:
 		return "standard"
-	case ComplexityLarge, ComplexityXLarge:
+	case ComplexityXLarge:
 		return "powerful"
 	default:
 		return "standard"

@@ -8,7 +8,7 @@ import (
 )
 
 // Role represents an agent persona/capability that can be applied when working on tickets.
-// Roles define different execution contexts with specific instructions (e.g., "senior-engineer", "code-reviewer").
+// Roles define different execution contexts with specific instructions (e.g., "engineer", "code-reviewer", "architect").
 type Role struct {
 	ID           int64     `json:"id"`
 	Name         string    `json:"name"`

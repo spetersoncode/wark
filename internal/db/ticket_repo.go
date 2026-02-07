@@ -26,10 +26,8 @@ type TicketFilter struct {
 	Priority     *models.Priority
 	Complexity   *models.Complexity
 	Type         *models.TicketType
-	ParentID     *int64
-	MilestoneID  *int64
-	MilestoneKey string
-	Workable     bool
+	ParentID *int64
+	Workable bool
 	Limit        int
 	Offset       int
 }

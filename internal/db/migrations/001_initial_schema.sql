@@ -24,26 +24,6 @@ CREATE TABLE projects (
 );
 
 -- -----------------------------------------------------------------------------
--- MILESTONES
--- -----------------------------------------------------------------------------
--- Time-boxed goals within a project. Tickets can be assigned to milestones
--- to track progress toward larger objectives.
-
-CREATE TABLE milestones (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id      INTEGER NOT NULL REFERENCES projects(id),
-    key             TEXT NOT NULL,             -- Short identifier (e.g., "v1.0")
-    name            TEXT NOT NULL,             -- Human-readable name
-    goal            TEXT,                      -- Description of what this milestone achieves
-    target_date     DATETIME,                  -- Optional deadline
-    status          TEXT NOT NULL DEFAULT 'open'
-                    CHECK (status IN ('open', 'achieved', 'abandoned')),
-    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(project_id, key)
-);
-
--- -----------------------------------------------------------------------------
 -- TICKETS
 -- -----------------------------------------------------------------------------
 -- The core work unit. Represents a task that can be worked on by agents or humans.
@@ -115,9 +95,6 @@ CREATE TABLE tickets (
 
     -- Hierarchy (for decomposition into sub-tasks)
     parent_ticket_id    INTEGER REFERENCES tickets(id),
-
-    -- Milestone assignment
-    milestone_id        INTEGER REFERENCES milestones(id),
 
     -- Timestamps
     created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -523,7 +500,6 @@ DROP TABLE IF EXISTS inbox_messages;
 DROP TABLE IF EXISTS claims;
 DROP TABLE IF EXISTS ticket_dependencies;
 DROP TABLE IF EXISTS tickets;
-DROP TABLE IF EXISTS milestones;
 DROP TABLE IF EXISTS projects;
 
 -- +goose StatementEnd

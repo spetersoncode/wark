@@ -40,19 +40,15 @@ type Ticket struct {
 	// Hierarchy (for decomposition)
 	ParentTicketID *int64 `json:"parent_ticket_id,omitempty"`
 
-	// Milestone association
-	MilestoneID *int64 `json:"milestone_id,omitempty"`
-
 	// Timestamps
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 
 	// Computed fields (not stored in DB, populated by queries)
-	ProjectKey   string `json:"project_key,omitempty"`
-	TicketKey    string `json:"ticket_key,omitempty"`
-	MilestoneKey string `json:"milestone_key,omitempty"`
-	RoleName     string `json:"role_name,omitempty"`
+	ProjectKey string `json:"project_key,omitempty"`
+	TicketKey  string `json:"ticket_key,omitempty"`
+	RoleName   string `json:"role_name,omitempty"`
 }
 
 // Key returns the ticket key in the format PROJECT-NUMBER.

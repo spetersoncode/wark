@@ -15,6 +15,50 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// uiWidth is the standard width for ticket display sections
+const uiWidth = 65
+
+// printSectionHeader prints a standardized section header
+func printSectionHeader(title string) {
+	fmt.Println()
+	fmt.Println(strings.Repeat("-", uiWidth))
+	fmt.Println(title)
+	fmt.Println(strings.Repeat("-", uiWidth))
+}
+
+// printMainHeader prints the main ticket header
+func printMainHeader(ticketKey, title string) {
+	fmt.Println(strings.Repeat("=", uiWidth))
+	fmt.Printf("%s: %s\n", ticketKey, title)
+	fmt.Println(strings.Repeat("=", uiWidth))
+}
+
+// wrapText wraps text at the specified width, returning a slice of lines
+func wrapText(s string, width int) []string {
+	if len(s) <= width {
+		return []string{s}
+	}
+
+	var lines []string
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return []string{s}
+	}
+
+	currentLine := words[0]
+	for _, word := range words[1:] {
+		if len(currentLine)+1+len(word) <= width {
+			currentLine += " " + word
+		} else {
+			lines = append(lines, currentLine)
+			currentLine = word
+		}
+	}
+	lines = append(lines, currentLine)
+
+	return lines
+}
+
 // Ticket command flags
 var (
 	ticketTitle          string
@@ -716,100 +760,85 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	}
 
 	// Display formatted output
-	fmt.Println(strings.Repeat("=", 65))
-	fmt.Printf("%s: %s\n", ticket.TicketKey, ticket.Title)
-	fmt.Println(strings.Repeat("=", 65))
+	printMainHeader(ticket.TicketKey, ticket.Title)
 	fmt.Println()
-	fmt.Printf("Type:        %s\n", ticket.Type)
+
+	// Core metadata section
+	fmt.Println("CORE INFO")
+	fmt.Println(strings.Repeat("─", uiWidth))
+	fmt.Printf("  %-12s %s\n", "Type:", ticket.Type)
 	if ticket.Status == models.StatusBlocked && len(blockingDeps) > 0 {
-		fmt.Printf("Status:      %s ⛔ (blocked by %d ticket(s))\n", ticket.Status, len(blockingDeps))
+		fmt.Printf("  %-12s %s ⛔ (blocked by %d ticket(s))\n", "Status:", ticket.Status, len(blockingDeps))
 	} else {
-		fmt.Printf("Status:      %s\n", ticket.Status)
+		fmt.Printf("  %-12s %s\n", "Status:", ticket.Status)
 	}
-	fmt.Printf("Priority:    %s\n", ticket.Priority)
-	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
+	fmt.Printf("  %-12s %s\n", "Priority:", ticket.Priority)
+	fmt.Printf("  %-12s %s\n", "Complexity:", ticket.Complexity)
 	if ticket.RoleName != "" {
-		fmt.Printf("Role:        @%s\n", ticket.RoleName)
+		fmt.Printf("  %-12s @%s\n", "Role:", ticket.RoleName)
 	}
 	if ticket.Worktree != "" {
-		fmt.Printf("Worktree:    %s\n", ticket.Worktree)
+		fmt.Printf("  %-12s %s\n", "Worktree:", ticket.Worktree)
 	}
 	if ticket.MilestoneKey != "" {
-		fmt.Printf("Milestone:   %s/%s\n", ticket.ProjectKey, ticket.MilestoneKey)
+		fmt.Printf("  %-12s %s/%s\n", "Milestone:", ticket.ProjectKey, ticket.MilestoneKey)
 	}
-	fmt.Printf("Retries:     %d/%d\n", ticket.RetryCount, ticket.MaxRetries)
-	fmt.Println()
-	fmt.Printf("Created:     %s\n", ticket.CreatedAt.Local().Format("2006-01-02 15:04:05"))
-	fmt.Printf("Updated:     %s\n", ticket.UpdatedAt.Local().Format("2006-01-02 15:04:05"))
-	if ticket.CompletedAt != nil {
-		fmt.Printf("Completed:   %s\n", ticket.CompletedAt.Local().Format("2006-01-02 15:04:05"))
-	}
+	fmt.Printf("  %-12s %d/%d\n", "Retries:", ticket.RetryCount, ticket.MaxRetries)
 
 	// Show blocking dependencies prominently for blocked tickets
 	if len(blockingDeps) > 0 {
-		fmt.Println()
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Printf("⛔ BLOCKING DEPENDENCIES (%d):\n", len(blockingDeps))
-		fmt.Println(strings.Repeat("-", 65))
+		printSectionHeader(fmt.Sprintf("⛔ BLOCKING DEPENDENCIES (%d)", len(blockingDeps)))
 		for _, dep := range blockingDeps {
 			statusStr := string(dep.Status)
 			if dep.Status == models.StatusClosed && dep.Resolution != nil {
 				statusStr = fmt.Sprintf("closed:%s", *dep.Resolution)
 			}
-			fmt.Printf("  ⏳ %s: %s [%s]\n", dep.TicketKey, dep.Title, statusStr)
+			fmt.Printf("  ⏳ %s: %s [%s]\n", dep.TicketKey, truncate(dep.Title, 35), statusStr)
 		}
 		fmt.Println()
 		fmt.Println("  💡 This ticket cannot be worked until these dependencies are resolved.")
 	}
 
 	if claim != nil {
-		fmt.Println()
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Println("Current Claim:")
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Printf("Worker ID:   %s\n", claim.WorkerID)
-		fmt.Printf("Claimed At:  %s\n", claim.ClaimedAt.Local().Format("2006-01-02 15:04:05"))
-		fmt.Printf("Expires At:  %s\n", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"))
+		printSectionHeader("Current Claim")
+		fmt.Printf("  %-12s %s\n", "Worker ID:", claim.WorkerID)
+		fmt.Printf("  %-12s %s\n", "Claimed At:", claim.ClaimedAt.Local().Format("2006-01-02 15:04:05"))
+		fmt.Printf("  %-12s %s\n", "Expires At:", claim.ExpiresAt.Local().Format("2006-01-02 15:04:05"))
 		remaining := claim.TimeRemaining()
 		if remaining > 0 {
-			fmt.Printf("Remaining:   %s\n", remaining.Round(time.Second))
+			fmt.Printf("  %-12s %s\n", "Remaining:", remaining.Round(time.Second))
 		} else {
-			fmt.Printf("Status:      expired\n")
+			fmt.Printf("  %-12s %s\n", "Status:", "expired")
 		}
 	}
 
 	if ticket.Description != "" {
-		fmt.Println()
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Println("Description:")
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Println(ticket.Description)
+		printSectionHeader("Description")
+		// Word wrap description at uiWidth - 4 for padding
+		lines := wrapText(ticket.Description, uiWidth-4)
+		for _, line := range lines {
+			fmt.Printf("  %s\n", line)
+		}
 	}
 
 	if len(tasks) > 0 {
-		fmt.Println()
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Printf("Tasks (%d/%d complete):\n", tasksComplete, len(tasks))
-		fmt.Println(strings.Repeat("-", 65))
+		printSectionHeader(fmt.Sprintf("Tasks (%d/%d complete)", tasksComplete, len(tasks)))
 		foundNext := false
 		for _, task := range tasks {
 			checkmark := "[ ]"
 			suffix := ""
 			if task.Complete {
-				checkmark = "[x]"
+				checkmark = "[✓]"
 			} else if !foundNext {
 				suffix = "  <-- NEXT"
 				foundNext = true
 			}
-			fmt.Printf("  %s %d. %s%s\n", checkmark, task.Position+1, task.Description, suffix)
+			fmt.Printf("  %s %d. %s%s\n", checkmark, task.Position+1, truncate(task.Description, 45), suffix)
 		}
 	}
 
 	if len(dependencies) > 0 {
-		fmt.Println()
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Println("Dependencies:")
-		fmt.Println(strings.Repeat("-", 65))
+		printSectionHeader("Dependencies")
 		for _, dep := range dependencies {
 			checkmark := " "
 			statusStr := string(dep.Status)
@@ -822,17 +851,14 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 					statusStr = string(*dep.Resolution)
 				}
 			}
-			fmt.Printf("  %s %s: %s (%s)\n", checkmark, dep.TicketKey, dep.Title, statusStr)
+			fmt.Printf("  %s %s: %s (%s)\n", checkmark, dep.TicketKey, truncate(dep.Title, 35), statusStr)
 		}
 	}
 
 	if len(dependents) > 0 {
-		fmt.Println()
-		fmt.Println(strings.Repeat("-", 65))
-		fmt.Println("Blocked By This Ticket:")
-		fmt.Println(strings.Repeat("-", 65))
+		printSectionHeader("Blocked By This Ticket")
 		for _, dep := range dependents {
-			fmt.Printf("  %s: %s (%s)\n", dep.TicketKey, dep.Title, dep.Status)
+			fmt.Printf("  • %s: %s (%s)\n", dep.TicketKey, truncate(dep.Title, 35), dep.Status)
 		}
 	}
 

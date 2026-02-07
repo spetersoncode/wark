@@ -65,7 +65,7 @@ var roleCreateCmd = &cobra.Command{
 Role names must be 2-50 lowercase alphanumeric characters with hyphens, starting with a letter.
 
 Examples:
-  wark role create --name senior-engineer --description "Senior engineer persona" --instructions "You are a senior engineer..."
+  wark role create --name software-engineer --description "Software engineer" --instructions "You are a software engineer..."
   wark role create --name code-reviewer --description "Code review specialist" --instructions "Review code for..."`,
 	Args: cobra.NoArgs,
 	RunE: runRoleCreate,
@@ -75,7 +75,7 @@ func runRoleCreate(cmd *cobra.Command, args []string) error {
 	// Validate role name format
 	if err := models.ValidateRoleName(roleName); err != nil {
 		return ErrInvalidArgsWithSuggestion(
-			"Role names must be 2-50 lowercase alphanumeric characters with hyphens, starting with a letter (e.g., senior-engineer, code-reviewer).",
+			"Role names must be 2-50 lowercase alphanumeric characters with hyphens, starting with a letter (e.g., software-engineer, code-reviewer, architect).",
 			"invalid role name: %s", err,
 		)
 	}
@@ -211,7 +211,7 @@ var roleGetCmd = &cobra.Command{
 	Long: `Display detailed information about a specific role.
 
 Examples:
-  wark role get senior-engineer
+  wark role get software-engineer
   wark role get code-reviewer`,
 	Args: cobra.ExactArgs(1),
 	RunE: runRoleGet,
@@ -266,7 +266,7 @@ Built-in roles cannot be updated.
 At least one of --description or --instructions must be provided.
 
 Examples:
-  wark role update senior-engineer --description "Updated description"
+  wark role update software-engineer --description "Updated description"
   wark role update code-reviewer --instructions "New instructions..."
   wark role update my-role --description "New desc" --instructions "New instructions"`,
 	Args: cobra.ExactArgs(1),

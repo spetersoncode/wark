@@ -51,7 +51,7 @@ func init() {
 	ticketCreateCmd.Flags().StringVar(&ticketEpic, "epic", "", "Epic ticket ID (alternative to --parent for clearer semantics)")
 	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
 	ticketCreateCmd.Flags().StringVar(&ticketBrain, "brain", "", "Brain/model to use for this ticket (e.g., 'sonnet', 'claude-code --skip-perms')")
-	ticketCreateCmd.Flags().StringVar(&ticketRole, "role", "", "Role to use for this ticket (e.g., 'senior-engineer', 'code-reviewer')")
+	ticketCreateCmd.Flags().StringVar(&ticketRole, "role", "", "Role to use for this ticket (e.g., 'software-engineer', 'code-reviewer', 'architect')")
 	ticketCreateCmd.MarkFlagRequired("title")
 
 	// ticket list
@@ -210,8 +210,9 @@ Examples:
   wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15
   wark ticket create WEBAPP -t "Add login form" --epic WEBAPP-15
   wark ticket create WEBAPP -t "Add login" --milestone MVP
-  wark ticket create WEBAPP -t "Implement feature" --brain sonnet
-  wark ticket create WEBAPP -t "Debug issue" --brain "claude-code --skip-perms"`,
+  wark ticket create WEBAPP -t "Implement feature" --role software-engineer
+  wark ticket create WEBAPP -t "Debug issue" --brain "claude-code --skip-perms"
+  wark ticket create WEBAPP -t "Complex feature" --role architect --brain sonnet`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketCreate,
 }
@@ -281,11 +282,6 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Status:      models.StatusReady, // May change to blocked if deps added
 	}
 
-	// Handle brain and role (mutually exclusive for clarity, though both can coexist in the model)
-	if ticketBrain != "" && ticketRole != "" {
-		return ErrInvalidArgs("cannot specify both --brain and --role (use one or the other)")
-	}
-	
 	// Set brain if provided
 	if ticketBrain != "" {
 		ticket.Brain = &ticketBrain

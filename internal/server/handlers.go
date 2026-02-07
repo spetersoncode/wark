@@ -43,7 +43,6 @@ type TicketResponse struct {
 	RetryCount      int    `json:"retry_count"`
 	MaxRetries      int    `json:"max_retries"`
 	ParentTicketID  *int64 `json:"parent_ticket_id,omitempty"`
-	MilestoneKey    string `json:"milestone_key,omitempty"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
 	CompletedAt     string `json:"completed_at,omitempty"`
@@ -685,7 +684,6 @@ func ticketToResponse(t *models.Ticket) TicketResponse {
 		RetryCount:      t.RetryCount,
 		MaxRetries:      t.MaxRetries,
 		ParentTicketID:  t.ParentTicketID,
-		MilestoneKey:    t.MilestoneKey,
 		CreatedAt:       t.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:       t.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}

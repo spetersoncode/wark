@@ -106,7 +106,7 @@ func (r *ActivityRepo) List(filter ActivityFilter) ([]*models.ActivityLog, error
 		args = append(args, FormatTime(*filter.Since))
 	}
 
-	query += " ORDER BY a.created_at DESC"
+	query += " ORDER BY a.created_at DESC, a.id DESC"
 
 	if filter.Limit > 0 {
 		query += " LIMIT ?"
@@ -145,7 +145,7 @@ func (r *ActivityRepo) GetLatestByTicket(ticketID int64) (*models.ActivityLog, e
 		JOIN tickets t ON a.ticket_id = t.id
 		JOIN projects p ON t.project_id = p.id
 		WHERE a.ticket_id = ?
-		ORDER BY a.created_at DESC
+		ORDER BY a.created_at DESC, a.id DESC
 		LIMIT 1
 	`
 	return r.scanOne(r.db.QueryRow(query, ticketID))

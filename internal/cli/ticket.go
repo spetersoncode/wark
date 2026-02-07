@@ -33,6 +33,8 @@ var (
 	ticketAddDep         []string
 	ticketRemoveDep      []string
 	ticketClearMilestone bool
+	ticketCommentMessage string
+	ticketCommentWorker  string
 )
 
 func init() {
@@ -70,12 +72,18 @@ func init() {
 	ticketLinkCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
 	ticketLinkCmd.Flags().BoolVar(&ticketClearMilestone, "clear-milestone", false, "Remove milestone association")
 
+	// ticket comment
+	ticketCommentCmd.Flags().StringVarP(&ticketCommentMessage, "message", "m", "", "Comment text (required)")
+	ticketCommentCmd.Flags().StringVar(&ticketCommentWorker, "worker-id", "", "Worker identifier (defaults to $WARK_WORKER_ID or hostname)")
+	ticketCommentCmd.MarkFlagRequired("message")
+
 	// Add subcommands
 	ticketCmd.AddCommand(ticketCreateCmd)
 	ticketCmd.AddCommand(ticketListCmd)
 	ticketCmd.AddCommand(ticketShowCmd)
 	ticketCmd.AddCommand(ticketEditCmd)
 	ticketCmd.AddCommand(ticketLinkCmd)
+	ticketCmd.AddCommand(ticketCommentCmd)
 
 	rootCmd.AddCommand(ticketCmd)
 }
@@ -1110,5 +1118,64 @@ func runTicketLink(cmd *cobra.Command, args []string) error {
 	}
 
 	OutputLine("Linked %s to milestone %s/%s", ticket.TicketKey, ticket.ProjectKey, milestone.Key)
+	return nil
+}
+
+// ticket comment
+var ticketCommentCmd = &cobra.Command{
+	Use:   "comment <TICKET>",
+	Short: "Add a comment to a ticket",
+	Long: `Add a comment to a ticket's activity log. Comments are visible in the ticket's history
+and provide a way to document observations, decisions, issues, and context.
+
+Examples:
+  wark ticket comment WEBAPP-42 --message "Found dependency conflict with libxyz, switching to alternative approach"
+  wark ticket comment WEBAPP-42 -m "Root cause identified: race condition in cache layer" --worker-id agent-123`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketComment,
+}
+
+type ticketCommentResult struct {
+	TicketKey string `json:"ticket_key"`
+	Message   string `json:"message"`
+	WorkerID  string `json:"worker_id"`
+	Timestamp string `json:"timestamp"`
+}
+
+func runTicketComment(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	workerID := ticketCommentWorker
+	if workerID == "" {
+		workerID = GetDefaultWorkerID()
+	}
+
+	activityRepo := db.NewActivityRepo(database.DB)
+	if err := activityRepo.LogAction(ticket.ID, models.ActionComment, models.ActorTypeAgent, workerID, ticketCommentMessage); err != nil {
+		return ErrDatabase(err, "failed to create comment")
+	}
+
+	if IsJSON() {
+		result := ticketCommentResult{
+			TicketKey: ticket.TicketKey,
+			Message:   ticketCommentMessage,
+			WorkerID:  workerID,
+			Timestamp: time.Now().Format(time.RFC3339),
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Comment added to %s", ticket.TicketKey)
 	return nil
 }

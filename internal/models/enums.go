@@ -181,6 +181,21 @@ func (c Complexity) ShouldDecompose() bool {
 	return c == ComplexityLarge || c == ComplexityXLarge
 }
 
+// Capability returns the capability level for this complexity.
+// Maps complexity to execution capability: fast, standard, or powerful.
+func (c Complexity) Capability() string {
+	switch c {
+	case ComplexityTrivial, ComplexitySmall:
+		return "fast"
+	case ComplexityMedium:
+		return "standard"
+	case ComplexityLarge, ComplexityXLarge:
+		return "powerful"
+	default:
+		return "standard"
+	}
+}
+
 // ClaimStatus represents the state of a claim on a ticket.
 type ClaimStatus string
 

@@ -14,6 +14,7 @@ func (s *Server) setupRoutes() {
 	s.router.HandleFunc("GET /api/tickets", s.handleListTickets)
 	s.router.HandleFunc("GET /api/tickets/search", s.handleSearchTickets)
 	s.router.HandleFunc("GET /api/tickets/{key}", s.handleGetTicket)
+	s.router.HandleFunc("GET /api/tickets/{key}/execution-context", s.handleGetTicketExecutionContext)
 
 	s.router.HandleFunc("GET /api/inbox", s.handleListInbox)
 	s.router.HandleFunc("GET /api/inbox/{id}", s.handleGetInboxMessage)

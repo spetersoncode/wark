@@ -36,6 +36,21 @@ type BackupConfig struct {
 	Path string `toml:"path"`
 }
 
+// ModelsConfig holds model configuration for different capability levels.
+type ModelsConfig struct {
+	// Fast is the model name for fast/cheap tasks (trivial, small complexity).
+	// Default: "haiku"
+	Fast string `toml:"fast"`
+
+	// Standard is the model name for standard tasks (medium, large complexity).
+	// Default: "sonnet"
+	Standard string `toml:"standard"`
+
+	// Powerful is the model name for complex tasks (xlarge complexity).
+	// Default: "opus"
+	Powerful string `toml:"powerful"`
+}
+
 // Config represents the wark configuration.
 type Config struct {
 	// DB is the path to the database file.
@@ -61,6 +76,9 @@ type Config struct {
 
 	// Backup contains backup-related settings.
 	Backup BackupConfig `toml:"backup"`
+
+	// Models contains model configuration for different capability levels.
+	Models ModelsConfig `toml:"models"`
 }
 
 // DefaultConfig returns a Config with default values.
@@ -74,6 +92,11 @@ func DefaultConfig() *Config {
 			IntervalHours: 24,
 			MaxCount:      5,
 			Path:          "", // Empty means same directory as database
+		},
+		Models: ModelsConfig{
+			Fast:     "haiku",
+			Standard: "sonnet",
+			Powerful: "opus",
 		},
 	}
 }

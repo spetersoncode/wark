@@ -11,6 +11,7 @@ import (
 	"github.com/spetersoncode/wark/internal/common"
 	"github.com/spetersoncode/wark/internal/db"
 	"github.com/spetersoncode/wark/internal/models"
+	"github.com/spetersoncode/wark/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -86,6 +87,7 @@ func init() {
 	ticketCmd.AddCommand(ticketEditCmd)
 	ticketCmd.AddCommand(ticketLinkCmd)
 	ticketCmd.AddCommand(ticketCommentCmd)
+	ticketCmd.AddCommand(ticketExecutionContextCmd)
 
 	rootCmd.AddCommand(ticketCmd)
 }
@@ -1224,5 +1226,82 @@ func runTicketComment(cmd *cobra.Command, args []string) error {
 	}
 
 	OutputLine("Comment added to %s", ticket.TicketKey)
+	return nil
+}
+
+// ticket execution-context
+var ticketExecutionContextCmd = &cobra.Command{
+	Use:   "execution-context <TICKET>",
+	Short: "Show execution context for a ticket",
+	Long: `Display the execution context for a ticket including role instructions,
+model selection based on complexity, and capability level.
+
+Examples:
+  wark ticket execution-context WEBAPP-42
+  wark ticket execution-context WEBAPP-42 --json`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketExecutionContext,
+}
+
+type ticketExecutionContextResult struct {
+	TicketKey          string `json:"ticket_key"`
+	Instructions       string `json:"instructions"`
+	InstructionsSource string `json:"instructions_source"`
+	Model              string `json:"model"`
+	Capability         string `json:"capability"`
+}
+
+func runTicketExecutionContext(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return ErrDatabaseWithSuggestion(err, SuggestRunInit, "failed to open database")
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	// Use TicketService to get execution context
+	ticketService := service.NewTicketService(database.DB)
+	ctx, err := ticketService.GetExecutionContext(ticket.ID)
+	if err != nil {
+		return ErrDatabase(err, "failed to get execution context")
+	}
+
+	if IsJSON() {
+		result := ticketExecutionContextResult{
+			TicketKey:          ticket.TicketKey,
+			Instructions:       ctx.Instructions,
+			InstructionsSource: ctx.InstructionsSource,
+			Model:              ctx.Model,
+			Capability:         ctx.Capability,
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	// Display formatted output
+	fmt.Println(strings.Repeat("=", 65))
+	fmt.Printf("Execution Context: %s\n", ticket.TicketKey)
+	fmt.Println(strings.Repeat("=", 65))
+	fmt.Println()
+	fmt.Printf("Complexity:   %s\n", ticket.Complexity)
+	fmt.Printf("Capability:   %s\n", ctx.Capability)
+	fmt.Printf("Model:        %s\n", ctx.Model)
+	fmt.Printf("Source:       %s\n", ctx.InstructionsSource)
+	fmt.Println()
+
+	if ctx.Instructions != "" {
+		fmt.Println(strings.Repeat("-", 65))
+		fmt.Println("Instructions:")
+		fmt.Println(strings.Repeat("-", 65))
+		fmt.Println(ctx.Instructions)
+	} else {
+		fmt.Println("No role instructions configured for this ticket.")
+	}
+
 	return nil
 }

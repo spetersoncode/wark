@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/spetersoncode/wark/internal/config"
 	"github.com/spetersoncode/wark/internal/db"
 	"github.com/spetersoncode/wark/internal/models"
 	"github.com/spetersoncode/wark/internal/state"
@@ -931,4 +932,77 @@ func (s *TicketService) GetExecutionInstructions(ticketID int64) (instructions s
 
 	// No role assigned
 	return "", "none", nil
+}
+
+// ExecutionContext contains all information needed to execute work on a ticket.
+type ExecutionContext struct {
+	Instructions       string `json:"instructions"`
+	InstructionsSource string `json:"instructions_source"`
+	Model              string `json:"model"`
+	Capability         string `json:"capability"`
+	RoleName           string `json:"role_name,omitempty"`
+}
+
+// GetExecutionContext returns the full execution context for a ticket.
+// This includes role instructions, the model to use based on complexity,
+// and the capability level. This is the primary method for execution harnesses
+// to determine how to work on a ticket.
+func (s *TicketService) GetExecutionContext(ticketID int64) (*ExecutionContext, error) {
+	ticket, err := s.ticketRepo.GetByID(ticketID)
+	if err != nil {
+		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
+	}
+	if ticket == nil {
+		return nil, newTicketError(ErrCodeNotFound, "ticket not found", nil)
+	}
+
+	ctx := &ExecutionContext{}
+
+	// Get capability from complexity
+	ctx.Capability = ticket.Complexity.Capability()
+
+	// Load config and map capability to model
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to load config: %v", err), nil)
+	}
+
+	switch ctx.Capability {
+	case "fast":
+		ctx.Model = cfg.Models.Fast
+	case "standard":
+		ctx.Model = cfg.Models.Standard
+	case "powerful":
+		ctx.Model = cfg.Models.Powerful
+	default:
+		ctx.Model = cfg.Models.Standard
+	}
+
+	// If model is empty (not configured), use defaults
+	if ctx.Model == "" {
+		switch ctx.Capability {
+		case "fast":
+			ctx.Model = "haiku"
+		case "standard":
+			ctx.Model = "sonnet"
+		case "powerful":
+			ctx.Model = "opus"
+		}
+	}
+
+	// Get role instructions if ticket has a role
+	if ticket.RoleID != nil {
+		roleRepo := db.NewRoleRepo(s.db)
+		role, err := roleRepo.GetByID(*ticket.RoleID)
+		if err != nil {
+			return nil, newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get role: %v", err), nil)
+		}
+		if role != nil {
+			ctx.Instructions = role.Instructions
+			ctx.InstructionsSource = "role:" + role.Name
+			ctx.RoleName = role.Name
+		}
+	}
+
+	return ctx, nil
 }

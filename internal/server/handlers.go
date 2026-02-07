@@ -392,6 +392,47 @@ func (s *Server) handleGetTicket(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (s *Server) handleGetTicketExecutionContext(w http.ResponseWriter, r *http.Request) {
+	ticketKey := strings.ToUpper(r.PathValue("key"))
+	if ticketKey == "" {
+		writeError(w, http.StatusBadRequest, "ticket key is required")
+		return
+	}
+
+	projectKey, number, err := common.ParseTicketKey(ticketKey)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	repo := db.NewTicketRepo(s.config.DB)
+	ticket, err := repo.GetByKey(projectKey, number)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if ticket == nil {
+		writeError(w, http.StatusNotFound, "ticket not found")
+		return
+	}
+
+	// Use TicketService to get execution context
+	ticketService := service.NewTicketService(s.config.DB)
+	ctx, err := ticketService.GetExecutionContext(ticket.ID)
+	if err != nil {
+		if ticketErr, ok := err.(*service.TicketError); ok {
+			if ticketErr.Code == service.ErrCodeNotFound {
+				writeError(w, http.StatusNotFound, ticketErr.Message)
+				return
+			}
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, ctx)
+}
+
 // Inbox handlers
 
 func (s *Server) handleListInbox(w http.ResponseWriter, r *http.Request) {

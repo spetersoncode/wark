@@ -71,13 +71,15 @@ CREATE TABLE tickets (
     description         TEXT,
 
     -- Status (state machine)
-    status              TEXT NOT NULL DEFAULT 'ready'
+    status              TEXT NOT NULL DEFAULT 'backlog'
                         CHECK (status IN (
+                            'backlog',
                             'blocked',
                             'ready',
                             'working',
                             'human',
                             'review',
+                            'reviewing',
                             'closed'
                         )),
 

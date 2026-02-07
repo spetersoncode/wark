@@ -8,27 +8,31 @@ import (
 
 // Status represents the state of a ticket in its lifecycle.
 // State machine (WARK-12):
+// - backlog: new tickets start here, not yet prioritized for work
 // - blocked: has open dependencies, cannot be worked
 // - ready: no blockers, available for work
 // - working: actively being worked
 // - human: needs human decision/input (escalation)
 // - review: work complete, awaiting approval
+// - reviewing: actively being reviewed (similar to working)
 // - closed: terminal state (with resolution)
 type Status string
 
 const (
-	StatusBlocked Status = "blocked"
-	StatusReady   Status = "ready"
-	StatusWorking Status = "working"
-	StatusHuman   Status = "human"
-	StatusReview  Status = "review"
-	StatusClosed  Status = "closed"
+	StatusBacklog   Status = "backlog"
+	StatusBlocked   Status = "blocked"
+	StatusReady     Status = "ready"
+	StatusWorking   Status = "working"
+	StatusHuman     Status = "human"
+	StatusReview    Status = "review"
+	StatusReviewing Status = "reviewing"
+	StatusClosed    Status = "closed"
 )
 
 // IsValid returns true if the status is a valid ticket status.
 func (s Status) IsValid() bool {
 	switch s {
-	case StatusBlocked, StatusReady, StatusWorking, StatusHuman, StatusReview, StatusClosed:
+	case StatusBacklog, StatusBlocked, StatusReady, StatusWorking, StatusHuman, StatusReview, StatusReviewing, StatusClosed:
 		return true
 	}
 	return false
@@ -39,7 +43,7 @@ func ParseStatus(s string) (Status, error) {
 	normalized := strings.ToLower(strings.TrimSpace(s))
 	status := Status(normalized)
 	if !status.IsValid() {
-		return "", fmt.Errorf("invalid status %q (valid: blocked, ready, working, human, review, closed)", s)
+		return "", fmt.Errorf("invalid status %q (valid: backlog, blocked, ready, working, human, review, reviewing, closed)", s)
 	}
 	return status, nil
 }
@@ -51,13 +55,13 @@ func (s Status) IsTerminal() bool {
 
 // IsWorkable returns true if the status allows the ticket to be worked on.
 func (s Status) IsWorkable() bool {
-	return s == StatusReady
+	return s == StatusReady || s == StatusWorking || s == StatusReviewing
 }
 
 // CanModifyDependencies returns true if dependencies can be modified in this state.
-// Dependencies can only be modified when ticket is blocked or ready.
+// Dependencies can be modified when ticket is in backlog, blocked, or ready.
 func (s Status) CanModifyDependencies() bool {
-	return s == StatusBlocked || s == StatusReady
+	return s == StatusBacklog || s == StatusBlocked || s == StatusReady
 }
 
 // Resolution represents why a ticket was closed.

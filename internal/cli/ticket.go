@@ -313,7 +313,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		return ErrInvalidArgs("%s", err)
 	}
 
-	// Initial status is ready (may change to blocked if deps added later)
+	// Initial status is backlog (may change to blocked if deps added)
 	ticket := &models.Ticket{
 		ProjectID:   project.ID,
 		Title:       ticketTitle,
@@ -321,7 +321,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Priority:    priority,
 		Complexity:  complexity,
 		Type:        tType,
-		Status:      models.StatusReady, // May change to blocked if deps added
+		Status:      models.StatusBacklog, // May change to blocked if deps added
 	}
 
 	// Set role if provided
@@ -420,7 +420,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Auto-transition: check if ticket should be blocked based on dependencies
-	// State machine rule: ON create: if has_open_deps → blocked, else → ready
+	// State machine rule: ON create: if has_open_deps → blocked, else → backlog
 	hasUnresolved, err := depRepo.HasUnresolvedDependencies(ticket.ID)
 	if err != nil {
 		VerboseOutput("Warning: failed to check dependencies: %v\n", err)

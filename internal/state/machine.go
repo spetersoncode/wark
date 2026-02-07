@@ -3,32 +3,39 @@
 // State Machine (WARK-12):
 //
 // States:
+//   - backlog: new tickets start here, not yet prioritized
 //   - blocked: has open dependencies, cannot be worked
 //   - ready: no blockers, available for work
 //   - working: actively being worked
 //   - human: needs human decision/input (escalation)
 //   - review: work complete, awaiting approval
+//   - reviewing: actively being reviewed (similar to working)
 //   - closed: terminal state (with resolution enum)
 //
 // Auto-transitions (dependency-triggered):
-//   - ON create: if has_open_deps → blocked, else → ready
+//   - ON create: if has_open_deps → blocked, else → backlog
 //   - ON dep completed: if blocked ticket has all deps done → ready
 //   - ON dep added to ready ticket: if dep not closed(completed) → blocked
 //   - ON dep removed: if blocked and all deps done → ready
 //
 // Manual transitions:
+//   - backlog → ready (prioritize)
 //   - ready → working (claim)
 //   - ready → human (escalate before starting)
 //   - working → ready (release)
 //   - working → human (escalate)
 //   - working → review (complete)
+//   - review → reviewing (start review)
+//   - reviewing → review (pause review)
+//   - reviewing → ready (reject during review)
+//   - reviewing → closed (accept during review)
 //   - human → working (resume after human input)
 //   - human → closed (human resolves)
 //   - review → ready (reject)
 //   - review → closed (accept)
 //   - {any except closed} → closed (cancel with resolution)
 //
-// Constraint: Dependencies can only be modified when ticket is blocked or ready.
+// Constraint: Dependencies can only be modified when ticket is backlog, blocked, or ready.
 package state
 
 import (
@@ -98,6 +105,13 @@ type TransitionRule struct {
 // validTransitions defines all valid state transitions.
 var validTransitions = []TransitionRule{
 	// Auto-transitions (dependency-triggered)
+	// backlog → blocked (dependency added)
+	{
+		From:         models.StatusBacklog,
+		To:           models.StatusBlocked,
+		AllowedTypes: []TransitionType{TransitionTypeAuto},
+		Description:  "Blocked by unresolved dependency",
+	},
 	// blocked → ready (all dependencies resolved)
 	{
 		From:         models.StatusBlocked,
@@ -113,7 +127,16 @@ var validTransitions = []TransitionRule{
 		Description:  "Blocked by unresolved dependency",
 	},
 
-	// Manual transitions
+	// Manual transitions - backlog
+	// backlog → ready (prioritize)
+	{
+		From:         models.StatusBacklog,
+		To:           models.StatusReady,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Ticket prioritized for work",
+	},
+
+	// Manual transitions - ready
 	// ready → working (claim)
 	{
 		From:         models.StatusReady,
@@ -189,7 +212,52 @@ var validTransitions = []TransitionRule{
 		Description:  "Work accepted and completed",
 	},
 
+	// Manual transitions - reviewing (active review work)
+	// review → reviewing (start review)
+	{
+		From:         models.StatusReview,
+		To:           models.StatusReviewing,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Review started",
+	},
+	// reviewing → review (pause/end review session)
+	{
+		From:         models.StatusReviewing,
+		To:           models.StatusReview,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Review paused, awaiting decision",
+	},
+	// reviewing → ready (reject during review)
+	{
+		From:          models.StatusReviewing,
+		To:            models.StatusReady,
+		AllowedTypes:  []TransitionType{TransitionTypeManual},
+		RequireReason: true,
+		Description:   "Work rejected during review, returned to queue",
+	},
+	// reviewing → closed (accept during review)
+	{
+		From:         models.StatusReviewing,
+		To:           models.StatusClosed,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Work accepted during review",
+	},
+	// reviewing → human (escalate during review)
+	{
+		From:          models.StatusReviewing,
+		To:            models.StatusHuman,
+		AllowedTypes:  []TransitionType{TransitionTypeManual, TransitionTypeAuto},
+		RequireReason: true,
+		Description:   "Escalated during review for human decision",
+	},
+
 	// Cancel from any non-terminal state
+	{
+		From:         models.StatusBacklog,
+		To:           models.StatusClosed,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Ticket closed",
+	},
 	{
 		From:         models.StatusBlocked,
 		To:           models.StatusClosed,
@@ -208,11 +276,29 @@ var validTransitions = []TransitionRule{
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Ticket closed",
 	},
+	{
+		From:         models.StatusReview,
+		To:           models.StatusClosed,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Ticket closed",
+	},
+	{
+		From:         models.StatusReviewing,
+		To:           models.StatusClosed,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Ticket closed",
+	},
+	{
+		From:         models.StatusHuman,
+		To:           models.StatusClosed,
+		AllowedTypes: []TransitionType{TransitionTypeManual},
+		Description:  "Ticket closed",
+	},
 
 	// Reopen from closed
 	{
 		From:         models.StatusClosed,
-		To:           models.StatusReady,
+		To:           models.StatusBacklog,
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Ticket reopened",
 	},
@@ -340,12 +426,17 @@ func InitialStatus(hasOpenDeps bool) models.Status {
 	if hasOpenDeps {
 		return models.StatusBlocked
 	}
-	return models.StatusReady
+	return models.StatusBacklog
 }
 
 // ActionForTransition returns the appropriate Action for logging a transition.
 func ActionForTransition(from, to models.Status, transType TransitionType) models.Action {
 	switch to {
+	case models.StatusBacklog:
+		if from == models.StatusClosed {
+			return models.ActionReopened
+		}
+		return models.ActionFieldChanged
 	case models.StatusReady:
 		switch from {
 		case models.StatusBlocked:
@@ -355,10 +446,12 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 				return models.ActionExpired
 			}
 			return models.ActionReleased
-		case models.StatusReview:
+		case models.StatusReview, models.StatusReviewing:
 			return models.ActionRejected
 		case models.StatusClosed:
 			return models.ActionReopened
+		case models.StatusBacklog:
+			return models.ActionFieldChanged // Prioritized
 		}
 	case models.StatusBlocked:
 		if from == models.StatusClosed {
@@ -373,9 +466,17 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 	case models.StatusHuman:
 		return models.ActionEscalated
 	case models.StatusReview:
-		return models.ActionCompleted
+		if from == models.StatusWorking {
+			return models.ActionCompleted
+		}
+		if from == models.StatusReviewing {
+			return models.ActionFieldChanged // Review paused
+		}
+		return models.ActionFieldChanged
+	case models.StatusReviewing:
+		return models.ActionClaimed // Using claimed for "review started"
 	case models.StatusClosed:
-		if from == models.StatusReview {
+		if from == models.StatusReview || from == models.StatusReviewing {
 			return models.ActionAccepted
 		}
 		return models.ActionClosed
@@ -393,7 +494,7 @@ func IsActiveState(status models.Status) bool {
 // CanBeEscalated returns true if tickets in this status can be escalated to human.
 func CanBeEscalated(status models.Status) bool {
 	switch status {
-	case models.StatusReady, models.StatusWorking:
+	case models.StatusReady, models.StatusWorking, models.StatusReviewing:
 		return true
 	}
 	return false
@@ -402,8 +503,8 @@ func CanBeEscalated(status models.Status) bool {
 // CanBeClosed returns true if tickets in this status can be closed.
 func CanBeClosed(status models.Status) bool {
 	switch status {
-	case models.StatusBlocked, models.StatusReady, models.StatusWorking,
-		models.StatusHuman, models.StatusReview:
+	case models.StatusBacklog, models.StatusBlocked, models.StatusReady, models.StatusWorking,
+		models.StatusHuman, models.StatusReview, models.StatusReviewing:
 		return true
 	}
 	return false

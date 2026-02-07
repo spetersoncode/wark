@@ -122,21 +122,21 @@ export default function Dashboard() {
 					value={status.workable}
 					icon={<CheckCircle2 className="size-4" />}
 					colorClass="text-status-ready"
-					href="/board?status=ready"
+					href="/tickets?status=ready"
 				/>
 				<CompactStatCard
 					title="Active"
 					value={status.working}
 					icon={<Clock className="size-4" />}
 					colorClass="text-status-in-progress"
-					href="/board?status=working"
+					href="/tickets?status=working"
 				/>
 				<CompactStatCard
 					title="Blocked"
 					value={status.blocked_deps + status.blocked_human}
 					icon={<AlertTriangle className="size-4" />}
 					colorClass="text-status-blocked"
-					href="/board?status=blocked"
+					href="/tickets?status=blocked"
 				/>
 				<CompactStatCard
 					title="Inbox"

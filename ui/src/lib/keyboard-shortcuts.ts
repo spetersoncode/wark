@@ -16,7 +16,6 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcut[] = [
 	{ keys: "g d", description: "Go to Dashboard", category: "navigation" },
 	{ keys: "g p", description: "Go to Projects", category: "navigation" },
 	{ keys: "g t", description: "Go to Tickets", category: "navigation" },
-	{ keys: "g b", description: "Go to Board", category: "navigation" },
 	{ keys: "g i", description: "Go to Inbox", category: "navigation" },
 	{ keys: "g a", description: "Go to Analytics", category: "navigation" },
 

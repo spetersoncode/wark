@@ -1,10 +1,8 @@
 import {
 	BarChart3,
-	Flag,
 	FolderKanban,
 	Home,
 	Inbox as InboxIcon,
-	KanbanSquare,
 	ListTodo,
 	Menu,
 	X,
@@ -18,12 +16,9 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { cn } from "./lib/utils";
 import {
 	Analytics,
-	Board,
 	ComponentDemo,
 	Dashboard,
 	Inbox,
-	MilestoneDetail,
-	Milestones,
 	NotFound,
 	Projects,
 	TicketDetail,
@@ -34,8 +29,6 @@ const NAV_ITEMS = [
 	{ to: "/", label: "Dashboard", icon: Home, end: true },
 	{ to: "/projects", label: "Projects", icon: FolderKanban },
 	{ to: "/tickets", label: "Tickets", icon: ListTodo },
-	{ to: "/milestones", label: "Milestones", icon: Flag },
-	{ to: "/board", label: "Board", icon: KanbanSquare },
 	{ to: "/inbox", label: "Inbox", icon: InboxIcon },
 	{ to: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
@@ -77,7 +70,7 @@ function App() {
 									className={({ isActive }) =>
 										cn(
 											"flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-											isActive || (isTicketDetail && to === "/board")
+											isActive
 												? "bg-[var(--secondary)] text-[var(--foreground)]"
 												: "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent-muted)]",
 										)
@@ -116,7 +109,7 @@ function App() {
 									className={({ isActive }) =>
 										cn(
 											"flex items-center gap-3 px-3 py-3 text-sm rounded-md transition-colors",
-											isActive || (isTicketDetail && to === "/board")
+											isActive
 												? "bg-[var(--secondary)] text-[var(--foreground)]"
 												: "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent-muted)]",
 										)
@@ -150,9 +143,6 @@ function App() {
 							<Route path="/dashboard" element={<Dashboard />} />
 							<Route path="/projects" element={<Projects />} />
 							<Route path="/tickets" element={<Tickets />} />
-							<Route path="/milestones" element={<Milestones />} />
-							<Route path="/milestones/*" element={<MilestoneDetail />} />
-							<Route path="/board" element={<Board />} />
 							<Route path="/inbox" element={<Inbox />} />
 							<Route path="/analytics" element={<Analytics />} />
 							<Route path="/tickets/:key" element={<TicketDetail />} />

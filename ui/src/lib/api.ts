@@ -92,7 +92,6 @@ export interface Ticket {
 	retry_count: number;
 	max_retries: number;
 	parent_ticket_id?: number;
-	milestone_key?: string;
 	created_at: string;
 	updated_at: string;
 	completed_at?: string;
@@ -182,7 +181,6 @@ export interface TicketListParams {
 	status?: TicketStatus;
 	priority?: TicketPriority;
 	complexity?: TicketComplexity;
-	milestone?: string;
 	workable?: boolean;
 	limit?: number;
 }
@@ -193,7 +191,6 @@ export const listTickets = (params?: TicketListParams) => {
 	if (params?.status) query.set("status", params.status);
 	if (params?.priority) query.set("priority", params.priority);
 	if (params?.complexity) query.set("complexity", params.complexity);
-	if (params?.milestone) query.set("milestone", params.milestone);
 	if (params?.workable) query.set("workable", "true");
 	if (params?.limit) query.set("limit", params.limit.toString());
 	const queryStr = query.toString();
@@ -325,27 +322,6 @@ export interface AnalyticsFilter {
 	trend_days?: number;
 }
 
-export type MilestoneStatus = "open" | "achieved" | "abandoned";
-
-export interface Milestone {
-	id: number;
-	project_id: number;
-	project_key: string;
-	key: string;
-	name: string;
-	goal?: string;
-	target_date?: string;
-	status: MilestoneStatus;
-	created_at: string;
-	updated_at: string;
-}
-
-export interface MilestoneWithStats extends Milestone {
-	ticket_count: number;
-	completed_count: number;
-	completion_pct: number;
-}
-
 export interface AnalyticsResult {
 	success: SuccessMetrics;
 	human_interaction: HumanInteractionMetrics;
@@ -370,15 +346,3 @@ export const getAnalytics = (params?: AnalyticsFilter) => {
 	const queryStr = query.toString();
 	return fetchApi<AnalyticsResult>(`/analytics${queryStr ? `?${queryStr}` : ""}`);
 };
-
-// Milestones
-export const listMilestones = (projectKey?: string) => {
-	const query = projectKey ? `?project=${projectKey}` : "";
-	return fetchApi<MilestoneWithStats[]>(`/milestones${query}`);
-};
-
-export const getMilestone = (key: string) =>
-	fetchApi<MilestoneWithStats>(`/milestones/${key}`);
-
-export const getMilestoneTickets = (key: string) =>
-	fetchApi<Ticket[]>(`/milestones/${key}/tickets`);

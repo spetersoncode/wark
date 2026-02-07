@@ -58,7 +58,6 @@ const NAVIGATION_ROUTES: Record<string, string> = {
 	d: "/", // Dashboard
 	p: "/projects",
 	t: "/tickets",
-	b: "/board",
 	i: "/inbox",
 	a: "/analytics",
 };

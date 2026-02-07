@@ -20,17 +20,14 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import {
 	ApiError,
-	listMilestones,
 	listProjects,
 	listTickets,
-	type MilestoneWithStats,
 	type ProjectWithStats,
 	type Ticket,
 	type TicketComplexity,
 	type TicketPriority,
 	type TicketStatus,
 } from "../lib/api";
-import { MilestoneBadge } from "../components/milestone";
 import { useAutoRefresh } from "../lib/hooks";
 import { cn } from "../lib/utils";
 
@@ -41,7 +38,6 @@ type SortField =
 	| "priority"
 	| "complexity"
 	| "project"
-	| "milestone"
 	| "created_at";
 type SortDirection = "asc" | "desc";
 
@@ -104,16 +100,13 @@ export default function Tickets() {
 	const filterStatus = searchParams.get("status") as TicketStatus | null;
 	const filterPriority = searchParams.get("priority") as TicketPriority | null;
 	const filterComplexity = searchParams.get("complexity") as TicketComplexity | null;
-	const filterMilestone = searchParams.get("milestone");
-
-	const activeFilterCount = [filterProject, filterStatus, filterPriority, filterComplexity, filterMilestone].filter(
+	const activeFilterCount = [filterProject, filterStatus, filterPriority, filterComplexity].filter(
 		Boolean,
 	).length;
 	const hasActiveFilters = activeFilterCount > 0;
 
 	const [tickets, setTickets] = useState<Ticket[]>([]);
 	const [projects, setProjects] = useState<ProjectWithStats[]>([]);
-	const [milestones, setMilestones] = useState<MilestoneWithStats[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [sortField, setSortField] = useState<SortField>("created_at");
@@ -151,22 +144,18 @@ export default function Tickets() {
 				status?: TicketStatus;
 				priority?: TicketPriority;
 				complexity?: TicketComplexity;
-				milestone?: string;
 			} = {};
 			if (filterProject) params.project = filterProject;
 			if (filterStatus) params.status = filterStatus;
 			if (filterPriority) params.priority = filterPriority;
 			if (filterComplexity) params.complexity = filterComplexity;
-			if (filterMilestone) params.milestone = filterMilestone;
 
-			const [ticketData, projectData, milestoneData] = await Promise.all([
+			const [ticketData, projectData] = await Promise.all([
 				listTickets(Object.keys(params).length > 0 ? params : undefined),
 				listProjects(),
-				listMilestones(),
 			]);
 			setTickets(ticketData);
 			setProjects(projectData);
-			setMilestones(milestoneData);
 			setError(null);
 		} catch (e) {
 			if (e instanceof ApiError) {
@@ -177,7 +166,7 @@ export default function Tickets() {
 		} finally {
 			setLoading(false);
 		}
-	}, [filterProject, filterStatus, filterPriority, filterComplexity, filterMilestone]);
+	}, [filterProject, filterStatus, filterPriority, filterComplexity]);
 
 	// Initial fetch
 	useEffect(() => {
@@ -217,18 +206,6 @@ export default function Tickets() {
 					break;
 				case "project":
 					comparison = a.project_key.localeCompare(b.project_key);
-					break;
-				case "milestone":
-					// Sort tickets with milestones first, then alphabetically by milestone key
-					if (a.milestone_key && b.milestone_key) {
-						comparison = a.milestone_key.localeCompare(b.milestone_key);
-					} else if (a.milestone_key) {
-						comparison = -1;
-					} else if (b.milestone_key) {
-						comparison = 1;
-					} else {
-						comparison = 0;
-					}
 					break;
 				case "created_at":
 					comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -423,20 +400,6 @@ export default function Tickets() {
 					))}
 				</select>
 
-				{/* Milestone Filter */}
-				<select
-					value={filterMilestone || ""}
-					onChange={(e) => setFilter("milestone", e.target.value || null)}
-					className="px-3 py-1.5 text-sm rounded-md bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-				>
-					<option value="">All Milestones</option>
-					{milestones.map((m) => (
-						<option key={`${m.project_key}/${m.key}`} value={`${m.project_key}/${m.key}`}>
-							{m.project_key}/{m.key} - {m.name}
-						</option>
-					))}
-				</select>
-
 				{/* Clear Filters */}
 				{hasActiveFilters && (
 					<button
@@ -493,7 +456,6 @@ export default function Tickets() {
 									<SortHeader field="project" className="w-32">
 										Project
 									</SortHeader>
-									<SortHeader field="milestone" className="w-36">
 										Milestone
 									</SortHeader>
 									<SortHeader field="status" className="w-32">
@@ -550,10 +512,6 @@ export default function Tickets() {
 											</span>
 										</TableCell>
 										<TableCell className="py-4">
-											{ticket.milestone_key ? (
-												<MilestoneBadge milestoneKey={ticket.milestone_key} />
-											) : (
-												<span className="text-sm text-muted-foreground">—</span>
 											)}
 										</TableCell>
 										<TableCell className="py-4">

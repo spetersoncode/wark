@@ -1,10 +1,7 @@
 export { default as Analytics } from "./Analytics";
-export { default as Board } from "./Board";
 export { ComponentDemo } from "./ComponentDemo";
 export { default as Dashboard } from "./Dashboard";
 export { default as Inbox } from "./Inbox";
-export { default as MilestoneDetail } from "./MilestoneDetail";
-export { default as Milestones } from "./Milestones";
 export { default as NotFound } from "./NotFound";
 export { default as Projects } from "./Projects";
 export { default as TicketDetail } from "./TicketDetail";

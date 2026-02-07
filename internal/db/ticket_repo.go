@@ -154,9 +154,9 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 	query := `
 		INSERT INTO tickets (
 			project_id, number, title, description, status, resolution, human_flag_reason,
-			priority, complexity, ticket_type, worktree, brain, role_id, retry_count, max_retries,
-			parent_ticket_id, milestone_id, created_at, updated_at, completed_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			priority, complexity, ticket_type, worktree, role_id, retry_count, max_retries,
+			parent_ticket_id, created_at, updated_at, completed_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	now := time.Now()
 	nowStr := FormatTime(now)
@@ -173,15 +173,10 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 		number = int(maxNum.Int64) + 1
 	}
 
-	var brainValue sql.NullString
-	if t.Brain != nil {
-		brainValue = sql.NullString{String: *t.Brain, Valid: true}
-	}
-
 	result, err := r.db.Exec(query,
 		t.ProjectID, number, t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
-		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), brainValue, nullInt64(t.RoleID), t.RetryCount, t.MaxRetries,
-		nullInt64(t.ParentTicketID), nullInt64(t.MilestoneID), nowStr, nowStr, FormatTimePtr(t.CompletedAt),
+		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), nullInt64(t.RoleID), t.RetryCount, t.MaxRetries,
+		nullInt64(t.ParentTicketID), nowStr, nowStr, FormatTimePtr(t.CompletedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create ticket: %w", err)
@@ -203,15 +198,13 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 func (r *TicketRepo) GetByID(id int64) (*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain, t.role_id,
-			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.role_id,
+			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
-			m.key AS milestone_key,
 			r.name AS role_name
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
-		LEFT JOIN milestones m ON t.milestone_id = m.id
 		LEFT JOIN roles r ON t.role_id = r.id
 		WHERE t.id = ?
 	`
@@ -222,15 +215,13 @@ func (r *TicketRepo) GetByID(id int64) (*models.Ticket, error) {
 func (r *TicketRepo) GetByKey(projectKey string, number int) (*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain, t.role_id,
-			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.role_id,
+			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
-			m.key AS milestone_key,
 			r.name AS role_name
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
-		LEFT JOIN milestones m ON t.milestone_id = m.id
 		LEFT JOIN roles r ON t.role_id = r.id
 		WHERE p.key = ? AND t.number = ?
 	`
@@ -249,15 +240,13 @@ func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain, t.role_id,
-			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.role_id,
+			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
-			m.key AS milestone_key,
 			ro.name AS role_name
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
-		LEFT JOIN milestones m ON t.milestone_id = m.id
 		LEFT JOIN roles ro ON t.role_id = ro.id
 		WHERE 1=1
 	`
@@ -290,14 +279,6 @@ func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 	if filter.ParentID != nil {
 		query += " AND t.parent_ticket_id = ?"
 		args = append(args, *filter.ParentID)
-	}
-	if filter.MilestoneID != nil {
-		query += " AND t.milestone_id = ?"
-		args = append(args, *filter.MilestoneID)
-	}
-	if filter.MilestoneKey != "" {
-		query += " AND m.key = ?"
-		args = append(args, filter.MilestoneKey)
 	}
 
 	query += ` ORDER BY
@@ -333,7 +314,7 @@ func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 // A dependency is only resolved if its ticket is closed with 'completed' resolution.
 // It automatically releases any expired claims before querying, which may make
 // previously claimed tickets workable again.
-// Note: Epics are excluded from workable list - work through child tasks instead.
+// Note: Epics are excluded from workable list - work through child tickets instead.
 func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error) {
 	// Auto-release expired claims - this is especially important for ListWorkable
 	// since it makes orphaned tickets available for work again
@@ -344,15 +325,13 @@ func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error)
 
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain, t.role_id,
-			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.role_id,
+			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
-			mil.key AS milestone_key,
 			ro.name AS role_name
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
-		LEFT JOIN milestones mil ON t.milestone_id = mil.id
 		LEFT JOIN roles ro ON t.role_id = ro.id
 		WHERE t.status = 'ready'
 		AND t.ticket_type != 'epic'
@@ -376,14 +355,6 @@ func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error)
 	if filter.Complexity != nil {
 		query += " AND t.complexity = ?"
 		args = append(args, *filter.Complexity)
-	}
-	if filter.MilestoneID != nil {
-		query += " AND t.milestone_id = ?"
-		args = append(args, *filter.MilestoneID)
-	}
-	if filter.MilestoneKey != "" {
-		query += " AND mil.key = ?"
-		args = append(args, filter.MilestoneKey)
 	}
 
 	query += ` ORDER BY
@@ -420,19 +391,15 @@ func (r *TicketRepo) Update(t *models.Ticket) error {
 	query := `
 		UPDATE tickets SET
 			title = ?, description = ?, status = ?, resolution = ?, human_flag_reason = ?,
-			priority = ?, complexity = ?, ticket_type = ?, worktree = ?, brain = ?, role_id = ?,
-			retry_count = ?, max_retries = ?, parent_ticket_id = ?, milestone_id = ?, completed_at = ?
+			priority = ?, complexity = ?, ticket_type = ?, worktree = ?, role_id = ?,
+			retry_count = ?, max_retries = ?, parent_ticket_id = ?, completed_at = ?
 		WHERE id = ?
 	`
-	var brainValue sql.NullString
-	if t.Brain != nil {
-		brainValue = sql.NullString{String: *t.Brain, Valid: true}
-	}
 
 	result, err := r.db.Exec(query,
 		t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
-		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), brainValue, nullInt64(t.RoleID),
-		t.RetryCount, t.MaxRetries, nullInt64(t.ParentTicketID), nullInt64(t.MilestoneID), FormatTimePtr(t.CompletedAt),
+		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), nullInt64(t.RoleID),
+		t.RetryCount, t.MaxRetries, nullInt64(t.ParentTicketID), FormatTimePtr(t.CompletedAt),
 		t.ID,
 	)
 	if err != nil {
@@ -448,41 +415,6 @@ func (r *TicketRepo) Update(t *models.Ticket) error {
 	}
 
 	return nil
-}
-
-// ListByMilestone retrieves all tickets linked to a milestone.
-func (r *TicketRepo) ListByMilestone(milestoneID int64) ([]*models.Ticket, error) {
-	query := `
-		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain, t.role_id,
-			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
-			t.created_at, t.updated_at, t.completed_at,
-			p.key AS project_key,
-			m.key AS milestone_key,
-			ro.name AS role_name
-		FROM tickets t
-		JOIN projects p ON t.project_id = p.id
-		LEFT JOIN milestones m ON t.milestone_id = m.id
-		LEFT JOIN roles ro ON t.role_id = ro.id
-		WHERE t.milestone_id = ?
-		ORDER BY
-			CASE t.priority
-				WHEN 'highest' THEN 1
-				WHEN 'high' THEN 2
-				WHEN 'medium' THEN 3
-				WHEN 'low' THEN 4
-				WHEN 'lowest' THEN 5
-			END,
-			t.created_at
-	`
-
-	rows, err := r.db.Query(query, milestoneID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tickets by milestone: %w", err)
-	}
-	defer rows.Close()
-
-	return r.scanMany(rows)
 }
 
 // UpdateStatus updates the status of a ticket.
@@ -556,15 +488,13 @@ func (r *TicketRepo) Search(query string, limit int) ([]*models.Ticket, error) {
 
 	sqlQuery := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain, t.role_id,
-			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.role_id,
+			t.retry_count, t.max_retries, t.parent_ticket_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
-			m.key AS milestone_key,
 			ro.name AS role_name
 		FROM tickets t
 		JOIN projects p ON t.project_id = p.id
-		LEFT JOIN milestones m ON t.milestone_id = m.id
 		LEFT JOIN roles ro ON t.role_id = ro.id
 		WHERE (p.key || '-' || t.number) LIKE ? COLLATE NOCASE
 		   OR t.title LIKE ? COLLATE NOCASE
@@ -611,16 +541,16 @@ func (r *TicketRepo) CountByStatus(projectID int64) (map[models.Status]int, erro
 
 func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 	var t models.Ticket
-	var desc, resolution, humanFlag, ticketType, worktree, brain, milestoneKey, roleName sql.NullString
-	var parentID, milestoneID, roleID sql.NullInt64
+	var desc, resolution, humanFlag, ticketType, worktree, roleName sql.NullString
+	var parentID, roleID sql.NullInt64
 	var completedAt sql.NullTime
 
 	err := row.Scan(
 		&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status,
-		&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree, &brain, &roleID,
-		&t.RetryCount, &t.MaxRetries, &parentID, &milestoneID,
+		&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree, &roleID,
+		&t.RetryCount, &t.MaxRetries, &parentID,
 		&t.CreatedAt, &t.UpdatedAt, &completedAt,
-		&t.ProjectKey, &milestoneKey, &roleName,
+		&t.ProjectKey, &roleName,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -636,9 +566,6 @@ func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 		t.Type = models.TicketTypeTask // Default to task
 	}
 	t.Worktree = worktree.String
-	if brain.Valid && brain.String != "" {
-		t.Brain = &brain.String
-	}
 	if roleID.Valid {
 		t.RoleID = &roleID.Int64
 	}
@@ -652,12 +579,6 @@ func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 	if parentID.Valid {
 		t.ParentTicketID = &parentID.Int64
 	}
-	if milestoneID.Valid {
-		t.MilestoneID = &milestoneID.Int64
-	}
-	if milestoneKey.Valid {
-		t.MilestoneKey = milestoneKey.String
-	}
 	if completedAt.Valid {
 		t.CompletedAt = &completedAt.Time
 	}
@@ -669,16 +590,16 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 	var tickets []*models.Ticket
 	for rows.Next() {
 		var t models.Ticket
-		var desc, resolution, humanFlag, ticketType, worktree, brain, milestoneKey, roleName sql.NullString
-		var parentID, milestoneID, roleID sql.NullInt64
+		var desc, resolution, humanFlag, ticketType, worktree, roleName sql.NullString
+		var parentID, roleID sql.NullInt64
 		var completedAt sql.NullTime
 
 		err := rows.Scan(
 			&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status,
-			&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree, &brain, &roleID,
-			&t.RetryCount, &t.MaxRetries, &parentID, &milestoneID,
+			&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree, &roleID,
+			&t.RetryCount, &t.MaxRetries, &parentID,
 			&t.CreatedAt, &t.UpdatedAt, &completedAt,
-			&t.ProjectKey, &milestoneKey, &roleName,
+			&t.ProjectKey, &roleName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan ticket: %w", err)
@@ -691,9 +612,6 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 			t.Type = models.TicketTypeTask // Default to task
 		}
 		t.Worktree = worktree.String
-		if brain.Valid && brain.String != "" {
-			t.Brain = &brain.String
-		}
 		if roleID.Valid {
 			t.RoleID = &roleID.Int64
 		}
@@ -706,12 +624,6 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 		}
 		if parentID.Valid {
 			t.ParentTicketID = &parentID.Int64
-		}
-		if milestoneID.Valid {
-			t.MilestoneID = &milestoneID.Int64
-		}
-		if milestoneKey.Valid {
-			t.MilestoneKey = milestoneKey.String
 		}
 		if completedAt.Valid {
 			t.CompletedAt = &completedAt.Time

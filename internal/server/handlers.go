@@ -275,9 +275,10 @@ func (s *Server) handleListTickets(w http.ResponseWriter, r *http.Request) {
 		c := models.Complexity(complexity)
 		filter.Complexity = &c
 	}
-	if milestoneKey := r.URL.Query().Get("milestone"); milestoneKey != "" {
-		filter.MilestoneKey = strings.ToUpper(milestoneKey)
-	}
+	// Note: milestone filter removed - milestones were deprecated in WARK-13
+	// if milestoneKey := r.URL.Query().Get("milestone"); milestoneKey != "" {
+	// 	filter.MilestoneKey = strings.ToUpper(milestoneKey)
+	// }
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
 			filter.Limit = limit

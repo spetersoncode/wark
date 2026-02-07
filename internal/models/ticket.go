@@ -30,9 +30,6 @@ type Ticket struct {
 	// Git integration
 	Worktree string `json:"worktree,omitempty"`
 
-	// Brain (freeform guidance for execution harness)
-	Brain *string `json:"brain,omitempty"`
-
 	// Role (reference to a role for execution context)
 	RoleID *int64 `json:"role_id,omitempty"`
 

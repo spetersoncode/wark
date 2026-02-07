@@ -35,7 +35,6 @@ var (
 	ticketClearMilestone bool
 	ticketCommentMessage string
 	ticketCommentWorker  string
-	ticketBrain          string
 	ticketRole           string
 )
 
@@ -50,7 +49,6 @@ func init() {
 	ticketCreateCmd.Flags().StringVar(&ticketParent, "parent", "", "Parent ticket ID")
 	ticketCreateCmd.Flags().StringVar(&ticketEpic, "epic", "", "Epic ticket ID (alternative to --parent for clearer semantics)")
 	ticketCreateCmd.Flags().StringVarP(&ticketMilestone, "milestone", "m", "", "Associate with milestone (key or PROJECT/KEY)")
-	ticketCreateCmd.Flags().StringVar(&ticketBrain, "brain", "", "Brain/model to use for this ticket (e.g., 'sonnet', 'claude-code --skip-perms')")
 	ticketCreateCmd.Flags().StringVar(&ticketRole, "role", "", "Role to use for this ticket (e.g., 'software-engineer', 'code-reviewer', 'worker')")
 	ticketCreateCmd.MarkFlagRequired("title")
 
@@ -210,9 +208,7 @@ Examples:
   wark ticket create WEBAPP -t "Set up OAuth routes" --parent WEBAPP-15
   wark ticket create WEBAPP -t "Add login form" --epic WEBAPP-15
   wark ticket create WEBAPP -t "Add login" --milestone MVP
-  wark ticket create WEBAPP -t "Implement feature" --role software-engineer
-  wark ticket create WEBAPP -t "Debug issue" --brain "claude-code --skip-perms"
-  wark ticket create WEBAPP -t "Complex feature" --role software-engineer --brain sonnet`,
+  wark ticket create WEBAPP -t "Implement feature" --role software-engineer`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketCreate,
 }
@@ -280,11 +276,6 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		Complexity:  complexity,
 		Type:        tType,
 		Status:      models.StatusReady, // May change to blocked if deps added
-	}
-
-	// Set brain if provided
-	if ticketBrain != "" {
-		ticket.Brain = &ticketBrain
 	}
 
 	// Set role if provided
@@ -462,15 +453,7 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		Limit:      ticketLimit,
 	}
 
-	// Handle milestone filter (applies to both workable and regular list)
-	if ticketMilestone != "" {
-		// Resolve milestone to get its key for filtering
-		milestone, err := resolveMilestone(database, ticketMilestone, strings.ToUpper(ticketProject))
-		if err != nil {
-			return err
-		}
-		filter.MilestoneID = &milestone.ID
-	}
+	// Note: milestone filter removed - milestones were deprecated in WARK-13
 
 	if ticketWorkable {
 		tickets, err = ticketRepo.ListWorkable(filter)
@@ -553,10 +536,10 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table format
-	// Check if any ticket has a role or brain set to determine if we should show the column
+	// Check if any ticket has a role set to determine if we should show the column
 	showExecution := false
 	for _, t := range tickets {
-		if t.RoleName != "" || t.Brain != nil {
+		if t.RoleName != "" {
 			showExecution = true
 			break
 		}
@@ -577,12 +560,10 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 			milestoneDisplay = t.MilestoneKey
 		}
 
-		// Execution display: show role if set, otherwise show brain
+		// Execution display: show role if set
 		executionDisplay := ""
 		if t.RoleName != "" {
 			executionDisplay = "@" + t.RoleName
-		} else if t.Brain != nil {
-			executionDisplay = *t.Brain
 		}
 
 		// Add task progress indicator for workable tickets
@@ -747,9 +728,6 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
 	if ticket.RoleName != "" {
 		fmt.Printf("Role:        @%s\n", ticket.RoleName)
-	}
-	if ticket.Brain != nil {
-		fmt.Printf("Brain:       %q\n", *ticket.Brain)
 	}
 	if ticket.Worktree != "" {
 		fmt.Printf("Worktree:    %s\n", ticket.Worktree)

@@ -18,6 +18,7 @@
                       │   │ complexity                          │
                       │   │ ticket_type (task/epic)             │
                       │   │ worktree                            │
+                      │   │ brain (JSON)                        │
                       │   │ retry_count                         │
                       │   │ parent_ticket_id (FK, self-ref) ────┼──┐
                       │   │ created_at                          │  │
@@ -119,6 +120,9 @@ CREATE TABLE tickets (
 
     -- Git integration
     worktree            TEXT,                       -- e.g., 'wark/WEBAPP-42-add-auth'
+    
+    -- Brain (specifies what executes the work)
+    brain               TEXT,                       -- JSON: {"type": "model"|"tool", "value": "sonnet"|"opus"|"qwen"|"claude-code"}
     
     -- Retry tracking
     retry_count         INTEGER NOT NULL DEFAULT 0,

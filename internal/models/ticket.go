@@ -1,9 +1,43 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
+
+// Brain specifies what executes the work on a ticket.
+type Brain struct {
+	Type  string `json:"type"`  // "model" or "tool"
+	Value string `json:"value"` // e.g., "sonnet", "opus", "qwen", "claude-code"
+}
+
+// String returns a human-readable representation of the brain.
+func (b *Brain) String() string {
+	if b == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", b.Type, b.Value)
+}
+
+// MarshalJSON implements json.Marshaler for Brain.
+func (b *Brain) MarshalJSON() ([]byte, error) {
+	if b == nil {
+		return []byte("null"), nil
+	}
+	type Alias Brain
+	return json.Marshal((*Alias)(b))
+}
+
+// UnmarshalJSON implements json.Unmarshaler for Brain.
+func (b *Brain) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	type Alias Brain
+	aux := (*Alias)(b)
+	return json.Unmarshal(data, aux)
+}
 
 // Ticket represents a unit of work in wark.
 type Ticket struct {
@@ -29,6 +63,9 @@ type Ticket struct {
 
 	// Git integration
 	Worktree string `json:"worktree,omitempty"`
+
+	// Brain (specifies what executes the work)
+	Brain *Brain `json:"brain,omitempty"`
 
 	// Retry tracking
 	RetryCount int `json:"retry_count"`

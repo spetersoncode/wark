@@ -525,13 +525,33 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table format
-	fmt.Printf("%-12s %-12s %-8s %-8s %-10s %s\n", "ID", "STATUS", "PRI", "COMP", "MILESTONE", "TITLE")
-	fmt.Println(strings.Repeat("-", 90))
+	// Check if any ticket has a brain set to determine if we should show the column
+	showBrain := false
+	for _, t := range tickets {
+		if t.Brain != nil {
+			showBrain = true
+			break
+		}
+	}
+
+	if showBrain {
+		fmt.Printf("%-12s %-12s %-8s %-8s %-14s %-10s %s\n", "ID", "STATUS", "PRI", "COMP", "BRAIN", "MILESTONE", "TITLE")
+		fmt.Println(strings.Repeat("-", 105))
+	} else {
+		fmt.Printf("%-12s %-12s %-8s %-8s %-10s %s\n", "ID", "STATUS", "PRI", "COMP", "MILESTONE", "TITLE")
+		fmt.Println(strings.Repeat("-", 90))
+	}
+
 	for _, t := range tickets {
 		statusDisplay := string(t.Status)
 		milestoneDisplay := ""
 		if t.MilestoneKey != "" {
 			milestoneDisplay = t.MilestoneKey
+		}
+
+		brainDisplay := ""
+		if t.Brain != nil {
+			brainDisplay = t.Brain.String()
 		}
 
 		// Add task progress indicator for workable tickets
@@ -543,14 +563,26 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		fmt.Printf("%-12s %-12s %-8s %-8s %-10s %s\n",
-			t.TicketKey,
-			statusDisplay,
-			t.Priority,
-			t.Complexity,
-			truncate(milestoneDisplay, 10),
-			titleDisplay,
-		)
+		if showBrain {
+			fmt.Printf("%-12s %-12s %-8s %-8s %-14s %-10s %s\n",
+				t.TicketKey,
+				statusDisplay,
+				t.Priority,
+				t.Complexity,
+				truncate(brainDisplay, 14),
+				truncate(milestoneDisplay, 10),
+				titleDisplay,
+			)
+		} else {
+			fmt.Printf("%-12s %-12s %-8s %-8s %-10s %s\n",
+				t.TicketKey,
+				statusDisplay,
+				t.Priority,
+				t.Complexity,
+				truncate(milestoneDisplay, 10),
+				titleDisplay,
+			)
+		}
 	}
 
 	return nil
@@ -682,6 +714,9 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Priority:    %s\n", ticket.Priority)
 	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
+	if ticket.Brain != nil {
+		fmt.Printf("Brain:       %s\n", ticket.Brain.String())
+	}
 	if ticket.Worktree != "" {
 		fmt.Printf("Worktree:    %s\n", ticket.Worktree)
 	}

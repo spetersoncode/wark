@@ -17,6 +17,10 @@ wark
 │   ├── list               
 │   ├── show               
 │   ├── edit               
+│   ├── brain               # Manage ticket brain settings
+│   │   ├── set            
+│   │   ├── get            
+│   │   └── clear          
 │   ├── vet                 
 │   ├── claim               # Claim a ticket for work
 │   ├── release             # Release a claim back to queue
@@ -361,6 +365,80 @@ wark ticket edit <TICKET> [options]
 ```bash
 wark ticket edit WEBAPP-42 --priority highest
 wark ticket edit WEBAPP-42 --description "Updated requirements..."
+```
+
+---
+
+### `wark ticket brain`
+
+Manage ticket brain settings. A brain specifies what executes the work on a ticket - either an AI model or a tool.
+
+#### `wark ticket brain set`
+
+Set the brain for a ticket.
+
+```bash
+wark ticket brain set <TICKET> <brain-spec>
+```
+
+**Brain specification format:** `type:value`
+
+**Types:**
+- `model` - An AI model (sonnet, opus, qwen)
+- `tool` - An external tool (claude-code)
+
+**Examples:**
+```bash
+wark ticket brain set WEBAPP-42 model:sonnet
+wark ticket brain set WEBAPP-42 model:opus
+wark ticket brain set WEBAPP-42 model:qwen
+wark ticket brain set WEBAPP-42 tool:claude-code
+```
+
+**Output:**
+```
+✓ Set brain for WEBAPP-42 to model:sonnet
+```
+
+#### `wark ticket brain get`
+
+Get the current brain setting for a ticket.
+
+```bash
+wark ticket brain get <TICKET>
+```
+
+**Examples:**
+```bash
+wark ticket brain get WEBAPP-42
+```
+
+**Output:**
+```
+WEBAPP-42: model:sonnet
+```
+
+Or if no brain is set:
+```
+WEBAPP-42: no brain set
+```
+
+#### `wark ticket brain clear`
+
+Remove the brain setting from a ticket.
+
+```bash
+wark ticket brain clear <TICKET>
+```
+
+**Examples:**
+```bash
+wark ticket brain clear WEBAPP-42
+```
+
+**Output:**
+```
+✓ Cleared brain for WEBAPP-42
 ```
 
 ---

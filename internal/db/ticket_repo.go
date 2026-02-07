@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -154,9 +155,9 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 	query := `
 		INSERT INTO tickets (
 			project_id, number, title, description, status, resolution, human_flag_reason,
-			priority, complexity, ticket_type, worktree, retry_count, max_retries,
+			priority, complexity, ticket_type, worktree, brain, retry_count, max_retries,
 			parent_ticket_id, milestone_id, created_at, updated_at, completed_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	now := time.Now()
 	nowStr := FormatTime(now)
@@ -175,7 +176,7 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 
 	result, err := r.db.Exec(query,
 		t.ProjectID, number, t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
-		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), t.RetryCount, t.MaxRetries,
+		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), nullBrain(t.Brain), t.RetryCount, t.MaxRetries,
 		nullInt64(t.ParentTicketID), nullInt64(t.MilestoneID), nowStr, nowStr, FormatTimePtr(t.CompletedAt),
 	)
 	if err != nil {
@@ -198,7 +199,7 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 func (r *TicketRepo) GetByID(id int64) (*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain,
 			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
@@ -215,7 +216,7 @@ func (r *TicketRepo) GetByID(id int64) (*models.Ticket, error) {
 func (r *TicketRepo) GetByKey(projectKey string, number int) (*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain,
 			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
@@ -240,7 +241,7 @@ func (r *TicketRepo) List(filter TicketFilter) ([]*models.Ticket, error) {
 
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain,
 			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
@@ -333,7 +334,7 @@ func (r *TicketRepo) ListWorkable(filter TicketFilter) ([]*models.Ticket, error)
 
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain,
 			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
@@ -407,13 +408,13 @@ func (r *TicketRepo) Update(t *models.Ticket) error {
 	query := `
 		UPDATE tickets SET
 			title = ?, description = ?, status = ?, resolution = ?, human_flag_reason = ?,
-			priority = ?, complexity = ?, ticket_type = ?, worktree = ?,
+			priority = ?, complexity = ?, ticket_type = ?, worktree = ?, brain = ?,
 			retry_count = ?, max_retries = ?, parent_ticket_id = ?, milestone_id = ?, completed_at = ?
 		WHERE id = ?
 	`
 	result, err := r.db.Exec(query,
 		t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
-		t.Priority, t.Complexity, t.Type, nullString(t.Worktree),
+		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), nullBrain(t.Brain),
 		t.RetryCount, t.MaxRetries, nullInt64(t.ParentTicketID), nullInt64(t.MilestoneID), FormatTimePtr(t.CompletedAt),
 		t.ID,
 	)
@@ -436,7 +437,7 @@ func (r *TicketRepo) Update(t *models.Ticket) error {
 func (r *TicketRepo) ListByMilestone(milestoneID int64) ([]*models.Ticket, error) {
 	query := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain,
 			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
@@ -536,7 +537,7 @@ func (r *TicketRepo) Search(query string, limit int) ([]*models.Ticket, error) {
 
 	sqlQuery := `
 		SELECT t.id, t.project_id, t.number, t.title, t.description, t.status,
-			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree,
+			t.resolution, t.human_flag_reason, t.priority, t.complexity, t.ticket_type, t.worktree, t.brain,
 			t.retry_count, t.max_retries, t.parent_ticket_id, t.milestone_id,
 			t.created_at, t.updated_at, t.completed_at,
 			p.key AS project_key,
@@ -589,13 +590,13 @@ func (r *TicketRepo) CountByStatus(projectID int64) (map[models.Status]int, erro
 
 func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 	var t models.Ticket
-	var desc, resolution, humanFlag, ticketType, worktree, milestoneKey sql.NullString
+	var desc, resolution, humanFlag, ticketType, worktree, brain, milestoneKey sql.NullString
 	var parentID, milestoneID sql.NullInt64
 	var completedAt sql.NullTime
 
 	err := row.Scan(
 		&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status,
-		&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree,
+		&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree, &brain,
 		&t.RetryCount, &t.MaxRetries, &parentID, &milestoneID,
 		&t.CreatedAt, &t.UpdatedAt, &completedAt,
 		&t.ProjectKey, &milestoneKey,
@@ -614,6 +615,11 @@ func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 		t.Type = models.TicketTypeTask // Default to task
 	}
 	t.Worktree = worktree.String
+	if brain.Valid && brain.String != "" {
+		if err := json.Unmarshal([]byte(brain.String), &t.Brain); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal brain: %w", err)
+		}
+	}
 	if resolution.Valid {
 		res := models.Resolution(resolution.String)
 		t.Resolution = &res
@@ -638,13 +644,13 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 	var tickets []*models.Ticket
 	for rows.Next() {
 		var t models.Ticket
-		var desc, resolution, humanFlag, ticketType, worktree, milestoneKey sql.NullString
+		var desc, resolution, humanFlag, ticketType, worktree, brain, milestoneKey sql.NullString
 		var parentID, milestoneID sql.NullInt64
 		var completedAt sql.NullTime
 
 		err := rows.Scan(
 			&t.ID, &t.ProjectID, &t.Number, &t.Title, &desc, &t.Status,
-			&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree,
+			&resolution, &humanFlag, &t.Priority, &t.Complexity, &ticketType, &worktree, &brain,
 			&t.RetryCount, &t.MaxRetries, &parentID, &milestoneID,
 			&t.CreatedAt, &t.UpdatedAt, &completedAt,
 			&t.ProjectKey, &milestoneKey,
@@ -660,6 +666,11 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 			t.Type = models.TicketTypeTask // Default to task
 		}
 		t.Worktree = worktree.String
+		if brain.Valid && brain.String != "" {
+			if err := json.Unmarshal([]byte(brain.String), &t.Brain); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal brain: %w", err)
+			}
+		}
 		if resolution.Valid {
 			res := models.Resolution(resolution.String)
 			t.Resolution = &res
@@ -712,4 +723,15 @@ func nullResolution(r *models.Resolution) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: string(*r), Valid: true}
+}
+
+func nullBrain(b *models.Brain) sql.NullString {
+	if b == nil {
+		return sql.NullString{}
+	}
+	data, err := json.Marshal(b)
+	if err != nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: string(data), Valid: true}
 }

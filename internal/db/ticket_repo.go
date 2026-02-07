@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -174,9 +173,14 @@ func (r *TicketRepo) Create(t *models.Ticket) error {
 		number = int(maxNum.Int64) + 1
 	}
 
+	var brainValue sql.NullString
+	if t.Brain != nil {
+		brainValue = sql.NullString{String: *t.Brain, Valid: true}
+	}
+
 	result, err := r.db.Exec(query,
 		t.ProjectID, number, t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
-		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), nullBrain(t.Brain), t.RetryCount, t.MaxRetries,
+		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), brainValue, t.RetryCount, t.MaxRetries,
 		nullInt64(t.ParentTicketID), nullInt64(t.MilestoneID), nowStr, nowStr, FormatTimePtr(t.CompletedAt),
 	)
 	if err != nil {
@@ -412,9 +416,14 @@ func (r *TicketRepo) Update(t *models.Ticket) error {
 			retry_count = ?, max_retries = ?, parent_ticket_id = ?, milestone_id = ?, completed_at = ?
 		WHERE id = ?
 	`
+	var brainValue sql.NullString
+	if t.Brain != nil {
+		brainValue = sql.NullString{String: *t.Brain, Valid: true}
+	}
+
 	result, err := r.db.Exec(query,
 		t.Title, nullString(t.Description), t.Status, nullResolution(t.Resolution), nullString(t.HumanFlagReason),
-		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), nullBrain(t.Brain),
+		t.Priority, t.Complexity, t.Type, nullString(t.Worktree), brainValue,
 		t.RetryCount, t.MaxRetries, nullInt64(t.ParentTicketID), nullInt64(t.MilestoneID), FormatTimePtr(t.CompletedAt),
 		t.ID,
 	)
@@ -616,9 +625,7 @@ func (r *TicketRepo) scanOne(row *sql.Row) (*models.Ticket, error) {
 	}
 	t.Worktree = worktree.String
 	if brain.Valid && brain.String != "" {
-		if err := json.Unmarshal([]byte(brain.String), &t.Brain); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal brain: %w", err)
-		}
+		t.Brain = &brain.String
 	}
 	if resolution.Valid {
 		res := models.Resolution(resolution.String)
@@ -667,9 +674,7 @@ func (r *TicketRepo) scanMany(rows *sql.Rows) ([]*models.Ticket, error) {
 		}
 		t.Worktree = worktree.String
 		if brain.Valid && brain.String != "" {
-			if err := json.Unmarshal([]byte(brain.String), &t.Brain); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal brain: %w", err)
-			}
+			t.Brain = &brain.String
 		}
 		if resolution.Valid {
 			res := models.Resolution(resolution.String)
@@ -723,15 +728,4 @@ func nullResolution(r *models.Resolution) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: string(*r), Valid: true}
-}
-
-func nullBrain(b *models.Brain) sql.NullString {
-	if b == nil {
-		return sql.NullString{}
-	}
-	data, err := json.Marshal(b)
-	if err != nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: string(data), Valid: true}
 }

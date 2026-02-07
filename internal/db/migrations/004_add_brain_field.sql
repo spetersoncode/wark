@@ -5,8 +5,8 @@
 -- Add brain field to tickets
 -- =============================================================================
 -- Adds a brain field to specify what executes the work on a ticket.
--- A brain is a JSON structure containing either a model or a tool.
--- Format: {"type": "model"|"tool", "value": "sonnet"|"opus"|"qwen"|"claude-code"}
+-- Brain is a freeform text field providing guidance for the execution harness.
+-- Examples: "sonnet", "opus with extended thinking", "claude-code --skip-perms"
 -- =============================================================================
 
 -- Add brain column (nullable, as not all tickets need a brain specified)

@@ -551,7 +551,7 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 
 		brainDisplay := ""
 		if t.Brain != nil {
-			brainDisplay = t.Brain.String()
+			brainDisplay = *t.Brain
 		}
 
 		// Add task progress indicator for workable tickets
@@ -715,7 +715,7 @@ func runTicketShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Priority:    %s\n", ticket.Priority)
 	fmt.Printf("Complexity:  %s\n", ticket.Complexity)
 	if ticket.Brain != nil {
-		fmt.Printf("Brain:       %s\n", ticket.Brain.String())
+		fmt.Printf("Brain:       %q\n", *ticket.Brain)
 	}
 	if ticket.Worktree != "" {
 		fmt.Printf("Worktree:    %s\n", ticket.Worktree)

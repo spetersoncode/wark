@@ -17,14 +17,11 @@ func TestTicketBrain_CreateAndRetrieve(t *testing.T) {
 	ticketRepo := NewTicketRepo(db)
 
 	// Create ticket with brain set
-	brain := &models.Brain{
-		Type:  "model",
-		Value: "sonnet",
-	}
+	brainValue := "sonnet"
 	ticket := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Test ticket with brain",
-		Brain:     brain,
+		Brain:     &brainValue,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -32,9 +29,7 @@ func TestTicketBrain_CreateAndRetrieve(t *testing.T) {
 	retrieved, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
 	require.NotNil(t, retrieved.Brain)
-	assert.Equal(t, "model", retrieved.Brain.Type)
-	assert.Equal(t, "sonnet", retrieved.Brain.Value)
-	assert.Equal(t, "model:sonnet", retrieved.Brain.String())
+	assert.Equal(t, "sonnet", *retrieved.Brain)
 }
 
 func TestTicketBrain_CreateWithoutBrain(t *testing.T) {
@@ -75,19 +70,15 @@ func TestTicketBrain_Update(t *testing.T) {
 	require.NoError(t, ticketRepo.Create(ticket))
 
 	// Update to add brain
-	ticket.Brain = &models.Brain{
-		Type:  "tool",
-		Value: "claude-code",
-	}
+	brainValue := "claude-code"
+	ticket.Brain = &brainValue
 	require.NoError(t, ticketRepo.Update(ticket))
 
 	// Verify brain was set
 	retrieved, err := ticketRepo.GetByID(ticket.ID)
 	require.NoError(t, err)
 	require.NotNil(t, retrieved.Brain)
-	assert.Equal(t, "tool", retrieved.Brain.Type)
-	assert.Equal(t, "claude-code", retrieved.Brain.Value)
-	assert.Equal(t, "tool:claude-code", retrieved.Brain.String())
+	assert.Equal(t, "claude-code", *retrieved.Brain)
 }
 
 func TestTicketBrain_UpdateToClear(t *testing.T) {
@@ -99,13 +90,11 @@ func TestTicketBrain_UpdateToClear(t *testing.T) {
 	ticketRepo := NewTicketRepo(db)
 
 	// Create ticket with brain
+	brainValue := "opus"
 	ticket := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Test ticket",
-		Brain: &models.Brain{
-			Type:  "model",
-			Value: "opus",
-		},
+		Brain:     &brainValue,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -128,22 +117,18 @@ func TestTicketBrain_List(t *testing.T) {
 	ticketRepo := NewTicketRepo(db)
 
 	// Create tickets with different brains
+	sonnetBrain := "sonnet"
+	claudeCodeBrain := "claude-code"
 	tickets := []*models.Ticket{
 		{
 			ProjectID: projectID,
 			Title:     "Ticket with sonnet",
-			Brain: &models.Brain{
-				Type:  "model",
-				Value: "sonnet",
-			},
+			Brain:     &sonnetBrain,
 		},
 		{
 			ProjectID: projectID,
 			Title:     "Ticket with claude-code",
-			Brain: &models.Brain{
-				Type:  "tool",
-				Value: "claude-code",
-			},
+			Brain:     &claudeCodeBrain,
 		},
 		{
 			ProjectID: projectID,
@@ -166,10 +151,10 @@ func TestTicketBrain_List(t *testing.T) {
 
 	// Verify brains are correctly retrieved
 	assert.NotNil(t, retrieved[0].Brain)
-	assert.Equal(t, "model:sonnet", retrieved[0].Brain.String())
+	assert.Equal(t, "sonnet", *retrieved[0].Brain)
 
 	assert.NotNil(t, retrieved[1].Brain)
-	assert.Equal(t, "tool:claude-code", retrieved[1].Brain.String())
+	assert.Equal(t, "claude-code", *retrieved[1].Brain)
 
 	assert.Nil(t, retrieved[2].Brain)
 }
@@ -186,13 +171,11 @@ func TestTicketBrain_GetByKey(t *testing.T) {
 	ticketRepo := NewTicketRepo(db)
 
 	// Create ticket with brain
+	brainValue := "qwen"
 	ticket := &models.Ticket{
 		ProjectID: projectID,
 		Title:     "Test ticket",
-		Brain: &models.Brain{
-			Type:  "model",
-			Value: "qwen",
-		},
+		Brain:     &brainValue,
 	}
 	require.NoError(t, ticketRepo.Create(ticket))
 
@@ -200,43 +183,5 @@ func TestTicketBrain_GetByKey(t *testing.T) {
 	retrieved, err := ticketRepo.GetByKey(project.Key, ticket.Number)
 	require.NoError(t, err)
 	require.NotNil(t, retrieved.Brain)
-	assert.Equal(t, "model", retrieved.Brain.Type)
-	assert.Equal(t, "qwen", retrieved.Brain.Value)
-}
-
-func TestBrain_String(t *testing.T) {
-	tests := []struct {
-		name     string
-		brain    *models.Brain
-		expected string
-	}{
-		{
-			name: "model brain",
-			brain: &models.Brain{
-				Type:  "model",
-				Value: "sonnet",
-			},
-			expected: "model:sonnet",
-		},
-		{
-			name: "tool brain",
-			brain: &models.Brain{
-				Type:  "tool",
-				Value: "claude-code",
-			},
-			expected: "tool:claude-code",
-		},
-		{
-			name:     "nil brain",
-			brain:    nil,
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.brain.String()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+	assert.Equal(t, "qwen", *retrieved.Brain)
 }

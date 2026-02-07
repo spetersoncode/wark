@@ -371,33 +371,29 @@ wark ticket edit WEBAPP-42 --description "Updated requirements..."
 
 ### `wark ticket brain`
 
-Manage ticket brain settings. A brain specifies what executes the work on a ticket - either an AI model or a tool.
+Manage ticket brain settings. A brain is a freeform text field providing guidance for the execution harness. It can specify a model, tool, or any other instruction for task execution.
 
 #### `wark ticket brain set`
 
 Set the brain for a ticket.
 
 ```bash
-wark ticket brain set <TICKET> <brain-spec>
+wark ticket brain set <TICKET> <brain-value>
 ```
 
-**Brain specification format:** `type:value`
-
-**Types:**
-- `model` - An AI model (sonnet, opus, qwen)
-- `tool` - An external tool (claude-code)
+The brain value is a freeform text string - no structure or validation is enforced. Use it to provide guidance to the execution harness.
 
 **Examples:**
 ```bash
-wark ticket brain set WEBAPP-42 model:sonnet
-wark ticket brain set WEBAPP-42 model:opus
-wark ticket brain set WEBAPP-42 model:qwen
-wark ticket brain set WEBAPP-42 tool:claude-code
+wark ticket brain set WEBAPP-42 sonnet
+wark ticket brain set WEBAPP-42 "opus with extended thinking"
+wark ticket brain set WEBAPP-42 claude-code
+wark ticket brain set WEBAPP-42 "qwen --fast-mode"
 ```
 
 **Output:**
 ```
-✓ Set brain for WEBAPP-42 to model:sonnet
+✓ Set brain for WEBAPP-42 to "sonnet"
 ```
 
 #### `wark ticket brain get`
@@ -415,7 +411,7 @@ wark ticket brain get WEBAPP-42
 
 **Output:**
 ```
-WEBAPP-42: model:sonnet
+WEBAPP-42: "sonnet"
 ```
 
 Or if no brain is set:

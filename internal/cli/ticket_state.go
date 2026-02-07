@@ -35,11 +35,136 @@ func init() {
 	ticketResumeCmd.Flags().IntVar(&resumeDuration, "duration", 60, "Claim duration in minutes")
 
 	// Add subcommands
+	ticketCmd.AddCommand(ticketStartCmd)
+	ticketCmd.AddCommand(ticketReviewCmd)
 	ticketCmd.AddCommand(ticketAcceptCmd)
 	ticketCmd.AddCommand(ticketRejectCmd)
 	ticketCmd.AddCommand(ticketCloseCmd)
 	ticketCmd.AddCommand(ticketReopenCmd)
 	ticketCmd.AddCommand(ticketResumeCmd)
+}
+
+// ticket start (backlog -> ready)
+var ticketStartCmd = &cobra.Command{
+	Use:   "start <TICKET>",
+	Short: "Start/prioritize a ticket (backlog -> ready)",
+	Long: `Move a ticket from backlog to ready status, prioritizing it for work.
+
+This command transitions tickets that are in 'backlog' status to 'ready' status,
+making them available to be claimed and worked on.
+
+Example:
+  wark ticket start WEBAPP-42`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketStart,
+}
+
+func runTicketStart(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	// Verify ticket is in backlog
+	if ticket.Status != models.StatusBacklog {
+		return fmt.Errorf("ticket %s is not in backlog status (current: %s)", ticket.TicketKey, ticket.Status)
+	}
+
+	// Use service layer for state transition
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.Prioritize(ticket.ID); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
+	}
+
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
+		updatedTicket.Status = models.StatusReady
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(map[string]interface{}{
+			"ticket":   updatedTicket.TicketKey,
+			"status":   updatedTicket.Status,
+			"started":  true,
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Started: %s", updatedTicket.TicketKey)
+	OutputLine("Status: %s", updatedTicket.Status)
+
+	return nil
+}
+
+// ticket review (review -> reviewing)
+var ticketReviewCmd = &cobra.Command{
+	Use:   "review <TICKET>",
+	Short: "Start reviewing a ticket (review -> reviewing)",
+	Long: `Begin active review of a completed ticket.
+
+This transitions a ticket from 'review' (awaiting review) to 'reviewing'
+(active review in progress). Similar to how 'claim' moves a ticket from
+'ready' to 'working'.
+
+Example:
+  wark ticket review WEBAPP-42`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTicketReview,
+}
+
+func runTicketReview(cmd *cobra.Command, args []string) error {
+	database, err := db.Open(GetDBPath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	ticket, err := resolveTicket(database, args[0], "")
+	if err != nil {
+		return err
+	}
+
+	// Verify ticket is in review
+	if ticket.Status != models.StatusReview {
+		return fmt.Errorf("ticket %s is not in review status (current: %s)", ticket.TicketKey, ticket.Status)
+	}
+
+	// Use service layer for state transition
+	ticketSvc := service.NewTicketService(database.DB)
+	if err := ticketSvc.StartReview(ticket.ID); err != nil {
+		return translateServiceError(err, ticket.TicketKey)
+	}
+
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
+		updatedTicket.Status = models.StatusReviewing
+	}
+
+	if IsJSON() {
+		data, _ := json.MarshalIndent(map[string]interface{}{
+			"ticket":  updatedTicket.TicketKey,
+			"status":  updatedTicket.Status,
+			"reviewing": true,
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	OutputLine("Reviewing: %s", updatedTicket.TicketKey)
+	OutputLine("Status: %s", updatedTicket.Status)
+
+	return nil
 }
 
 // ticket accept

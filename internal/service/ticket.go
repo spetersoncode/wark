@@ -443,12 +443,13 @@ func (s *TicketService) Accept(ticketID int64) (*AcceptResult, error) {
 		return nil, newTicketError(ErrCodeNotFound, "ticket not found", nil)
 	}
 
-	// Check if ticket is in review
-	if ticket.Status != models.StatusReview {
+	// Check if ticket is in review or reviewing
+	if ticket.Status != models.StatusReview && ticket.Status != models.StatusReviewing {
 		return nil, newTicketError(ErrCodeInvalidState,
 			fmt.Sprintf("ticket is not in review (current status: %s)", ticket.Status),
 			map[string]interface{}{"current_status": ticket.Status})
 	}
+	fromStatus := ticket.Status
 
 	// Check for incomplete tasks - block acceptance if any exist
 	ctx := context.Background()
@@ -488,7 +489,7 @@ func (s *TicketService) Accept(ticketID int64) (*AcceptResult, error) {
 	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionAccepted, models.ActorTypeHuman, "",
 		"Work accepted",
 		map[string]interface{}{
-			"from_status": string(models.StatusReview),
+			"from_status": string(fromStatus),
 			"to_status":   string(models.StatusClosed),
 			"resolution":  string(resolution),
 		})
@@ -523,12 +524,13 @@ func (s *TicketService) Reject(ticketID int64, reason string) error {
 		return newTicketError(ErrCodeNotFound, "ticket not found", nil)
 	}
 
-	// Check if ticket is in review
-	if ticket.Status != models.StatusReview {
+	// Check if ticket is in review or reviewing
+	if ticket.Status != models.StatusReview && ticket.Status != models.StatusReviewing {
 		return newTicketError(ErrCodeInvalidState,
 			fmt.Sprintf("ticket is not in review (current status: %s)", ticket.Status),
 			map[string]interface{}{"current_status": ticket.Status})
 	}
+	fromStatus := ticket.Status
 
 	// Release any active claim so ticket can be picked up fresh
 	claim, _ := s.claimRepo.GetActiveByTicketID(ticket.ID)
@@ -567,7 +569,7 @@ func (s *TicketService) Reject(ticketID int64, reason string) error {
 			"retry_count": ticket.RetryCount,
 			"max_retries": ticket.MaxRetries,
 			"escalated":   escalateToHuman,
-			"from_status": string(models.StatusReview),
+			"from_status": string(fromStatus),
 			"to_status":   string(ticket.Status),
 		})
 
@@ -1003,4 +1005,88 @@ func (s *TicketService) GetExecutionContext(ticketID int64) (*ExecutionContext, 
 	}
 
 	return ctx, nil
+}
+
+// Prioritize moves a ticket from backlog to ready status.
+func (s *TicketService) Prioritize(ticketID int64) error {
+	ticket, err := s.ticketRepo.GetByID(ticketID)
+	if err != nil {
+		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
+	}
+	if ticket == nil {
+		return newTicketError(ErrCodeNotFound, "ticket not found", nil)
+	}
+
+	// Check if ticket is in backlog
+	if ticket.Status != models.StatusBacklog {
+		return newTicketError(ErrCodeInvalidState,
+			fmt.Sprintf("ticket must be in backlog status to prioritize (current: %s)", ticket.Status),
+			map[string]interface{}{"current_status": ticket.Status})
+	}
+
+	// Check for unresolved dependencies - if any, ticket should go to blocked instead
+	hasUnresolved, err := s.depRepo.HasUnresolvedDependencies(ticket.ID)
+	if err != nil {
+		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to check dependencies: %v", err), nil)
+	}
+
+	newStatus := models.StatusReady
+	action := models.ActionFieldChanged
+	summary := "Prioritized: backlog → ready"
+
+	if hasUnresolved {
+		newStatus = models.StatusBlocked
+		action = models.ActionBlocked
+		summary = "Prioritized but blocked: backlog → blocked (has dependencies)"
+	}
+
+	// Update ticket
+	ticket.Status = newStatus
+	if err := s.ticketRepo.Update(ticket); err != nil {
+		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
+	}
+
+	// Log activity
+	s.activityRepo.LogActionWithDetails(ticket.ID, action, models.ActorTypeHuman, "",
+		summary,
+		map[string]interface{}{
+			"from_status": "backlog",
+			"to_status":   string(newStatus),
+		})
+
+	return nil
+}
+
+// StartReview moves a ticket from review to reviewing status.
+func (s *TicketService) StartReview(ticketID int64) error {
+	ticket, err := s.ticketRepo.GetByID(ticketID)
+	if err != nil {
+		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to get ticket: %v", err), nil)
+	}
+	if ticket == nil {
+		return newTicketError(ErrCodeNotFound, "ticket not found", nil)
+	}
+
+	// Check if ticket is in review
+	if ticket.Status != models.StatusReview {
+		return newTicketError(ErrCodeInvalidState,
+			fmt.Sprintf("ticket must be in review status to start review (current: %s)", ticket.Status),
+			map[string]interface{}{"current_status": ticket.Status})
+	}
+
+	// Update ticket
+	ticket.Status = models.StatusReviewing
+	if err := s.ticketRepo.Update(ticket); err != nil {
+		return newTicketError(ErrCodeDatabase, fmt.Sprintf("failed to update ticket: %v", err), nil)
+	}
+
+	// Log activity
+	s.activityRepo.LogActionWithDetails(ticket.ID, models.ActionFieldChanged, models.ActorTypeHuman, "",
+		"Review started: review → reviewing",
+		map[string]interface{}{
+			"from_status": "review",
+			"to_status":   "reviewing",
+		})
+
+	return nil
 }

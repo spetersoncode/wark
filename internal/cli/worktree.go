@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spetersoncode/wark/internal/db"
+	"github.com/spetersoncode/wark/internal/models"
 	"github.com/spf13/cobra"
 )
 
@@ -31,13 +32,20 @@ Worktrees are created as siblings to the main repo:
   ~/repos/myproject-worktrees/
     └── PROJ-42-add-login/              <- worktree for PROJ-42
 
-Commands must be run from within a git repository.`,
+Commands must be run from within a git repository.
+
+Epic Inheritance:
+  Child tickets of epics automatically inherit the epic's worktree.
+  All work for an epic and its children happens in the epic's workspace.`,
 }
 
 var worktreeCreateCmd = &cobra.Command{
 	Use:   "create <ticket-id>",
 	Short: "Create a worktree for a ticket",
 	Long: `Create a git worktree for the specified ticket.
+
+For epics: creates the epic's worktree.
+For child tasks of epics: uses the epic's worktree (no separate worktree created).
 
 The worktree is created at <repo>-worktrees/<ticket-slug>/ using the
 ticket's branch name. The branch is created from the current HEAD.
@@ -57,6 +65,8 @@ var worktreeRemoveCmd = &cobra.Command{
 This removes the worktree directory, deletes the local branch,
 and prunes stale worktree references.
 
+WARNING: Removing an epic's worktree affects all child tasks.
+
 Example:
   wark worktree remove PROJ-42`,
 	Args: cobra.ExactArgs(1),
@@ -67,6 +77,8 @@ var worktreePathCmd = &cobra.Command{
 	Use:   "path <ticket-id>",
 	Short: "Output the worktree path for a ticket",
 	Long: `Output the worktree path for use in scripts.
+
+For child tasks of epics, returns the epic's worktree path.
 
 Example:
   cd $(wark worktree path PROJ-42)`,
@@ -86,11 +98,13 @@ Example:
 }
 
 type worktreeResult struct {
-	TicketID string `json:"ticket_id"`
-	Path     string `json:"path"`
-	Branch   string `json:"branch"`
-	Created  bool   `json:"created,omitempty"`
-	Removed  bool   `json:"removed,omitempty"`
+	TicketID   string `json:"ticket_id"`
+	Path       string `json:"path"`
+	Branch     string `json:"branch"`
+	Inherited  bool   `json:"inherited,omitempty"`
+	EpicID     string `json:"epic_id,omitempty"`
+	Created    bool   `json:"created,omitempty"`
+	Removed    bool   `json:"removed,omitempty"`
 }
 
 type worktreeListResult struct {
@@ -122,6 +136,29 @@ func getWorktreePath(repoRoot, branchName string) string {
 	return filepath.Join(getWorktreesDir(repoRoot), slug)
 }
 
+// resolveWorktree determines the effective worktree name for a ticket,
+// handling epic inheritance. Returns the worktree name, whether it's inherited,
+// and the epic ticket key if inherited.
+func resolveWorktree(ticket *models.Ticket, ticketRepo *db.TicketRepo) (worktreeName string, inherited bool, epicKey string, err error) {
+	// If ticket has its own worktree, use it
+	if ticket.Worktree != "" {
+		return ticket.Worktree, false, "", nil
+	}
+
+	// If ticket has a parent, check if parent is an epic
+	if ticket.ParentTicketID != nil {
+		parent, err := ticketRepo.GetByID(*ticket.ParentTicketID)
+		if err != nil {
+			return "", false, "", err
+		}
+		if parent != nil && parent.IsEpic() && parent.Worktree != "" {
+			return parent.Worktree, true, parent.Key(), nil
+		}
+	}
+
+	return "", false, "", nil
+}
+
 func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 	ticketID := args[0]
 
@@ -138,7 +175,13 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if ticket.Worktree == "" {
+	// Resolve effective worktree (handling epic inheritance)
+	ticketRepo := db.NewTicketRepo(database.DB)
+	worktreeName, inherited, epicKey, err := resolveWorktree(ticket, ticketRepo)
+	if err != nil {
+		return ErrDatabase(err, "failed to resolve worktree")
+	}
+	if worktreeName == "" {
 		return ErrGeneral("ticket %s has no worktree name", ticketID)
 	}
 
@@ -148,24 +191,35 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 		return ErrGeneralWithCause(err, "failed to detect git repository")
 	}
 
-	worktreePath := getWorktreePath(repoRoot, ticket.Worktree)
+	worktreePath := getWorktreePath(repoRoot, worktreeName)
 	worktreesDir := getWorktreesDir(repoRoot)
 
 	// Check if worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
 		result := worktreeResult{
-			TicketID: ticketID,
-			Path:     worktreePath,
-			Branch:   ticket.Worktree,
-			Created:  false,
+			TicketID:  ticketID,
+			Path:      worktreePath,
+			Branch:    worktreeName,
+			Inherited: inherited,
+			EpicID:    epicKey,
+			Created:   false,
 		}
 		if IsJSON() {
 			data, _ := json.MarshalIndent(result, "", "  ")
 			fmt.Println(string(data))
 			return nil
 		}
-		OutputLine("Worktree already exists at %s", worktreePath)
+		if inherited {
+			OutputLine("Using epic %s worktree at %s", epicKey, worktreePath)
+		} else {
+			OutputLine("Worktree already exists at %s", worktreePath)
+		}
 		return nil
+	}
+
+	// For inherited worktrees, the epic should have created it
+	if inherited {
+		return ErrGeneral("worktree for epic %s does not exist at %s - create the epic's worktree first", epicKey, worktreePath)
 	}
 
 	// Create worktrees directory if needed
@@ -174,13 +228,13 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create the worktree with a new branch
-	gitCmd := exec.Command("git", "worktree", "add", worktreePath, "-b", ticket.Worktree)
+	gitCmd := exec.Command("git", "worktree", "add", worktreePath, "-b", worktreeName)
 	gitCmd.Dir = repoRoot
 	if output, err := gitCmd.CombinedOutput(); err != nil {
 		// Check if branch already exists
 		if strings.Contains(string(output), "already exists") {
 			// Try without -b flag (use existing branch)
-			gitCmd = exec.Command("git", "worktree", "add", worktreePath, ticket.Worktree)
+			gitCmd = exec.Command("git", "worktree", "add", worktreePath, worktreeName)
 			gitCmd.Dir = repoRoot
 			if output, err := gitCmd.CombinedOutput(); err != nil {
 				return ErrGeneralWithCause(fmt.Errorf("%s", output), "failed to create worktree")
@@ -191,10 +245,12 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	result := worktreeResult{
-		TicketID: ticketID,
-		Path:     worktreePath,
-		Branch:   ticket.Worktree,
-		Created:  true,
+		TicketID:  ticketID,
+		Path:      worktreePath,
+		Branch:    worktreeName,
+		Inherited: inherited,
+		EpicID:    epicKey,
+		Created:   true,
 	}
 
 	if IsJSON() {
@@ -204,7 +260,7 @@ func runWorktreeCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	OutputLine("Created worktree at %s", worktreePath)
-	OutputLine("Branch: %s", ticket.Worktree)
+	OutputLine("Branch: %s", worktreeName)
 	OutputLine("")
 	OutputLine("To enter the worktree:")
 	OutputLine("  cd %s", worktreePath)
@@ -228,7 +284,13 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if ticket.Worktree == "" {
+	// Resolve effective worktree (handling epic inheritance)
+	ticketRepo := db.NewTicketRepo(database.DB)
+	worktreeName, inherited, epicKey, err := resolveWorktree(ticket, ticketRepo)
+	if err != nil {
+		return ErrDatabase(err, "failed to resolve worktree")
+	}
+	if worktreeName == "" {
 		return ErrGeneral("ticket %s has no worktree name", ticketID)
 	}
 
@@ -238,22 +300,29 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 		return ErrGeneralWithCause(err, "failed to detect git repository")
 	}
 
-	worktreePath := getWorktreePath(repoRoot, ticket.Worktree)
+	worktreePath := getWorktreePath(repoRoot, worktreeName)
 
 	// Check if worktree exists
 	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {
 		if IsJSON() {
 			result := worktreeResult{
-				TicketID: ticketID,
-				Path:     worktreePath,
-				Branch:   ticket.Worktree,
-				Removed:  false,
+				TicketID:  ticketID,
+				Path:      worktreePath,
+				Branch:    worktreeName,
+				Inherited: inherited,
+				EpicID:    epicKey,
+				Removed:   false,
 			}
 			data, _ := json.MarshalIndent(result, "", "  ")
 			fmt.Println(string(data))
 			return nil
 		}
 		return ErrGeneral("worktree does not exist at %s", worktreePath)
+	}
+
+	// Warn if removing an epic's worktree (affects children)
+	if ticket.IsEpic() {
+		OutputLine("Warning: Removing epic worktree - this will affect all child tasks")
 	}
 
 	// Remove the worktree
@@ -268,15 +337,17 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Delete the branch
-	gitCmd = exec.Command("git", "branch", "-d", ticket.Worktree)
-	gitCmd.Dir = repoRoot
-	if _, err := gitCmd.CombinedOutput(); err != nil {
-		// Try force delete if not fully merged
-		gitCmd = exec.Command("git", "branch", "-D", ticket.Worktree)
+	// Delete the branch (only if not inherited - epic handles its own branch)
+	if !inherited {
+		gitCmd = exec.Command("git", "branch", "-d", worktreeName)
 		gitCmd.Dir = repoRoot
-		if output, err := gitCmd.CombinedOutput(); err != nil {
-			VerboseOutput("Warning: failed to delete branch: %s", output)
+		if _, err := gitCmd.CombinedOutput(); err != nil {
+			// Try force delete if not fully merged
+			gitCmd = exec.Command("git", "branch", "-D", worktreeName)
+			gitCmd.Dir = repoRoot
+			if output, err := gitCmd.CombinedOutput(); err != nil {
+				VerboseOutput("Warning: failed to delete branch: %s", output)
+			}
 		}
 	}
 
@@ -286,10 +357,12 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 	_ = gitCmd.Run() // Ignore errors
 
 	result := worktreeResult{
-		TicketID: ticketID,
-		Path:     worktreePath,
-		Branch:   ticket.Worktree,
-		Removed:  true,
+		TicketID:  ticketID,
+		Path:      worktreePath,
+		Branch:    worktreeName,
+		Inherited: inherited,
+		EpicID:    epicKey,
+		Removed:   true,
 	}
 
 	if IsJSON() {
@@ -298,8 +371,12 @@ func runWorktreeRemove(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	OutputLine("Removed worktree at %s", worktreePath)
-	OutputLine("Deleted branch: %s", ticket.Worktree)
+	if inherited {
+		OutputLine("Removed worktree for epic %s at %s", epicKey, worktreePath)
+	} else {
+		OutputLine("Removed worktree at %s", worktreePath)
+		OutputLine("Deleted branch: %s", worktreeName)
+	}
 
 	return nil
 }
@@ -320,7 +397,13 @@ func runWorktreePath(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if ticket.Worktree == "" {
+	// Resolve effective worktree (handling epic inheritance)
+	ticketRepo := db.NewTicketRepo(database.DB)
+	worktreeName, inherited, epicKey, err := resolveWorktree(ticket, ticketRepo)
+	if err != nil {
+		return ErrDatabase(err, "failed to resolve worktree")
+	}
+	if worktreeName == "" {
 		return ErrGeneral("ticket %s has no worktree name", ticketID)
 	}
 
@@ -330,13 +413,15 @@ func runWorktreePath(cmd *cobra.Command, args []string) error {
 		return ErrGeneralWithCause(err, "failed to detect git repository")
 	}
 
-	worktreePath := getWorktreePath(repoRoot, ticket.Worktree)
+	worktreePath := getWorktreePath(repoRoot, worktreeName)
 
 	if IsJSON() {
 		result := worktreeResult{
-			TicketID: ticketID,
-			Path:     worktreePath,
-			Branch:   ticket.Worktree,
+			TicketID:  ticketID,
+			Path:      worktreePath,
+			Branch:    worktreeName,
+			Inherited: inherited,
+			EpicID:    epicKey,
 		}
 		data, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(data))

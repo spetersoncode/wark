@@ -309,15 +309,24 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 
 	// Generate worktree name (auto-generate for epics, or on-demand for tasks)
 	worktreeName := generateWorktreeName(projectKey, ticket.Number, ticket.Title)
+
+	// Handle worktree assignment: epics get their own worktree, child tasks of epics inherit the epic's worktree
 	if ticket.IsEpic() {
 		// Epics always get a worktree name stored
 		ticket.Worktree = worktreeName
+	} else if ticket.ParentTicketID != nil {
+		// Check if parent is an epic - if so, inherit the worktree
+		parentTicket, err := ticketRepo.GetByID(*ticket.ParentTicketID)
+		if err == nil && parentTicket != nil && parentTicket.IsEpic() && parentTicket.Worktree != "" {
+			ticket.Worktree = parentTicket.Worktree
+			worktreeName = parentTicket.Worktree // Use epic's worktree name for display
+		}
 	}
 	ticket.ProjectKey = projectKey
 	ticket.TicketKey = fmt.Sprintf("%s-%d", projectKey, ticket.Number)
 
-	// Update with worktree name (for epics)
-	if ticket.IsEpic() {
+	// Update with worktree name (for epics and children of epics)
+	if ticket.Worktree != "" {
 		if err := ticketRepo.Update(ticket); err != nil {
 			VerboseOutput("Warning: failed to save worktree name: %v\n", err)
 		}

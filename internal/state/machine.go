@@ -29,7 +29,7 @@
 //   - reviewing → review (pause review)
 //   - reviewing → ready (reject during review)
 //   - reviewing → closed (accept during review)
-//   - human → working (resume after human input)
+//   - human → ready (human responded, ticket ready for reevaluation)
 //   - human → closed (human resolves)
 //   - review → ready (reject)
 //   - review → closed (accept)
@@ -174,12 +174,12 @@ var validTransitions = []TransitionRule{
 		AllowedTypes: []TransitionType{TransitionTypeManual},
 		Description:  "Work completed, pending review",
 	},
-	// human → working (resume after human input)
+	// human → ready (human responded, reevaluate from beginning)
 	{
 		From:         models.StatusHuman,
-		To:           models.StatusWorking,
+		To:           models.StatusReady,
 		AllowedTypes: []TransitionType{TransitionTypeManual},
-		Description:  "Human responded, resuming work",
+		Description:  "Human responded, ticket ready for reevaluation",
 	},
 	// human → closed (human resolves)
 	{
@@ -448,6 +448,8 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 			return models.ActionReleased
 		case models.StatusReview, models.StatusReviewing:
 			return models.ActionRejected
+		case models.StatusHuman:
+			return models.ActionHumanResponded
 		case models.StatusClosed:
 			return models.ActionReopened
 		case models.StatusBacklog:
@@ -459,9 +461,6 @@ func ActionForTransition(from, to models.Status, transType TransitionType) model
 		}
 		return models.ActionBlocked
 	case models.StatusWorking:
-		if from == models.StatusHuman {
-			return models.ActionHumanResponded
-		}
 		return models.ActionClaimed
 	case models.StatusHuman:
 		return models.ActionEscalated

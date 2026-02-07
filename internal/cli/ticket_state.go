@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/spetersoncode/wark/internal/db"
 	"github.com/spetersoncode/wark/internal/models"
@@ -13,11 +12,9 @@ import (
 
 // State command flags
 var (
-	rejectReason     string
-	cancelReason     string
-	closeResolution  string
-	resumeWorkerID   string
-	resumeDuration   int
+	rejectReason    string
+	cancelReason    string
+	closeResolution string
 )
 
 func init() {
@@ -29,10 +26,7 @@ func init() {
 	ticketCloseCmd.Flags().StringVar(&closeResolution, "resolution", "wont_do", "Resolution (completed, wont_do, duplicate, invalid, obsolete)")
 	ticketCloseCmd.Flags().StringVar(&cancelReason, "reason", "", "Reason for closing")
 
-	// ticket resume
-	ticketResumeCmd.Flags().StringVar(&resumeWorkerID, "worker-id", "", "Worker identifier (required)")
-	ticketResumeCmd.MarkFlagRequired("worker-id")
-	ticketResumeCmd.Flags().IntVar(&resumeDuration, "duration", 60, "Claim duration in minutes")
+	// ticket resume (no flags needed - just moves human -> ready)
 
 	// Add subcommands
 	ticketCmd.AddCommand(ticketStartCmd)
@@ -406,16 +400,15 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 // ticket resume
 var ticketResumeCmd = &cobra.Command{
 	Use:   "resume <TICKET>",
-	Short: "Resume work on a ticket after human input",
-	Long: `Resume work on a ticket that is in human status.
+	Short: "Resume a ticket after human input (human → ready)",
+	Long: `Resume a ticket that is in human status.
 
-This command is used when an agent wants to continue work on a ticket
-after a human has provided input via the inbox. It creates a new claim
-and transitions the ticket from human to working status.
+This command is used after a human has responded to an escalated ticket.
+It transitions the ticket from human to ready status, making it available
+for reevaluation and claiming by any agent.
 
 Example:
-  wark ticket resume WEBAPP-42 --worker-id session-abc123
-  wark ticket resume WEBAPP-42 --worker-id session-abc123 --duration 120`,
+  wark ticket resume WEBAPP-42`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTicketResume,
 }
@@ -432,40 +425,31 @@ func runTicketResume(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	workerID := resumeWorkerID
-	if workerID == "" {
-		workerID = GetDefaultWorkerID()
-	}
-	if workerID == "" {
-		return ErrInvalidArgs("--worker-id is required")
-	}
-
-	duration := time.Duration(resumeDuration) * time.Minute
-
 	// Use service layer for resume operation
 	ticketSvc := service.NewTicketService(database.DB)
-	result, err := ticketSvc.Resume(ticket.ID, workerID, duration)
-	if err != nil {
+	if err := ticketSvc.Resume(ticket.ID); err != nil {
 		return translateServiceError(err, ticket.TicketKey)
+	}
+
+	// Re-fetch ticket to get updated state
+	updatedTicket, _ := ticketSvc.GetTicketByID(ticket.ID)
+	if updatedTicket == nil {
+		updatedTicket = ticket
+		updatedTicket.Status = models.StatusReady
 	}
 
 	if IsJSON() {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"ticket":     result.Ticket.TicketKey,
-			"status":     result.Ticket.Status,
-			"worker_id":  workerID,
-			"expires_at": result.Claim.ExpiresAt,
-			"branch":     result.Branch,
-			"resumed":    true,
+			"ticket":  updatedTicket.TicketKey,
+			"status":  updatedTicket.Status,
+			"resumed": true,
 		}, "", "  ")
 		fmt.Println(string(data))
 		return nil
 	}
 
-	OutputLine("Resumed: %s", result.Ticket.TicketKey)
-	OutputLine("Worker: %s", workerID)
-	OutputLine("Expires: %s (%d minutes)", result.Claim.ExpiresAt.Local().Format("15:04:05"), resumeDuration)
-	OutputLine("Branch: %s", result.Branch)
+	OutputLine("Resumed: %s", updatedTicket.TicketKey)
+	OutputLine("Status: %s (ready for claiming)", updatedTicket.Status)
 
 	return nil
 }

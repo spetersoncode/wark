@@ -19,30 +19,43 @@ wark status
 
 This returns counts of tickets by status and any active claims. JSON is the default output format.
 
-**Step 2: Determine your role based on ticket status**
+**Step 2: Load role instructions**
 
-| Condition | Your Role | Next Action |
-|-----------|-----------|-------------|
-| Tickets in `review` status exist | **Reviewer** | Load reviewer reference, process reviews first |
-| Tickets in `ready` status exist | **Coder** | Load coder reference, claim and work on ticket |
-| You have an active claim | **Coder** | Continue working on your claimed ticket |
-| No workable tickets | **Wait** | Inform user there's no work available |
+When you're asked to work with wark or pick up work, first get your role context:
 
-**Priority: Review work takes precedence over new work.** Always clear the review queue before claiming new tickets.
+```bash
+wark role get team-lead
+```
 
-**Step 3: Load the appropriate reference**
+This returns the team-lead role instructions, which guide you on how to coordinate agent work, choose appropriate roles for tickets, and orchestrate sub-agents.
 
-Read the full reference file for detailed workflow instructions using the Read tool:
+**Step 3: Execute the workflow**
 
-- **Coder workflow:** `~/.claude/skills/wark/references/coder.md` — for coding tasks (uses git worktrees)
-- **Worker workflow:** `~/.claude/skills/wark/references/worker.md` — for non-coding tasks (content, research, analysis)
-- **Reviewer workflow:** `~/.claude/skills/wark/references/reviewer.md` — for reviewing completed work
+Follow the instructions from the team-lead role. The team-lead role will guide you to:
+- Check for available work (inbox, workable tickets, reviews)
+- Choose the appropriate role for each ticket (senior-engineer, code-reviewer, debugger, architect, worker)
+- Spawn sub-agents with the right role context
+- Monitor and coordinate ongoing work
 
-Choose Coder vs Worker based on the ticket description. If the ticket involves code changes, use Coder. If it's content generation, research, or analysis without code, use Worker.
+To view all available roles:
 
-**Step 4: Execute the workflow**
+```bash
+wark role list
+```
 
-Follow the instructions in the loaded reference.
+To get instructions for a specific role:
+
+```bash
+wark role get <role-name>
+```
+
+**Available built-in roles:**
+- `team-lead` — Coordinates agent orchestration (your entry point)
+- `senior-engineer` — Production-quality code implementation
+- `code-reviewer` — Critical code review and quality checks
+- `debugger` — Systematic debugging and root cause analysis
+- `architect` — System design and big-picture decisions
+- `worker` — Non-coding tasks (content, research, analysis)
 
 ---
 
